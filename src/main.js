@@ -939,6 +939,13 @@ updateUsage();
 // photo straight from the phone camera: added to the current reading (not replacing it)
 $('camera').addEventListener('change', (e) => { processFiles([...e.target.files], { append: true }); e.target.value = ''; });
 
+// botão "voltar ao topo": aparece depois de rolar a página
+const toTop = $('totop');
+const syncTop = () => { toTop.hidden = window.scrollY < 400; };
+window.addEventListener('scroll', syncTop, { passive: true });
+toTop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
+syncTop();
+
 $('year').value = store.get('year') || new Date().getFullYear();
 $('year').addEventListener('change', () => store.set('year', $('year').value));
 fillLists();

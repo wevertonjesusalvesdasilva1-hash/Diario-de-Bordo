@@ -303,3 +303,10 @@ tr.hl td { animation: hl 2.2s ease; }
 .fcard .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip.static { cursor: default; font: 400 .72rem var(--f-mono); padding: 3px 8px; border: 1px solid var(--line2); color: var(--muted); }
 .fcard button { justify-self: start; padding: 5px 10px; }
+
+/* voltar ao topo */
+.totop { position: fixed; right: 18px; bottom: 112px; z-index: 40; width: 48px; height: 48px; padding: 0; display: grid; place-items: center;
+  background: var(--accent); color: var(--accent-ink); border: 0; box-shadow: var(--glow), 0 4px 14px rgb(0 0 0 / .35); cursor: pointer; }
+.totop svg { width: 22px; height: 22px; }
+.totop:hover { filter: brightness(1.1); }
+@media (max-width: 640px) { .totop { right: 12px; bottom: 150px; } }
