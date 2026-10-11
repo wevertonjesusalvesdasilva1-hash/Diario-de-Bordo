@@ -29,6 +29,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react';
+import PlanejamentoHoraExtra from './components/PlanejamentoHoraExtra';
 import AdminUsers from './components/AdminUsers';
 import LoginScreen from './components/LoginScreen';
 import { useCloudSync } from './lib/useCloudSync';
@@ -136,7 +137,7 @@ export default function App() {
   });
 
   // Main Navigation: 'LEADER' (Visão do Líder) | 'MANAGER' (Visão do Gerente) | 'REPORTS' (Aba de Relatórios & Alertas)
-  const [activeView, setActiveView] = useState<'LEADER' | 'MANAGER' | 'REPORTS'>('LEADER');
+  const [activeView, setActiveView] = useState<'LEADER' | 'MANAGER' | 'REPORTS' | 'PLANNING'>('LEADER');
 
   // Top-left 3-dots menu state + inline reset confirmation
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
@@ -1166,6 +1167,8 @@ export default function App() {
                           ? 'MANAGER'
                           : activeView === 'MANAGER'
                           ? 'REPORTS'
+                          : activeView === 'REPORTS'
+                          ? 'PLANNING'
                           : 'LEADER'
                       )
                     }
@@ -1175,7 +1178,9 @@ export default function App() {
                       ? 'Visão do Líder'
                       : activeView === 'MANAGER'
                       ? 'Visão do Gerente'
-                      : 'Aba de Relatórios'}
+                      : activeView === 'REPORTS'
+                      ? 'Aba de Relatórios'
+                      : 'Planejamento Hora Extra'}
                   </button>
                 </div>
                 <p className="text-[11px] text-slate-400 truncate">
@@ -1183,7 +1188,9 @@ export default function App() {
                     ? 'Diário de bordo por colaborador'
                     : activeView === 'MANAGER'
                     ? 'Acompanhamento e linha do tempo do dia'
-                    : 'Cards de alerta, gargalos e gráficos'}
+                    : activeView === 'REPORTS'
+                    ? 'Cards de alerta, gargalos e gráficos'
+                    : 'Resumo para impressão em A3'}
                 </p>
               </div>
             </div>
@@ -1377,6 +1384,25 @@ export default function App() {
                 <span>3. Aba de Relatórios & Alertas</span>
               </span>
               {activeView === 'REPORTS' && <Check className="w-4 h-4 stroke-[2.5]" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveView('PLANNING');
+                setIsMenuOpen(false);
+              }}
+              className={`w-full min-h-[42px] px-3 py-2 rounded-xl text-left text-sm font-bold flex items-center justify-between mt-1 transition-colors ${
+                activeView === 'PLANNING'
+                  ? 'bg-emerald-500 text-slate-950'
+                  : 'text-emerald-300 hover:bg-slate-800'
+              }`}
+            >
+              <span className="flex items-center gap-2.5">
+                <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                <span>4. Planejamento Hora Extra</span>
+              </span>
+              {activeView === 'PLANNING' && <Check className="w-4 h-4 stroke-[2.5]" />}
             </button>
 
             <div className="border-t border-slate-800 my-2" />
@@ -2351,6 +2377,14 @@ export default function App() {
         {/* =========================================================
             3. ABA DE RELATÓRIOS, GRÁFICOS E CARDS DE ALERTA
            ========================================================= */}
+        {activeView === 'PLANNING' && (
+          <PlanejamentoHoraExtra
+            records={records}
+            selectedDate={selectedDate}
+            onUpload={() => fileInputRef.current?.click()}
+          />
+        )}
+
         {activeView === 'REPORTS' && (
           <ManagerReportsView
             records={recordsFilteredByLeader}
