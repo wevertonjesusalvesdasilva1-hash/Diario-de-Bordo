@@ -282,24 +282,31 @@ export default function App() {
     return records.filter((r) => matchesSelectedLeader(r.lider, selectedLeader));
   }, [records, selectedLeader]);
 
+  // Lista TODOS os dias da planilha; os contadores respeitam o líder selecionado (0 se ele não tem equipe no dia).
   const shiftGroups = useMemo<ShiftGroup[]>(() => {
-    const sourceRecords = recordsFilteredByLeader.length > 0 ? recordsFilteredByLeader : records;
-    const map = new Map<string, OvertimeRecord[]>();
-    for (const r of sourceRecords) {
-      const list = map.get(r.data) || [];
+    const allByDate = new Map<string, OvertimeRecord[]>();
+    for (const r of records) {
+      const list = allByDate.get(r.data) || [];
       list.push(r);
-      map.set(r.data, list);
+      allByDate.set(r.data, list);
+    }
+    const scoped = new Map<string, OvertimeRecord[]>();
+    for (const r of recordsFilteredByLeader) {
+      const list = scoped.get(r.data) || [];
+      list.push(r);
+      scoped.set(r.data, list);
     }
 
     const groups: ShiftGroup[] = [];
-    map.forEach((groupRecords, data) => {
+    allByDate.forEach((allRecords, data) => {
+      const groupRecords = scoped.get(data) || [];
       const presentes = groupRecords.filter((r) => r.status === AttendanceStatus.Presente).length;
       const ausentes = groupRecords.filter((r) => r.status === AttendanceStatus.Ausente).length;
       const pendentes = groupRecords.filter((r) => r.status === AttendanceStatus.Pendente).length;
-      const locals = Array.from(new Set(groupRecords.map((r) => r.local).filter(Boolean)));
+      const locals = Array.from(new Set(allRecords.map((r) => r.local).filter(Boolean)));
       groups.push({
         data,
-        dataSortKey: groupRecords[0]?.dataSortKey || data,
+        dataSortKey: allRecords[0]?.dataSortKey || data,
         weekdayLabel: getWeekdayLabel(data),
         total: groupRecords.length,
         presentes,
@@ -2676,6 +2683,7 @@ export default function App() {
                 <h2 className="text-base font-bold text-white">Selecionar Turno (Data)</h2>
                 <p className="text-xs text-slate-400">
                   Escolha o dia da escala para visualizar ou apontar
+                  {selectedLeader !== 'ALL' && ` · contadores do líder: ${selectedLeader}`}
                 </p>
               </div>
               <button
@@ -2725,7 +2733,7 @@ export default function App() {
                           : 'bg-slate-900 text-slate-300 border border-slate-800'
                       }`}
                     >
-                      {group.pendentes === 0 ? 'Concluído' : `${group.pendentes} pend.`}
+                      {group.total === 0 ? 'Sem equipe' : group.pendentes === 0 ? 'Concluído' : `${group.pendentes} pend.`}
                     </div>
                   </button>
                 );
