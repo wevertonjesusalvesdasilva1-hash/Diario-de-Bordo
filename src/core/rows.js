@@ -92,16 +92,61 @@ export function reconcile(A, B) {
   };
 }
 
+// ------------------------------------------------------------------ third reading
+
+const CRITICAL = new Set(['chapa', 'chapa1', 'chapa2', 'chapa3', 'ini', 'fim', 'ini1', 'fim1', 'ini2', 'fim2', 'ini3', 'fim3']);
+
+// Printed row positions: the model sometimes numbers rows with the handwritten N°. When the pixels show
+// exactly as many written rows as were read, rows are mapped to those positions (in reading order).
+export function alignJson(json, rowInk) {
+  const one = (rows, inkRows) => { if (inkRows && rows.length === inkRows.length) rows.forEach((r, i) => { r.linha = inkRows[i] + 1; }); };
+  one(json.producao ?? [], rowInk?.prodRows);
+  one(json.paradas ?? [], rowInk?.stopRows);
+}
+
+// Rows where the first two readings disagree on a chapa or a time: [{ id, tabela, linha, campos }]
+export function collectAsk(json, maxRows = 8) {
+  const ask = [];
+  const take = (rows, tabela) => {
+    for (const r of rows ?? []) {
+      const campos = Object.keys(r.alt ?? {}).filter((k) => CRITICAL.has(k));
+      if (campos.length && r.linha >= 1) ask.push({ id: `${tabela === 'prod' ? 'P' : 'S'}${r.linha}`, tabela, linha: r.linha, campos });
+    }
+  };
+  take(json.producao, 'prod'); take(json.paradas, 'stops');
+  return ask.slice(0, maxRows);
+}
+
+// Majority vote per cell. answers: [{ id, campos: [{ campo, valor }] }]
+export function applyThirdReading(json, answers) {
+  const byId = new Map((answers ?? []).map((a) => [a.id, a]));
+  const vote = (rows, tabela) => {
+    for (const r of rows ?? []) {
+      const ans = byId.get(`${tabela === 'prod' ? 'P' : 'S'}${r.linha}`);
+      if (!ans) continue;
+      r.votos ??= {};
+      for (const { campo, valor } of ans.campos ?? []) {
+        if (!(campo in (r.alt ?? {}))) continue;
+        const va = r[campo], vb = r.alt[campo], vc = valor ?? null;
+        if (vc != null && canon(campo, vc) === canon(campo, va)) { delete r.alt[campo]; delete r.votos[campo]; }          // 2 of 3 agree with the 1st
+        else if (vc != null && canon(campo, vc) === canon(campo, vb)) { r[campo] = vb; r.alt[campo] = va; r.votos[campo] = `2 de 3 leituras: "${vb}" (a 1ª leu "${va ?? ''}")`; }
+        else r.votos[campo] = `3 leituras diferentes: "${va ?? ''}", "${vb ?? ''}" e "${vc ?? 'ilegível'}". Confira na folha`;
+      }
+    }
+  };
+  vote(json.producao, 'prod'); vote(json.paradas, 'stops');
+}
+
 // ------------------------------------------------------------------ normalise
 
 const norm = (fn, v, ...rest) => (v == null || v === '' ? { value: '', flag: null } : fn(String(v), ...rest));
 
-function put(row, key, res, { doubt, alt }) {
+function put(row, key, res, { doubt, alt, voto }) {
   row[key] = res.value;
   const parts = [];
   if (res.flag) parts.push(res.flag);
-  if (alt != null && alt !== '') parts.push(`2ª leitura: "${alt}"`);
-  else if (alt === '' || alt === null) { /* other reading was empty: ignore */ }
+  if (voto) parts.push(voto);
+  else if (alt != null && alt !== '') parts.push(`2ª leitura: "${alt}"`);
   if (!parts.length && doubt) parts.push('IA em dúvida');
   if (parts.length) row.flags[key] = parts.join(' · ');
 }
@@ -117,9 +162,9 @@ export function buildPage(json, { year, meta = {} }) {
   const prod = [];
   for (const r of json.producao ?? []) {
     const d = new Set(r.duvidas ?? []);
-    const row = { linha: r.linha, flags: {}, raw: {}, learned: {} };
+    const row = { linha: r.linha, flags: {}, raw: {}, learned: {}, alt: { ...(r.alt ?? {}) } };
     const alt = r.alt ?? {};
-    const f = (k) => ({ doubt: d.has(k) || (k === 'turno_finalizou' && d.has('turno')), alt: alt[k] });
+    const f = (k) => ({ doubt: d.has(k) || (k === 'turno_finalizou' && d.has('turno')), alt: alt[k], voto: r.votos?.[k] });
     put(row, 'data', norm(normDate, r.data, year), f('data'));
     row.raw.peca = r.peca; put(row, 'peca', norm(normPeca, learned('peca', r.peca, row, 'peca')), f('peca'));
     row.raw.modelo = r.modelo; put(row, 'modelo', norm(normModelo, learned('modelo', r.modelo, row, 'modelo')), f('modelo'));
@@ -139,9 +184,9 @@ export function buildPage(json, { year, meta = {} }) {
   const stops = [];
   for (const r of json.paradas ?? []) {
     const d = new Set(r.duvidas ?? []);
-    const row = { linha: r.linha, flags: {}, raw: {}, learned: {} };
+    const row = { linha: r.linha, flags: {}, raw: {}, learned: {}, alt: { ...(r.alt ?? {}) } };
     const alt = r.alt ?? {};
-    const f = (k) => ({ doubt: d.has(k), alt: alt[k] });
+    const f = (k) => ({ doubt: d.has(k), alt: alt[k], voto: r.votos?.[k] });
     put(row, 'data', norm(normDate, r.data, year), f('data'));
     row.raw.chapa = r.chapa; put(row, 'chapa', norm(normChapa, learned('chapa', r.chapa, row, 'chapa')), f('chapa'));
     put(row, 'ini', norm(normTime, r.ini), f('ini'));

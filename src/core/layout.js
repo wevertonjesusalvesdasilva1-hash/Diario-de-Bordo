@@ -1,6 +1,6 @@
 // Geometry of the "DIÁRIO DE BORDO – PRODUÇÃO E PARADAS" form.
 // REF_* values were measured on an A4 landscape scan at 150 dpi.
-import { rotate, rotateSmall, estimateSkew, masks, peaks, colSums, rowSums, inkIn } from './image.js';
+import { rotate, rotateSmall, estimateSkew, cropToPaper, trimDarkEdges, masks, peaks, colSums, rowSums, inkIn } from './image.js';
 
 const REF = {
   left: 7,
@@ -77,11 +77,16 @@ function snap(pred, found, tol) {
 }
 
 // Returns the upright image plus all the cell rectangles.
-export function analyze(imgIn) {
-  const q = detectRotation(imgIn);
-  const turned = rotate(imgIn, q);
-  const skew = estimateSkew(turned);
-  const img = rotateSmall(turned, skew);
+export function analyze(imgIn, { photo = false } = {}) {
+  // A hand-held photo can be tilted by several degrees, which smears the black title bars that the
+  // orientation test looks for: straighten it first (the skew estimate works modulo 90°), then orient.
+  // (corners left by the rotation are filled dark so the paper can be cropped again, tightly)
+  const straight = photo ? rotateSmall(imgIn, estimateSkew(imgIn, 12, { thin: true }), 40) : imgIn;
+  const q = detectRotation(straight);
+  const turned = rotate(straight, q);
+  const skew = estimateSkew(turned, photo ? 1.5 : 3, { thin: photo });
+  const fine = rotateSmall(turned, skew, photo ? 40 : 255);
+  const img = photo ? trimDarkEdges(cropToPaper(fine)) : fine;
   const m = masks(img);
   const { width: w, height: h, dark } = m;
   const sc = w / 1754;
@@ -100,8 +105,7 @@ export function analyze(imgIn) {
   };
   // Pairs each expected line with a detected one (monotonic, minimum total distance), ignoring
   // spurious lines such as stamps or long strokes. Returns null when a line cannot be found.
-  const matchLines = (found, ref) => {
-    if (found.length === ref.length) return found; // exactly the expected lines: take them as they are
+  const matchOne = (found, ref) => {
     if (found.length < ref.length) return null;
     const first = found[0], last = found.at(-1);
     const k = (last - first) / (ref.at(-1) - ref[0]);
@@ -124,7 +128,21 @@ export function analyze(imgIn) {
     for (let i = n, j = m; i > 0 && j > 0;) {
       if (from[i][j]) { out.unshift(found[j - 1]); i--; j--; } else j--;
     }
-    return out.length === n ? out : null;
+    return out.length === n ? { out, cost: dp[n][m] } : null;
+  };
+  // The outermost detected lines can be page edges or shadows (photos): try dropping up to two at each end
+  // and keep the assignment that fits the form best.
+  const matchLines = (found, ref) => {
+    if (found.length === ref.length) return found; // exactly the expected lines: take them as they are
+    let best = null;
+    for (let a = 0; a <= 2; a++) {
+      for (let z = 0; z <= 2; z++) {
+        const sub = found.slice(a, found.length - z);
+        const r = matchOne(sub, ref);
+        if (r && (!best || r.cost < best.cost)) best = r;
+      }
+    }
+    return best ? best.out : null;
   };
   const rawProd = vLines(bar1), rawStop = vLines(bar2);
   let prodX = matchLines(rawProd, REF.prodX), stopX = matchLines(rawStop, REF.stopX);

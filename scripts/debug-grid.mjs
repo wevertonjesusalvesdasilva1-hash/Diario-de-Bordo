@@ -4,7 +4,11 @@ import { PNG } from 'pngjs';
 import { analyze, detectMachine } from '../src/core/layout.js';
 
 const png = PNG.sync.read(fs.readFileSync(process.argv[2]));
-const lay = analyze({ width: png.width, height: png.height, data: new Uint8ClampedArray(png.data) });
+import { cropToPaper } from '../src/core/image.js';
+const photo = !!process.env.PHOTO;
+let src = { width: png.width, height: png.height, data: new Uint8ClampedArray(png.data) };
+if (photo) src = cropToPaper(src);
+const lay = analyze(src, { photo });
 const { img, prodX, prodY, stopX, stopY } = lay;
 console.log('rotation', lay.rotation, 'skew', lay.skew, 'size', img.width, img.height, detectMachine(lay));
 const out = new PNG({ width: img.width, height: img.height });

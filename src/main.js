@@ -1,9 +1,11 @@
 import { readFiles, toCanvas, jpegB64, jpegUrl } from './files.js';
 import { analyze, detectMachine } from './core/layout.js';
 import { analyze as analyseSheets, compactForAI, fmtDur } from './core/analysis.js';
-import { inkIn } from './core/image.js';
+import { inkIn, cropToPaper } from './core/image.js';
 import { readSheet } from './core/gemini.js';
-import { buildPage, reconcile, applyInkMotivo, alignRows } from './core/rows.js';
+import { apiPost, checkLogin, login } from './api.js';
+import { usageText, nearLimit, getLimit, setLimit, quotaHit, clearQuota } from './usage.js';
+import { buildPage, reconcile, applyInkMotivo, alignRows, alignJson, collectAsk, applyThirdReading } from './core/rows.js';
 import { allRows, toTSV, workbookBytes } from './core/export.js';
 import { getLists, saveLists, learnAlias, resetLists } from './core/lists.js';
 import { saveState, loadState } from './store.js';
@@ -46,7 +48,7 @@ let saveTimer;
 function persist(delay = 400) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, prod, stops }) => ({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, prod, stops }));
+    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops }) => ({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops }));
     saveState({ pages: keep, nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig, ai: Array.isArray(state.ai) ? state.ai : null });
   }, delay);
 }
@@ -59,6 +61,7 @@ async function restore() {
   for (const p of saved.pages) {
     if (p.status === 'erro') p.error = `${p.error || 'Erro'} (envie o arquivo de novo para repetir)`;
     p.file ??= String(p.label).split(' · pág.')[0];
+    p.pending = false;
     state.pages.push(p);
     $('pages').append(h('section', { class: 'card page', id: `page-${p.id}` }));
     renderPage(p);
@@ -73,12 +76,13 @@ async function restore() {
 
 // ---------------------------------------------------------------- reading a page
 
-function prepare(image) {
+function prepare(imageIn, { photo = false } = {}) {
+  const image = photo ? cropToPaper(imageIn) : imageIn;
   let lay = null;
-  try { lay = analyze(image); } catch (e) { console.warn('layout', e); }
+  try { lay = analyze(image, { photo }); } catch (e) { console.warn('layout', e); }
   if (!lay) {
     const full = toCanvas(image, 0, 0, image.width, image.height, 2000);
-    return { A: [jpegB64(full, 0.88)], B: [jpegB64(full, 0.9)], strips: { prod: [], stops: [] }, bubble: '', inkMotivo: [], geomOk: false, rowInk: null };
+    return { A: [jpegB64(full, 0.88)], B: [jpegB64(full, 0.9)], strips: { prod: [], stops: [] }, bubble: '', inkMotivo: [], geomOk: false, rowInk: null, crop: null };
   }
   const { img, prodX, prodY, stopX, stopY, scale: sc } = lay;
   const full = toCanvas(img, 0, 0, img.width, img.height, 2000);
@@ -104,7 +108,13 @@ function prepare(image) {
     prodTurno: prodY.slice(0, -1).map((_, r) => cellInk(prodX, prodY, r, [13]) > min),
     stopTurno: stopY.slice(0, -1).map((_, r) => cellInk(stopX, stopY, r, [5]) > min),
   } : null;
+  const meta = (xs, ys) => {
+    const x0 = xs[0] - 2, W = xs.at(-1) - xs[0] + 4;
+    const rowH = (ys.at(-1) - ys[0]) / (ys.length - 1) + 4;
+    return { cols: xs.slice(0, -1).map((x, i) => [(x - x0) / W, (xs[i + 1] - x0) / W]), aspect: W / rowH };
+  };
   return {
+    crop: lay.geomOk ? { prod: meta(prodX, prodY), stops: meta(stopX, stopY) } : null,
     rowInk,
     // the X column is only trusted when the printed grid was recognised on this sheet
     inkMotivo: lay.geomOk ? inkMotivo : [],
@@ -122,7 +132,7 @@ function hints() {
 }
 
 async function readPage(p) {
-  p.status = 'lendo'; p.error = ''; renderPage(p);
+  p.status = 'lendo'; p.error = ''; p.pending = false; renderPage(p);
   const sec = secrets.get(p.id);
   if (!sec) { p.status = 'erro'; p.error = 'Envie o arquivo de novo para ler esta folha'; renderPage(p); return; }
   try {
@@ -133,18 +143,34 @@ async function readPage(p) {
     if (a.status === 'rejected' && b.status === 'rejected') throw a.reason;
     const single = a.status === 'rejected' || b.status === 'rejected';
     const json = single ? (a.status === 'fulfilled' ? a.value : b.value) : reconcile(a.value, b.value);
+    // third reading, only for the cells where the first two readings disagree on a chapa or a time
+    p.third = 0;
+    if (!single) {
+      alignJson(json, sec.rowInk);
+      const ask = collectAsk(json);
+      const withStrip = ask.filter((x) => (x.tabela === 'prod' ? sec.strips.prod : sec.strips.stops)[x.linha - 1]);
+      if (withStrip.length) {
+        try {
+          const images = withStrip.map((x) => (x.tabela === 'prod' ? sec.strips.prod : sec.strips.stops)[x.linha - 1].split(',')[1]);
+          const c = await readSheet({ images, pass: 'C', hints: hints(), extra: { ask: withStrip } });
+          applyThirdReading(json, c.respostas);
+          p.third = withStrip.length;
+        } catch (e) { /* the two readings stand; the divergences stay flagged */ if (e.quota) state.quotaHit = true; }
+      }
+    }
     const built = buildPage(json, { year: Number($('year').value) || new Date().getFullYear(), meta: { machineFromBubble: sec.bubble } });
     const rowWarns = alignRows(built, sec.rowInk);
     applyInkMotivo(built, sec.inkMotivo);
-    Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk, rowWarn: rowWarns.join('; ') });
+    Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk, rowWarn: rowWarns.join('; '), crop: sec.crop });
     for (const r of p.prod) r.strip = sec.strips.prod[r.linha - 1];
     for (const r of p.stops) r.strip = sec.strips.stops[r.linha - 1];
     p.include = true;
     markDuplicates();
   } catch (e) {
     p.status = 'erro'; p.error = e.message;
+    if (e.quota) { state.quotaHit = true; p.pending = true; }
   }
-  renderPage(p); updateSummary(); persist();
+  renderPage(p); updateSummary(); persist(); updateQuotaUi();
 }
 
 function signature(p) {
@@ -164,11 +190,12 @@ function markDuplicates() {
   state.pages.forEach((p) => { if (p.status === 'ok') renderPage(p); });
 }
 
-async function processFiles(files) {
+async function processFiles(files, { append = false } = {}) {
   if (state.busy) return toast('Aguarde a leitura atual terminar');
   state.busy = true;
   // Only the file being uploaded now is analysed: whatever was loaded before is removed.
-  if (state.pages.length) {
+  state.quotaHit = false;
+  if (state.pages.length && !append) {
     for (const p of state.pages) secrets.delete(p.id);
     state.pages = []; $('pages').replaceChildren();
     toast('Leitura anterior removida. A análise vale só para o arquivo que você enviou agora.');
@@ -182,15 +209,20 @@ async function processFiles(files) {
       n++;
       st.replaceChildren(h('div', {}, `Lendo ${item.name}, página ${item.page}${item.total > 1 ? ` de ${item.total}` : ''}… não feche esta aba.`), h('progress', { max: item.total, value: item.page - 1 }));
       await new Promise((r) => setTimeout(r)); // let the browser paint
-      const prep = prepare(item.image);
+      const prep = prepare(item.image, { photo: !!item.photo });
       if (item.page === 1) state.batch++;
       const p = { id: state.nextId++, batch: state.batch, file: item.name, label: `${item.name} · pág. ${item.page}`, status: 'lendo', error: '', machine: '', date: '', include: false, prod: [], stops: [] };
       secrets.set(p.id, prep);
       state.pages.push(p);
       $('pages').append(h('section', { class: 'card page', id: `page-${p.id}` }));
-      await readPage(p);
+      if (state.quotaHit) {
+        // the free quota ran out: keep the prepared page and let the person resume later
+        p.status = 'erro'; p.pending = true; p.error = 'Aguardando a cota do Gemini voltar. Use "Retomar leitura".';
+        renderPage(p); persist();
+      } else await readPage(p);
     }
-    toast(n ? 'Leitura concluída. Confira as células destacadas.' : 'Nenhuma página encontrada nos arquivos');
+    updateQuotaUi();
+    toast(state.quotaHit ? 'A cota do Gemini acabou no meio da leitura. O que faltou ficou aguardando: use "Retomar leitura" quando ela voltar.' : n ? 'Leitura concluída. Confira as células destacadas.' : 'Nenhuma página encontrada nos arquivos');
   } catch (e) {
     toast(`Erro ao abrir arquivo: ${e.message}`);
   } finally {
@@ -260,6 +292,7 @@ function renderPage(p) {
       p.single ? h('span', { class: 'tag bad' }, 'só 1 leitura (a outra falhou)') : null,
       p.geomWarn ? h('span', { class: 'tag' }, 'grade da folha não reconhecida: confira os motivos') : null,
       p.rowWarn ? h('span', { class: 'tag bad' }, p.rowWarn) : null,
+      p.third ? h('span', { class: 'tag' }, `3ª leitura em ${p.third} linha(s)`) : null,
       p.dup ? h('span', { class: 'tag bad' }, p.dup) : null,
       p.status === 'ok' ? h('span', { class: 'meta' }, `${p.prod.length} produção · ${p.stops.length} paradas`) : null,
       flags ? h('span', { class: 'tag' }, `${flags} para conferir`) : null),
@@ -301,7 +334,11 @@ function updateSummary() {
   const all = okPages().length;
   $('selcount').textContent = all ? `${inc.length} de ${all} folha(s) selecionada(s)` : '';
   $('xlsx').disabled = !inc.length;
+  $('quick').textContent = flags ? `Revisão rápida (${flags})` : 'Revisão rápida';
   $('xlsxall').textContent = `Baixar Excel com todas (${all})`;
+  const nRaw = groupPages('raw').length, nUsi = groupPages('usi').length;
+  $('xlsxraw').hidden = !(nRaw && nUsi); $('xlsxusi').hidden = !(nRaw && nUsi);
+  $('xlsxraw').textContent = `Excel só RAW (${nRaw})`; $('xlsxusi').textContent = `Excel só usinagem (${nUsi})`;
   $('s-folhas').textContent = inc.length;
   $('s-prod').textContent = prod.length;
   $('s-stops').textContent = stops.length;
@@ -334,31 +371,32 @@ document.addEventListener('change', (e) => {
   if (d?.act === 'include') { const p = pageOf(d.p); p.include = e.target.checked; renderPage(p); updateSummary(); persist(); return; }
   if (d?.f && e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true }));
   // teach the app: what the model read → what the person typed
-  const kind = LEARN[d?.f];
-  if (kind) {
-    const row = pageOf(d.p)?.[d.k]?.[Number(d.r)];
-    const raw = row?.raw?.[d.f];
-    const value = e.target.value.trim();
-    if (raw && value && String(raw).replace(/\s/g, '').toUpperCase() !== value.replace(/\s/g, '').toUpperCase()) {
-      const fixed = kind === 'chapa' ? value.replace(/\D/g, '') : value.toUpperCase();
-      learnAlias(kind, raw, fixed);
-      const same = (x) => String(x ?? '').replace(/\s/g, '').toUpperCase() === String(raw).replace(/\s/g, '').toUpperCase();
-      let n = 0;
-      for (const pg of state.pages) {
-        for (const tbl of [pg.prod, pg.stops]) {
-          for (const r of tbl) {
-            for (const f of Object.keys(LEARN)) {
-              if (LEARN[f] === kind && same(r.raw?.[f]) && r[f] !== fixed) { r[f] = fixed; delete r.flags[f]; n++; }
-            }
-          }
-        }
-        if (pg.status === 'ok') renderPage(pg);
-      }
-      toast(`Aprendi: "${raw}" → "${fixed}"${n > 1 ? `. Corrigi mais ${n - 1} linha(s) igual(is)` : ''}. Da próxima vez corrijo sozinho.`);
-      showLearned(); updateSummary(); persist();
-    }
-  }
+  if (LEARN[d?.f]) learnFromEdit(pageOf(d.p)?.[d.k]?.[Number(d.r)], d.f, e.target.value.trim());
 });
+
+// What the model read → what the person typed: remembered, and applied to the other rows of the sheet.
+function learnFromEdit(row, field, value) {
+  const kind = LEARN[field];
+  const raw = row?.raw?.[field];
+  if (!kind || !raw || !value) return;
+  if (String(raw).replace(/\s/g, '').toUpperCase() === value.replace(/\s/g, '').toUpperCase()) return;
+  const fixed = kind === 'chapa' ? value.replace(/\D/g, '') : value.toUpperCase();
+  learnAlias(kind, raw, fixed);
+  const same = (x) => String(x ?? '').replace(/\s/g, '').toUpperCase() === String(raw).replace(/\s/g, '').toUpperCase();
+  let n = 0;
+  for (const pg of state.pages) {
+    for (const tbl of [pg.prod, pg.stops]) {
+      for (const r of tbl) {
+        for (const f of Object.keys(LEARN)) {
+          if (LEARN[f] === kind && same(r.raw?.[f]) && r[f] !== fixed) { r[f] = fixed; delete r.flags[f]; n++; }
+        }
+      }
+    }
+    if (pg.status === 'ok') renderPage(pg);
+  }
+  toast(`Aprendi: "${raw}" → "${fixed}"${n > 1 ? `. Corrigi mais ${n - 1} linha(s) igual(is)` : ''}. Da próxima vez corrijo sozinho.`);
+  showLearned(); updateSummary(); persist();
+}
 
 document.addEventListener('click', (e) => {
   const img = e.target.closest('img[data-zoom]');
@@ -396,16 +434,23 @@ $('copystop').addEventListener('click', () => { const inc = exportable(); if (in
 // the ANÁLISE sheet is added only when the analysed sheets are exactly the ones being exported
 function analysisFor(pages) {
   const inc = includedPages();
-  return state.reviewed && state.analysis && pages.length === inc.length && pages.every((p) => inc.includes(p)) ? state.analysis : null;
+  if (!state.reviewed || !state.analysis || !pages.length || !pages.every((p) => inc.includes(p))) return null;
+  if (pages.length === inc.length) return state.analysis;       // exactly what was approved, with the AI points
+  return analyseSheets(pages);                                    // a group of the approved sheets
 }
-function downloadExcel(pages) {
+function downloadExcel(pages, tag = '') {
   const blob = new Blob([workbookBytes(pages, analysisFor(pages))], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const a = h('a', { href: URL.createObjectURL(blob), download: `maple-tapping-${new Date().toISOString().slice(0, 10)}.xlsx` });
+  const a = h('a', { href: URL.createObjectURL(blob), download: `maple-tapping${tag ? `-${tag}` : ''}-${new Date().toISOString().slice(0, 10)}.xlsx` });
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 $('xlsx').addEventListener('click', () => { const inc = exportable(); if (inc) downloadExcel(inc); });
 // every sheet that was read, whether or not it is ticked
+// RAW and machining go to separate files (they live in different bases)
+const groupOf = (m) => (/^RAW/.test(m) ? 'raw' : /^(UMC|HMC|NCBZ)/.test(m) ? 'usi' : 'none');
+const groupPages = (g) => includedPages().filter((p) => groupOf(p.machine) === g);
+$('xlsxraw').addEventListener('click', () => { const l = groupPages('raw'); l.length ? downloadExcel(l, 'RAW') : toast('Nenhuma folha RAW selecionada'); });
+$('xlsxusi').addEventListener('click', () => { const l = groupPages('usi'); l.length ? downloadExcel(l, 'usinagem') : toast('Nenhuma folha de usinagem selecionada'); });
 $('xlsxall').addEventListener('click', () => {
   const all = okPages();
   if (!all.length) return toast('Nenhuma folha lida para exportar');
@@ -481,7 +526,7 @@ function giveOk() {
 
 async function fetchAI(a) {
   try {
-    const res = await fetch('/api/analyze', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ resumo: compactForAI(a) }) });
+    const res = await apiPost('/api/analyze', { resumo: compactForAI(a) });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Erro ${res.status}`);
     if (state.analysis !== a) return; // the OK was withdrawn meanwhile
@@ -608,6 +653,127 @@ const drop = $('drop');
 drop.addEventListener('drop', (e) => processFiles([...e.dataTransfer.files]));
 $('files').addEventListener('change', (e) => { processFiles([...e.target.files]); e.target.value = ''; });
 
+// ---------------------------------------------------------------- revisão rápida
+const CELLCOL = {
+  prod: { data: 1, peca: 2, modelo: 3, chapa1: 4, ini1: 5, fim1: 6, chapa2: 7, ini2: 8, fim2: 9, chapa3: 10, ini3: 11, fim3: 12, turno: 13, obs: 14 },
+  stops: { data: 1, chapa: 2, ini: 3, fim: 4, turno: 5, motivo: [6, 15], desc: 16 },
+};
+const FIELD_NAME = { data: 'DATA', peca: 'PEÇA', modelo: 'MODELO', chapa1: 'CHAPA (1º turno)', ini1: 'INÍCIO (1º turno)', fim1: 'FIM (1º turno)', chapa2: 'CHAPA (2º turno)', ini2: 'INÍCIO (2º turno)', fim2: 'FIM (2º turno)', chapa3: 'CHAPA (3º turno)', ini3: 'INÍCIO (3º turno)', fim3: 'FIM (3º turno)', turno: 'TURNO', obs: 'OBSERVAÇÕES', chapa: 'CHAPA', ini: 'INÍCIO', fim: 'FIM', motivo: 'MOTIVO', desc: 'DESCRIÇÃO' };
+const qr = { items: [], i: 0, touched: new Set() };
+
+function reviewItems() {
+  const items = [];
+  for (const p of includedPages()) {
+    for (const kind of ['prod', 'stops']) {
+      p[kind].forEach((row, ri) => {
+        const keys = Object.keys(row.flags ?? {}).filter((k) => k in (CELLCOL[kind]));
+        for (const field of keys) items.push({ p, kind, ri, row, field });
+        if (row.rowFlag) items.push({ p, kind, ri, row, field: null });
+      });
+    }
+  }
+  return items;
+}
+
+function cellView(p, kind, row, field) {
+  const meta = p.crop?.[kind];
+  const spec = CELLCOL[kind][field];
+  if (!row.strip || !meta || spec == null) return null;
+  const [c0, c1] = Array.isArray(spec) ? spec : [spec, spec];
+  const f0 = Math.max(0, meta.cols[c0][0] - 0.012), f1 = Math.min(1, meta.cols[c1][1] + 0.012);
+  const d = f1 - f0;
+  const ar = d * meta.aspect;
+  return h('div', { class: 'cellzoom', style: `width:min(100%, ${Math.round(150 * ar)}px); aspect-ratio:${ar}; background-image:url(${row.strip}); background-size:${(100 / d).toFixed(2)}% auto; background-position:${((f0 / (1 - d)) * 100).toFixed(2)}% 0` });
+}
+
+function suggestionChips(row, field) {
+  const out = [];
+  const add = (v, label) => { if (v != null && String(v).trim() && !out.some((o) => o.v === String(v))) out.push({ v: String(v), label }); };
+  if (row.alt?.[field] != null) add(row.alt[field], `2ª leitura: ${row.alt[field]}`);
+  if (/^chapa/.test(field)) for (const m of String(row.flags[field] ?? '').match(/\b\d{4,6}\b/g) ?? []) add(m, m);
+  return out.filter((c) => c.v !== String(row[field] ?? ''));
+}
+
+function renderQR() {
+  const body = $('qrbody');
+  const it = qr.items[qr.i];
+  $('qrcount').textContent = qr.items.length ? `${Math.min(qr.i + 1, qr.items.length)} de ${qr.items.length}` : '';
+  if (!it) {
+    body.replaceChildren(h('div', { class: 'qrdone' }, h('p', { class: 'big' }, qr.items.length ? 'Todas as células marcadas foram vistas.' : 'Nenhuma célula marcada para revisar.'),
+      h('p', { class: 'note' }, 'Se está tudo conforme a folha, feche e dê o OK para gerar a análise.'), h('button', { type: 'button', class: 'primary', dataset: { qr: 'close' } }, 'Fechar')));
+    return;
+  }
+  const { p, kind, row, field } = it;
+  const where = h('div', { class: 'qrwhere' }, `${p.label} · `, h('b', {}, kind === 'prod' ? 'Produção' : 'Paradas'), ` · linha ${row.linha || it.ri + 1}${field ? ' · ' : ''}`, field ? h('b', {}, FIELD_NAME[field] ?? field) : null);
+  const why = h('div', { class: 'qrwhy' }, field ? row.flags[field] : row.rowFlag);
+  const zoom = field ? cellView(p, kind, row, field) : null;
+  const ctx = row.strip ? h('img', { class: 'qrctx', src: row.strip, alt: 'Linha inteira da folha' }) : null;
+  let input = null, chips = null;
+  if (field) {
+    input = field === 'motivo'
+      ? h('select', { id: 'qrinput' }, h('option', { value: '' }, '—'), [...MOTIVOS, ...(row.motivo && !MOTIVOS.includes(row.motivo) ? [row.motivo] : [])].map((m) => h('option', { value: m, selected: m === row.motivo }, m)))
+      : h('input', { id: 'qrinput', type: 'text', value: row[field] ?? '', spellcheck: false, autocomplete: 'off' });
+    const sugg = suggestionChips(row, field);
+    chips = sugg.length ? h('div', { class: 'chips' }, h('span', { class: 'note' }, 'Outras leituras:'), sugg.map((c) => h('button', { type: 'button', class: 'chip', dataset: { qr: 'chip', v: c.v } }, c.label))) : null;
+  }
+  body.replaceChildren(...[where, why, zoom, ctx,
+    h('div', { class: 'qrinput' }, input, h('button', { type: 'button', class: 'primary', dataset: { qr: 'ok' } }, field ? 'Confirmar (Enter)' : 'Linha vista (Enter)')),
+    chips,
+    h('div', { class: 'row qrkeys' }, h('button', { type: 'button', class: 'ghost', dataset: { qr: 'prev' }, disabled: qr.i === 0 }, 'Voltar'), h('button', { type: 'button', class: 'ghost', dataset: { qr: 'skip' } }, 'Pular'),
+      h('span', { class: 'note' }, 'Enter confirma · Alt+← volta · Alt+→ pula · Esc fecha'))].filter(Boolean));
+  setTimeout(() => $('qrinput')?.focus(), 30);
+  $('qrinput')?.select?.();
+}
+
+function qrConfirm() {
+  const it = qr.items[qr.i];
+  if (it?.field) {
+    const el = $('qrinput');
+    const value = (el?.value ?? '').trim();
+    const row = it.row, f = it.field;
+    const kind = f === 'desc' ? 'desc' : f;
+    row[kind] = value;
+    delete row.flags[f];
+    if (f === 'motivo' && !value) row.flags.motivo = 'sem motivo';
+    learnFromEdit(row, f, value);
+    qr.touched.add(it.p.id);
+  } else if (it?.row) { delete it.row.rowFlag; qr.touched.add(it.p.id); }
+  updateSummary(); persist();
+  qr.i++;
+  renderQR();
+}
+
+function openQR() {
+  qr.items = reviewItems(); qr.i = 0; qr.touched = new Set();
+  if (!qr.items.length) return toast('Nenhuma célula marcada para revisar');
+  $('qr').hidden = false; renderQR();
+}
+function closeQR() {
+  $('qr').hidden = true;
+  for (const id of qr.touched) { const p = pageOf(id); if (p) renderPage(p); }
+  qr.touched = new Set();
+  updateSummary();
+}
+$('quick').addEventListener('click', openQR);
+$('qrclose').addEventListener('click', closeQR);
+$('qr').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-qr]');
+  if (!b) { if (e.target === $('qr')) closeQR(); return; }
+  const a = b.dataset.qr;
+  if (a === 'close') closeQR();
+  if (a === 'ok') qrConfirm();
+  if (a === 'skip') { qr.i = Math.min(qr.i + 1, qr.items.length); renderQR(); }
+  if (a === 'prev') { qr.i = Math.max(0, qr.i - 1); renderQR(); }
+  if (a === 'chip') { const el = $('qrinput'); if (el) { el.value = b.dataset.v; el.focus(); } }
+});
+document.addEventListener('keydown', (e) => {
+  if ($('qr').hidden) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeQR(); }
+  else if (e.key === 'Enter' && qr.items[qr.i]) { e.preventDefault(); qrConfirm(); }
+  else if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); qr.i = Math.min(qr.i + 1, qr.items.length); renderQR(); }
+  else if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); qr.i = Math.max(0, qr.i - 1); renderQR(); }
+});
+
 // ---------------------------------------------------------------- lists
 
 const lines = (s) => [...new Set(s.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean))];
@@ -641,6 +807,53 @@ $('theme').addEventListener('click', () => {
   themeLabel();
 });
 themeLabel();
+
+
+// ---------------------------------------------------------------- acesso, cota, câmera
+function showLock(msg) {
+  $('lock').hidden = false;
+  $('lockerr').hidden = !msg; $('lockerr').textContent = msg ?? '';
+  setTimeout(() => $('lockcode').focus(), 50);
+}
+$('lockform').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const r = await login($('lockcode').value.trim());
+  if (r.ok) { $('lock').hidden = true; $('lockcode').value = ''; } else showLock(r.error || 'Código inválido');
+});
+window.addEventListener('need-login', () => showLock('Digite o código de acesso'));
+checkLogin().then((st) => { if (st.required && !st.ok) showLock(); });
+
+function updateUsage() {
+  $('usage-text').textContent = usageText();
+  $('usage').classList.toggle('low', nearLimit());
+}
+function pendingPages() { return state.pages.filter((p) => p.status === 'erro' && p.pending && secrets.has(p.id)); }
+function updateQuotaUi() {
+  const q = quotaHit(), pend = pendingPages();
+  const show = !!(state.quotaHit || (q && pend.length));
+  $('quotabanner').hidden = !show;
+  if (!show) return;
+  $('quotamsg').textContent = `${q?.msg ?? 'O limite do plano gratuito do Gemini foi atingido.'}${pend.length ? ` ${pend.length} folha(s) aguardando.` : ''} A cota volta sozinha (confira em aistudio.google.com/usage). Depois é só retomar: o que já foi lido não é refeito.`;
+  $('resume').hidden = !pend.length;
+}
+async function resumePending() {
+  if (state.busy) return toast('Aguarde a leitura atual terminar');
+  const list = pendingPages();
+  if (!list.length) return;
+  state.busy = true; state.quotaHit = false; clearQuota();
+  try { for (const p of list) { await readPage(p); if (state.quotaHit) break; } }
+  finally { state.busy = false; updateSummary(); updateQuotaUi(); }
+  toast(state.quotaHit ? 'A cota acabou de novo. Tente mais tarde.' : 'Leitura retomada e concluída.');
+}
+$('resume').addEventListener('click', resumePending);
+$('quotaclear').addEventListener('click', () => { clearQuota(); state.quotaHit = false; updateQuotaUi(); });
+window.addEventListener('usage', () => { updateUsage(); updateQuotaUi(); });
+$('limit').value = getLimit() || '';
+$('limit').addEventListener('change', () => setLimit($('limit').value));
+updateUsage();
+
+// photo straight from the phone camera: added to the current reading (not replacing it)
+$('camera').addEventListener('change', (e) => { processFiles([...e.target.files], { append: true }); e.target.value = ''; });
 
 $('year').value = store.get('year') || new Date().getFullYear();
 $('year').addEventListener('change', () => store.set('year', $('year').value));

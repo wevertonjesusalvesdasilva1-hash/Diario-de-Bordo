@@ -73,3 +73,42 @@ REGRAS
 - NÃO invente. Se não conseguir ler um campo, devolva null e coloque o nome do campo em "duvidas". Prefira admitir dúvida a chutar.
 - Responda somente com o JSON do esquema.`;
 }
+
+// ---- third reading: only the cells where the first two readings disagreed ----------------------
+const FIELD_LABELS = {
+  chapa1: 'CHAPA do 1º turno', ini1: 'INÍCIO do 1º turno', fim1: 'FIM do 1º turno',
+  chapa2: 'CHAPA do 2º turno', ini2: 'INÍCIO do 2º turno', fim2: 'FIM do 2º turno',
+  chapa3: 'CHAPA do 3º turno', ini3: 'INÍCIO do 3º turno', fim3: 'FIM do 3º turno',
+  chapa: 'CHAPA', ini: 'INÍCIO', fim: 'FIM',
+};
+export const ASKABLE = new Set(Object.keys(FIELD_LABELS));
+
+export const SCHEMA_C = {
+  type: 'OBJECT',
+  properties: {
+    respostas: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          id: { type: 'STRING' },
+          campos: { type: 'ARRAY', items: { type: 'OBJECT', properties: { campo: { type: 'STRING' }, valor: { type: 'STRING', nullable: true } }, required: ['campo'] } },
+        },
+        required: ['id', 'campos'],
+      },
+    },
+  },
+  required: ['respostas'],
+};
+
+export function buildPromptC(ask, hints = {}) {
+  const chapas = list(hints.chapas, CHAPAS);
+  const lines = ask.map((a) => `- ${a.id}: ${a.campos.map((c) => `${c} (${FIELD_LABELS[c]})`).join(', ')}`).join('\n');
+  return `Cada imagem é UMA linha de uma tabela manuscrita do "DIÁRIO DE BORDO – PRODUÇÃO E PARADAS" (Komatsu). Duas leituras anteriores discordaram sobre alguns campos desta linha. Leia você, com muito cuidado, SOMENTE os campos pedidos.
+Campos pedidos por linha:
+${lines}
+Regras:
+- Horários em 24h no formato HH:MM ("5:30" → "05:30"). Chapa: só dígitos (4 ou 5; as conhecidas são ${chapas.join(', ')}); leia dígito por dígito, 1 e 7 e 4 e 9 se parecem.
+- Se o campo estiver em branco ou ilegível, devolva null. NÃO invente nem deduza.
+- Responda só o JSON: uma resposta por linha, com o mesmo "id" e os campos pedidos.`;
+}

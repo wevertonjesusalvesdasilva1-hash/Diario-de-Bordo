@@ -17,6 +17,16 @@
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
+  <div id="lock" hidden>
+    <form class="card lockbox" id="lockform" autocomplete="off">
+      <h2 class="ptitle">Acesso restrito</h2>
+      <p class="note">Digite o código de acesso para usar o Maple Tapping.</p>
+      <input id="lockcode" type="password" placeholder="Código de acesso" autocomplete="off" spellcheck="false" aria-label="Código de acesso">
+      <p class="err" id="lockerr" hidden></p>
+      <button type="submit" class="primary">Entrar</button>
+    </form>
+  </div>
+
   <header class="top">
     <div class="brand">
       <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
@@ -31,7 +41,7 @@
       </div>
     </div>
     <div class="top-actions">
-      <span class="live"><i></i>Sistema online</span>
+      <span class="live" id="usage" title="Estimativa feita neste navegador: o Gemini não informa a cota que sobra. Veja o valor real em aistudio.google.com/usage"><i></i><span id="usage-text">Leituras hoje 0</span></span>
       <button id="theme" type="button" class="ghost" aria-label="Alternar tema claro ou escuro">Tema claro</button>
     </div>
   </header>
@@ -56,6 +66,7 @@
       <div id="drop" class="drop" tabindex="0">
         <div class="scan" aria-hidden="true"></div>
         <p class="big">Arraste os arquivos aqui ou <label class="link">escolha<input id="files" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
+        <p><label class="camera">Fotografar folha<input id="camera" type="file" accept="image/*" capture="environment" hidden></label></p>
         <p class="note">PDF com várias páginas ou fotos JPG/PNG. A página pode estar girada ou levemente torta. Cada folha é lida duas vezes e as diferenças ficam marcadas (cerca de 1 minuto por folha).</p>
       </div>
       <label class="row">Ano das datas
@@ -64,6 +75,11 @@
     </section>
 
     <section id="status" class="card" hidden></section>
+
+    <section id="quotabanner" class="card quota" hidden>
+      <div><strong>Cota do Gemini atingida</strong><p class="note" id="quotamsg"></p></div>
+      <div class="row"><button id="resume" type="button" class="primary" hidden>Retomar leitura</button><button id="quotaclear" type="button" class="ghost">Dispensar aviso</button></div>
+    </section>
 
     <nav class="tabs" id="tabs" role="tablist" hidden>
       <button id="tab-read" type="button" role="tab" class="tab on" aria-selected="true">1 · Leitura e conferência</button>
@@ -81,6 +97,7 @@
 
     <section class="card" id="tools" hidden>
       <div class="row">
+        <button id="quick" type="button" class="primary">Revisão rápida</button>
         <button id="selall" type="button">Selecionar todas</button>
         <button id="selnone" type="button" class="ghost">Desmarcar todas</button>
         <span class="sel" id="selcount"></span>
@@ -110,6 +127,10 @@
           <button id="resetlists" type="button" class="ghost">Restaurar padrão</button>
           <span class="note" id="learned"></span>
         </div>
+        <div class="row">
+          <label>Limite diário de leituras do Gemini <input id="limit" type="number" min="0" step="10" style="width:7rem" placeholder="ex: 250"></label>
+          <span class="note">Opcional. Serve só para mostrar quantas leituras restam no topo; o valor real está em aistudio.google.com/usage.</span>
+        </div>
       </details>
     </section>
   </main>
@@ -121,8 +142,16 @@
       <button id="copystop" type="button">Copiar PARADAS</button>
       <button id="xlsx" type="button" class="primary">Baixar Excel (selecionadas)</button>
       <button id="xlsxall" type="button" class="primary">Baixar Excel com todas</button>
+      <button id="xlsxraw" type="button" class="primary" hidden>Excel só RAW</button>
+      <button id="xlsxusi" type="button" class="primary" hidden>Excel só usinagem</button>
     </div>
   </footer>
+  <div id="qr" hidden role="dialog" aria-modal="true" aria-labelledby="qrtitle">
+    <div class="card qrbox">
+      <header class="qrhead"><strong id="qrtitle">Revisão rápida</strong><span id="qrcount" class="sel"></span><button id="qrclose" type="button" class="ghost">Fechar (Esc)</button></header>
+      <div id="qrbody"></div>
+    </div>
+  </div>
   <div id="lightbox" hidden><img alt="Linha ampliada"></div>
   <div id="toast" role="status" hidden></div>
   <script type="module" src="/src/main.js"></script>
