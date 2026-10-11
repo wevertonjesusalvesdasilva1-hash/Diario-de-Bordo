@@ -264,7 +264,8 @@ function renderPage(p) {
   root.replaceChildren(header, ...bodyKids);
 }
 
-function includedPages() { return state.pages.filter((p) => p.status === 'ok' && p.include); }
+function okPages() { return state.pages.filter((p) => p.status === 'ok'); }
+function includedPages() { return okPages().filter((p) => p.include); }
 
 function updateSummary() {
   const any = state.pages.length > 0;
@@ -273,6 +274,10 @@ function updateSummary() {
   const inc = includedPages();
   const { prod, stops } = allRows(inc);
   const flags = inc.reduce((n, p) => n + countFlags(p), 0);
+  const all = okPages().length;
+  $('selcount').textContent = all ? `${inc.length} de ${all} folha(s) selecionada(s)` : '';
+  $('xlsx').disabled = !inc.length;
+  $('xlsxall').textContent = `Baixar Excel com todas (${all})`;
   $('s-folhas').textContent = inc.length;
   $('s-prod').textContent = prod.length;
   $('s-stops').textContent = stops.length;
@@ -361,14 +366,25 @@ function exportable() {
 
 $('copyprod').addEventListener('click', () => { const inc = exportable(); if (inc) copy(toTSV(allRows(inc).prod), 'PRODUÇÃO'); });
 $('copystop').addEventListener('click', () => { const inc = exportable(); if (inc) copy(toTSV(allRows(inc).stops), 'PARADAS'); });
-$('xlsx').addEventListener('click', () => {
-  const inc = exportable();
-  if (!inc) return;
-  const blob = new Blob([workbookBytes(inc)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const a = h('a', { href: URL.createObjectURL(blob), download: `controle-raw-${new Date().toISOString().slice(0, 10)}.xlsx` });
+function downloadExcel(pages) {
+  const blob = new Blob([workbookBytes(pages)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = h('a', { href: URL.createObjectURL(blob), download: `maple-tapping-${new Date().toISOString().slice(0, 10)}.xlsx` });
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+$('xlsx').addEventListener('click', () => { const inc = exportable(); if (inc) downloadExcel(inc); });
+// every sheet that was read, whether or not it is ticked
+$('xlsxall').addEventListener('click', () => {
+  const all = okPages();
+  if (!all.length) return toast('Nenhuma folha lida para exportar');
+  downloadExcel(all);
 });
+function selectAll(on) {
+  for (const p of okPages()) { p.include = on; renderPage(p); }
+  updateSummary(); persist();
+}
+$('selall').addEventListener('click', () => selectAll(true));
+$('selnone').addEventListener('click', () => selectAll(false));
 
 $('onlyflags').addEventListener('change', (e) => $('pages').classList.toggle('onlyflags', e.target.checked));
 $('clear').addEventListener('click', () => {

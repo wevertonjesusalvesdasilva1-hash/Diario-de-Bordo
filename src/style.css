@@ -217,3 +217,5 @@ td.flag.bad input, td.flag.bad select { background: var(--bad-soft); border-colo
   .scan, .live i { animation: none; }
   .tile.ring .val { transition: none; }
 }
+
+.sel { font: 500 .8rem var(--f-mono); color: var(--accent); margin-inline: 6px; }
