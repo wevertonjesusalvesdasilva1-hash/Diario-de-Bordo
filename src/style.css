@@ -334,3 +334,7 @@ tr.hl td { animation: hl 2.2s ease; }
 .tllegend .dot.conflict, .tllegend .dot.excess { background: var(--bad); }
 .tllegend .dot.gap { border: 1px dashed var(--muted); }
 @media (max-width: 640px) { .fcards { grid-template-columns: 1fr; } }
+
+.meter { height: 10px; background: var(--line2); }
+.meter i { display: block; height: 100%; background: var(--bad); }
+.fcard.media .meter i { background: var(--warn); }

@@ -4,6 +4,7 @@
 import { PADRAO } from '../data/padrao.js';
 import { aliasKey } from './lists.js';
 import { buildCards } from './cards.js';
+import { buildQuality } from './quality.js';
 
 export const GAP_MIN = 10;        // minutes without any record that deserve a look
 export const GAP_MAX = 6 * 60;    // beyond this the machine is considered not scheduled (night, weekend…)
@@ -189,7 +190,7 @@ export function analyze(pages) {
   return {
     generatedAt: new Date().toISOString(),
     sheets: pages.length,
-    machines, issues, cards,
+    machines, issues, cards, quality: buildQuality(pages),
     totals: {
       prodMin, stopMin, pctStop: prodMin + stopMin ? Math.round((stopMin / (prodMin + stopMin)) * 100) : 0,
       alta: issues.filter((i) => i.sev === 'alta').length, media: issues.filter((i) => i.sev === 'media').length, info: issues.filter((i) => i.sev === 'info').length,

@@ -629,7 +629,19 @@ function renderAnalysis() {
         c.why ? h('p', { class: 'note' }, c.why) : null,
         goBtn(c))))))
     : [h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Pontos para validar'), h('p', { class: 'note' }, 'Nada fora do esperado: produção e paradas não se contradizem, não há paradas longas demais nem tempo sem registro.'))];
-  sections.splice(2, 0, ...cardsBlock);
+  const Q = a.quality ?? [];
+  const QKIND = { 'sem chapa': 'Chapa não preenchida', 'sem motivo': 'Parada sem motivo', 'horário incompleto': 'Horário incompleto', 'sem data': 'Data não preenchida', caligrafia: 'Caligrafia difícil' };
+  const QICON = { 'sem chapa': '#', 'sem motivo': '?', 'horário incompleto': '⏱', 'sem data': '📅', caligrafia: '✎' };
+  const qBlock = h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Qualidade do preenchimento', h('span', { class: 'badge-ai' }, Q.length ? `${Q.length} ponto${Q.length === 1 ? '' : 's'}` : 'tudo certo')),
+    Q.length ? h('div', { class: 'fcards' }, Q.map((c) => h('article', { class: `fcard ${c.sev}` },
+      h('div', { class: 'fhead' }, h('span', { class: 'ficon' }, QICON[c.problem ?? c.kind] ?? '!'), h('div', {}, h('span', { class: SEV[c.sev][1] }, SEV[c.sev][0]), h('strong', {}, QKIND[c.problem ?? c.kind] ?? c.kind)),
+        h('div', { class: 'fbig' }, h('b', {}, `${Math.round((c.meter.part / c.meter.total) * 100)} %`), h('small', {}, `${c.meter.part} de ${c.meter.total}`))),
+      h('div', { class: 'meter' }, h('i', { style: `width:${Math.round((c.meter.part / c.meter.total) * 100)}%` })),
+      h('p', {}, c.headline),
+      c.chips?.length ? h('div', { class: 'chips' }, c.chips.map((x) => h('span', { class: 'chip static' }, x))) : null,
+      h('p', { class: 'note' }, c.why),
+      goBtn(c)))) : h('p', { class: 'note' }, 'Nenhum colaborador deixou colunas em branco com frequência e nenhuma folha ficou difícil de ler.'));
+  sections.splice(2, 0, qBlock, ...cardsBlock);
   const others = a.issues.filter((i) => !a.cards.includes(i));
   if (others.length) sections.push(h('section', { class: 'card' }, h('h3', {}, `Outras conferências (${others.length})`),
     others.map((i) => h('div', { class: 'issue' }, h('span', { class: SEV[i.sev][1] }, SEV[i.sev][0]),
