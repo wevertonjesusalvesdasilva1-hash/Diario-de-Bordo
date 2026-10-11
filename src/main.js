@@ -1,5 +1,6 @@
 import { readFiles, toCanvas, jpegB64, jpegUrl } from './files.js';
 import { analyze, detectMachine } from './core/layout.js';
+import { analyze as analyseSheets, compactForAI, fmtDur } from './core/analysis.js';
 import { inkIn } from './core/image.js';
 import { readSheet } from './core/gemini.js';
 import { buildPage, reconcile, applyInkMotivo, alignRows } from './core/rows.js';
@@ -14,7 +15,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
 
-const state = { pages: [], nextId: 1, batch: 0, busy: false, undo: null };
+const state = { pages: [], nextId: 1, batch: 0, busy: false, undo: null, reviewed: false, okAt: null, okSig: '', analysis: null, ai: null, tab: 'read' };
 const secrets = new Map(); // page id → { images } kept only in memory, for "tentar de novo"
 
 function h(tag, attrs = {}, ...kids) {
@@ -46,7 +47,7 @@ function persist(delay = 400) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, prod, stops }) => ({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, prod, stops }));
-    saveState({ pages: keep, nextId: state.nextId, batch: state.batch });
+    saveState({ pages: keep, nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig, ai: Array.isArray(state.ai) ? state.ai : null });
   }, delay);
 }
 
@@ -61,6 +62,11 @@ async function restore() {
     state.pages.push(p);
     $('pages').append(h('section', { class: 'card page', id: `page-${p.id}` }));
     renderPage(p);
+  }
+  if (saved.reviewed && sig() === saved.okSig) {
+    state.reviewed = true; state.okAt = saved.okAt; state.okSig = saved.okSig;
+    state.analysis = analyseSheets(includedPages());
+    state.analysis.ai = Array.isArray(saved.ai) ? saved.ai : null; state.ai = state.analysis.ai;
   }
   updateSummary();
 }
@@ -161,7 +167,13 @@ function markDuplicates() {
 async function processFiles(files) {
   if (state.busy) return toast('Aguarde a leitura atual terminar');
   state.busy = true;
-  discardUndo(); // a new upload makes the last deletion final
+  // Only the file being uploaded now is analysed: whatever was loaded before is removed.
+  if (state.pages.length) {
+    for (const p of state.pages) secrets.delete(p.id);
+    state.pages = []; $('pages').replaceChildren();
+    toast('Leitura anterior removida. A análise vale só para o arquivo que você enviou agora.');
+  }
+  discardUndo(); resetReview();
   const st = $('status');
   st.hidden = false;
   let n = 0;
@@ -223,7 +235,7 @@ function tableFor(p, kind, rows, fields) {
         h('div', { class: 'rowtag' }, h('b', {}, row.linha ? `linha ${row.linha}` : 'linha nova'), row.rowFlag ? h('span', { class: 'tag bad' }, row.rowFlag) : null),
         row.strip ? h('img', { src: row.strip, alt: `Linha ${row.linha} da folha`, dataset: { zoom: 1 } }) : null)));
     }
-    body.push(h('tr', { class: `fields${cls}` }, fields.map((f) => fieldCell(p, kind, ri, row, f)),
+    body.push(h('tr', { class: `fields${cls}`, id: `row-${p.id}-${kind}-${ri}` }, fields.map((f) => fieldCell(p, kind, ri, row, f)),
       h('td', {}, h('button', { class: 'rm', type: 'button', title: 'Remover linha', dataset: { act: 'rm', p: p.id, k: kind, r: ri } }, '✕'))));
   });
   return h('div', { class: 'scroll' }, h('table', { class: 'grid' }, h('thead', {}, head), h('tbody', {}, body)));
@@ -274,8 +286,10 @@ function okPages() { return state.pages.filter((p) => p.status === 'ok'); }
 function includedPages() { return okPages().filter((p) => p.include); }
 
 function updateSummary() {
+  if (state.reviewed && sig() !== state.okSig) resetReview(true);
   const any = state.pages.length > 0;
   $('exportbar').hidden = !state.pages.some((p) => p.status === 'ok');
+  updateReviewUi();
   $('tools').hidden = !any;
   const inc = includedPages();
   const { prod, stops } = allRows(inc);
@@ -354,9 +368,11 @@ document.addEventListener('click', (e) => {
   if (!b) return;
   const { act, p: pid, k, r } = b.dataset;
   const p = pageOf(pid);
+  if (act === 'goto') return goToRow(pid, k, r);
   if (act === 'rm') { p[k].splice(Number(r), 1); renderPage(p); updateSummary(); persist(); }
   if (act === 'add') { p[k].push({ linha: 0, flags: {}, raw: {}, learned: {} }); renderPage(p); updateSummary(); persist(); }
   if (act === 'retry') readPage(p);
+  if (act === 'goto') goToRow(pid, k, r);
   if (act === 'delpage') removePages([p], `Folha ${p.label} excluída.`);
 });
 
@@ -377,8 +393,13 @@ function exportable() {
 
 $('copyprod').addEventListener('click', () => { const inc = exportable(); if (inc) copy(toTSV(allRows(inc).prod), 'PRODUÇÃO'); });
 $('copystop').addEventListener('click', () => { const inc = exportable(); if (inc) copy(toTSV(allRows(inc).stops), 'PARADAS'); });
+// the ANÁLISE sheet is added only when the analysed sheets are exactly the ones being exported
+function analysisFor(pages) {
+  const inc = includedPages();
+  return state.reviewed && state.analysis && pages.length === inc.length && pages.every((p) => inc.includes(p)) ? state.analysis : null;
+}
 function downloadExcel(pages) {
-  const blob = new Blob([workbookBytes(pages)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const blob = new Blob([workbookBytes(pages, analysisFor(pages))], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const a = h('a', { href: URL.createObjectURL(blob), download: `maple-tapping-${new Date().toISOString().slice(0, 10)}.xlsx` });
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
@@ -396,6 +417,143 @@ function selectAll(on) {
 }
 $('selall').addEventListener('click', () => selectAll(true));
 $('selnone').addEventListener('click', () => selectAll(false));
+
+// ---------------------------------------------------------------- conferência → OK → análise
+// What the person approved: the values of the selected sheets. Any change after the OK withdraws it.
+function sig() {
+  return JSON.stringify(includedPages().map((p) => [p.id, p.machine,
+    p.prod.map((r) => [r.linha, r.data, r.peca, r.modelo, r.chapa1, r.ini1, r.fim1, r.chapa2, r.ini2, r.fim2, r.chapa3, r.ini3, r.fim3, r.turno, r.obs]),
+    p.stops.map((r) => [r.linha, r.data, r.chapa, r.ini, r.fim, r.turno, r.motivo, r.desc])]));
+}
+
+function resetReview(edited = false) {
+  const was = state.reviewed;
+  state.reviewed = false; state.okAt = null; state.okSig = ''; state.analysis = null; state.ai = null;
+  $('view-analysis').replaceChildren();
+  if (state.tab === 'analysis') showTab('read');
+  updateReviewUi();
+  if (edited && was) { toast('Você alterou os dados depois do OK. Dê o OK de novo para atualizar a análise.'); persist(); }
+}
+
+function updateReviewUi() {
+  const any = okPages().length > 0;
+  $('tabs').hidden = !any;
+  $('okbox').hidden = !any;
+  $('tab-analysis').disabled = !state.reviewed;
+  $('tab-lock').textContent = state.reviewed ? 'aprovada' : 'aguardando seu OK';
+  $('okbox').classList.toggle('done', state.reviewed);
+  const at = state.okAt ? new Date(state.okAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+  $('okstate').textContent = state.reviewed
+    ? `Aprovado às ${at}. Se você mudar qualquer dado, o OK é desfeito e a análise precisa ser refeita.`
+    : 'Confira cada linha com o recorte da folha. A análise só é feita depois do seu OK.';
+  if (!$('ok').dataset.sure) $('ok').textContent = state.reviewed ? 'OK dado · refazer análise' : 'Revisei tudo · dar OK e gerar análise';
+}
+
+function showTab(name) {
+  state.tab = name;
+  $('view-read').hidden = name !== 'read';
+  $('view-analysis').hidden = name !== 'analysis';
+  $('tab-read').classList.toggle('on', name === 'read');
+  $('tab-analysis').classList.toggle('on', name === 'analysis');
+  $('tab-read').setAttribute('aria-selected', String(name === 'read'));
+  $('tab-analysis').setAttribute('aria-selected', String(name === 'analysis'));
+  if (name === 'analysis') renderAnalysis();
+}
+
+function giveOk() {
+  const inc = includedPages();
+  if (state.busy) return toast('Aguarde a leitura terminar');
+  if (!inc.length) return toast('Marque pelo menos uma folha para analisar');
+  const flags = inc.reduce((n, p) => n + countFlags(p), 0);
+  const btn = $('ok');
+  if (flags && btn.dataset.sure !== '1') {
+    btn.dataset.sure = '1';
+    btn.textContent = `Ainda há ${flags} célula(s) marcada(s). Clique de novo para dar OK mesmo assim`;
+    setTimeout(() => { btn.dataset.sure = ''; updateReviewUi(); }, 6000);
+    return;
+  }
+  btn.dataset.sure = '';
+  state.reviewed = true; state.okAt = new Date().toISOString(); state.okSig = sig();
+  state.analysis = analyseSheets(inc); state.ai = 'loading';
+  updateReviewUi(); showTab('analysis'); persist(0);
+  fetchAI(state.analysis);
+}
+
+async function fetchAI(a) {
+  try {
+    const res = await fetch('/api/analyze', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ resumo: compactForAI(a) }) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Erro ${res.status}`);
+    if (state.analysis !== a) return; // the OK was withdrawn meanwhile
+    a.ai = body.pontos; state.ai = body.pontos;
+  } catch (e) {
+    if (state.analysis !== a) return;
+    state.ai = { error: e.message };
+  }
+  if (state.tab === 'analysis') renderAnalysis();
+  persist();
+}
+
+function goToRow(pid, table, ri) {
+  showTab('read');
+  $('onlyflags').checked = false; $('pages').classList.remove('onlyflags');
+  const el = document.getElementById(`row-${pid}-${table}-${ri}`);
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  el.classList.add('hl');
+  setTimeout(() => el.classList.remove('hl'), 2300);
+}
+
+const SEV = { alta: ['Alta', 'tag bad'], media: ['Média', 'tag'], info: ['Info', 'tag'] };
+
+function renderAnalysis() {
+  const root = $('view-analysis');
+  const a = state.analysis;
+  if (!a) { root.replaceChildren(h('p', { class: 'note' }, 'Dê o OK na aba de conferência para gerar a análise.')); return; }
+  const at = new Date(state.okAt).toLocaleString('pt-BR');
+  const tile = (lab, val, small, cls = '') => h('div', { class: `tile ${cls}` }, h('span', { class: 'lab' }, lab), h('b', {}, val), h('small', {}, small));
+
+  const aiBlock = state.ai === 'loading' ? h('p', { class: 'skeleton' }, 'A IA está lendo os números para escrever os pontos importantes…')
+    : Array.isArray(state.ai) ? h('ol', { class: 'apoints' }, state.ai.map((t) => h('li', {}, t)))
+    : h('p', { class: 'note' }, `Não consegui gerar o resumo da IA (${state.ai?.error ?? 'erro'}). O resumo automático abaixo continua valendo.`);
+
+  const sections = [
+    h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, `Análise · ${a.sheets} folha(s) · aprovada em ${at}`),
+      h('div', { class: 'astats' },
+        tile('Produzindo', fmtDur(a.totals.prodMin), 'tempo registrado'),
+        tile('Parado', fmtDur(a.totals.stopMin), `${a.totals.pctStop} % do tempo`),
+        tile('Horários que fecham', a.totals.fecham == null ? '—' : `${a.totals.fecham}%`, 'entre produção e paradas'),
+        tile('Alertas altos', String(a.totals.alta), 'sobreposições', a.totals.alta ? 'warn' : ''),
+        tile('Alertas médios', String(a.totals.media), 'para conferir', a.totals.media ? 'warn' : ''))),
+    h('section', { class: 'card' }, h('h3', {}, 'Pontos importantes', h('span', { class: 'badge-ai' }, 'resumo da IA')), aiBlock),
+  ];
+
+  for (const m of a.machines) {
+    const maxMin = Math.max(1, ...m.motivos.map((x) => x.min));
+    sections.push(h('section', { class: 'card' },
+      h('h2', { class: 'ptitle' }, `${m.name}${m.dates.length ? ` · ${m.dates.map((d) => d.slice(0, 5)).join(', ')}` : ''}`),
+      h('ul', { class: 'apoints' }, m.bullets.map((b) => h('li', {}, b))),
+      m.motivos.length ? h('h3', {}, 'Paradas por motivo') : null,
+      ...m.motivos.map((x) => h('div', { class: 'brow' }, h('span', {}, x.motivo), h('div', { class: 'track' }, h('i', { style: `width:${Math.round((x.min / maxMin) * 100)}%` })), h('b', {}, `${fmtDur(x.min)} · ${x.count}×`))),
+      m.standards.length ? h('h3', {}, 'Produção × tempo padrão') : null,
+      m.standards.length ? h('div', { class: 'scroll' }, h('table', { class: 'std' },
+        h('thead', {}, h('tr', {}, ['Peça', 'Modelo', 'Linhas', 'Real', 'Padrão', '% do padrão'].map((t) => h('th', {}, t)))),
+        h('tbody', {}, m.standards.map((g) => h('tr', {}, h('td', {}, g.peca), h('td', {}, g.modelo), h('td', {}, String(g.rows)), h('td', {}, fmtDur(g.realH * 60)),
+          h('td', {}, g.ratio != null ? fmtDur(g.stdH * 60) : 'sem padrão'), h('td', {}, g.ratio != null ? `${Math.round(g.ratio * 100)} %` : '—')))))) : null));
+  }
+
+  sections.push(h('section', { class: 'card' }, h('h3', {}, `Alertas para conferir (${a.issues.length})`),
+    a.issues.length ? a.issues.map((i) => h('div', { class: 'issue' },
+      h('span', { class: SEV[i.sev][1] }, SEV[i.sev][0]),
+      h('div', {}, i.text, h('small', {}, `${i.machine} · ${i.label} · linha ${i.linha || '?'}`)),
+      h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: i.page, k: i.table, r: i.ri } }, 'Ir para a linha')))
+      : h('p', { class: 'note' }, 'Nenhum alerta: os horários fecham entre produção e paradas e nada fugiu do padrão.')));
+  root.replaceChildren(...sections);
+}
+
+$('ok').addEventListener('click', giveOk);
+$('tab-read').addEventListener('click', () => showTab('read'));
+$('tab-analysis').addEventListener('click', () => { if (state.reviewed) showTab('analysis'); });
 
 // ---------------------------------------------------------------- excluir / desfazer
 function lastGroup() {
