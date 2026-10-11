@@ -127,3 +127,10 @@ end $$;
 revoke execute on function public.he_autoconfirm() from public, anon, authenticated;
 create trigger he_autoconfirm_trg before insert on auth.users
   for each row execute function public.he_autoconfirm();
+
+-- MODO ABERTO (sem login): acesso anônimo total às tabelas do app
+create policy "he_open_employees" on public.he_employees for all to anon using (true) with check (true);
+create policy "he_open_shifts" on public.he_shifts for all to anon using (true) with check (true);
+create policy "he_open_assignments" on public.he_assignments for all to anon using (true) with check (true);
+create policy "he_open_timeline" on public.he_timeline_events for all to anon using (true) with check (true);
+create policy "he_open_realloc" on public.he_reallocations for all to anon using (true) with check (true);

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
+
+const OPEN_SESSION = {} as Session;
 import { OvertimeRecord } from '../types';
 import { cloudEnabled, supabase } from './supabase';
 import { fromRows, toRows } from './mapper';
@@ -11,23 +13,13 @@ export function useCloudSync(
   records: OvertimeRecord[],
   setRecords: (r: OvertimeRecord[]) => void,
 ) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [ready, setReady] = useState(!cloudEnabled);
-  const [state, setState] = useState<SyncState>(cloudEnabled ? 'signed-out' : 'local');
+  // Modo aberto: sem login. O acesso anônimo é liberado por RLS (policies he_open_*).
+  const session = cloudEnabled ? OPEN_SESSION : null;
+  const [state, setState] = useState<SyncState>(cloudEnabled ? 'syncing' : 'local');
   const snapshot = useRef<Map<string, string>>(new Map());
   const loaded = useRef(false);
   const recordsRef = useRef(records);
   recordsRef.current = records;
-
-  useEffect(() => {
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setReady(true);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
-    return () => data.subscription.unsubscribe();
-  }, []);
 
   const pull = useCallback(async () => {
     if (!supabase) return;
@@ -71,9 +63,9 @@ export function useCloudSync(
 
   // carga inicial após login; se a nuvem estiver vazia, o 1º push sobe os dados locais
   useEffect(() => {
-    if (!session) return setState(cloudEnabled ? 'signed-out' : 'local');
+    if (!session) return;
     loaded.current = false;
-    Promise.resolve(supabase?.rpc('he_ensure_profile')).then(() => pull()).then(() => push());
+    pull().then(() => push());
   }, [session, pull, push]);
 
   // push com debounce a cada mudança
@@ -116,5 +108,5 @@ export function useCloudSync(
     };
   }, [session, push]);
 
-  return { session, ready, state, needsLogin: cloudEnabled && ready && !session };
+  return { session: null as Session | null, ready: true, state, needsLogin: false };
 }
