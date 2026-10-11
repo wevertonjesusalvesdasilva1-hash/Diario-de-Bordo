@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { OvertimeRecord } from '../types';
 import {
   applyFilters,
@@ -334,19 +334,58 @@ export default function PlanejamentoHoraExtra({
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const sheetsRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.5);
+  const [fitScale, setFitScale] = useState(0.5);
+  const [zoom, setZoom] = useState<number | null>(null); // null = ajustar à largura
+  const scale = zoom ?? fitScale;
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
+  const anchor = useRef<{ px: number; py: number; cx: number; cy: number; old: number } | null>(null);
+  const drag = useRef<{ x: number; y: number; l: number; t: number } | null>(null);
+  const clampZoom = (z: number) => Math.min(2.5, Math.max(0.2, z));
   const [contentH, setContentH] = useState(A3_H);
   const pages = Math.max(1, Math.ceil(contentH / A3_H - 0.02));
 
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const fit = () => setScale(Math.min(1, el.clientWidth / A3_W));
+    const fit = () => setFitScale(Math.min(1, (el.clientWidth - 2) / A3_W));
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Ctrl + scroll (ou pinça no trackpad) = zoom ancorado no cursor
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const old = scaleRef.current;
+      const next = clampZoom(old * Math.exp(-e.deltaY * (e.deltaMode === 0 ? 0.0012 : 0.04)));
+      const r = el.getBoundingClientRect();
+      anchor.current = { px: e.clientX - r.left + el.scrollLeft, py: e.clientY - r.top + el.scrollTop, cx: e.clientX - r.left, cy: e.clientY - r.top, old };
+      setZoom(next);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    const a = anchor.current;
+    if (!el || !a) return;
+    el.scrollLeft = (a.px / a.old) * scale - a.cx;
+    el.scrollTop = (a.py / a.old) * scale - a.cy;
+    anchor.current = null;
+  }, [scale]);
+
+  const zoomBy = (f: number) => {
+    const el = wrapRef.current;
+    if (el) anchor.current = { px: el.scrollLeft + el.clientWidth / 2, py: el.scrollTop + el.clientHeight / 2, cx: el.clientWidth / 2, cy: el.clientHeight / 2, old: scale };
+    setZoom(clampZoom(scale * f));
+  };
 
   useEffect(() => {
     const el = sheetsRef.current;
@@ -465,14 +504,38 @@ export default function PlanejamentoHoraExtra({
           {filtered.length} de {scope.length} colaboradores
           {filterNote ? ` · ${filterNote}` : ''}
         </span>
-        <span className="ml-auto">
-          Simulação A3 paisagem · {pages} página{pages > 1 ? 's' : ''} · zoom {Math.round(scale * 100)}%
+        <span className="ml-auto flex items-center gap-1.5">
+          <span>Simulação A3 paisagem · {pages} página{pages > 1 ? 's' : ''}</span>
+          <button type="button" aria-label="Diminuir zoom" onClick={() => zoomBy(1 / 1.25)} className="rounded-md bg-slate-800 px-2 py-0.5 text-sm font-bold text-slate-200">−</button>
+          <span className="w-12 text-center tabular-nums text-slate-200">{Math.round(scale * 100)}%</span>
+          <button type="button" aria-label="Aumentar zoom" onClick={() => zoomBy(1.25)} className="rounded-md bg-slate-800 px-2 py-0.5 text-sm font-bold text-slate-200">+</button>
+          <button type="button" onClick={() => setZoom(null)} className={`rounded-md px-2 py-0.5 font-bold ${zoom === null ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-200'}`}>Ajustar</button>
+          <button type="button" onClick={() => setZoom(1)} className="rounded-md bg-slate-800 px-2 py-0.5 font-bold text-slate-200">100%</button>
+          <span className="hidden lg:inline text-slate-500">Ctrl + scroll = zoom · arraste para mover</span>
         </span>
       </div>
 
-      {/* Pré-visualização da folha A3 */}
-      <div ref={wrapRef} className="w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-600/30">
-        <div style={{ height: contentH * scale }}>
+      {/* Pré-visualização da folha A3 (Ctrl + scroll = zoom; arraste para mover) */}
+      <div
+        ref={wrapRef}
+        className="w-full overflow-auto rounded-lg border border-slate-700 bg-slate-600/30 select-none"
+        style={{ maxHeight: '78vh', cursor: zoom !== null ? 'grab' : 'default' }}
+        onPointerDown={(e) => {
+          if (zoom === null && contentH * scale <= (wrapRef.current?.clientHeight ?? 0)) return;
+          const el = wrapRef.current!;
+          drag.current = { x: e.clientX, y: e.clientY, l: el.scrollLeft, t: el.scrollTop };
+          el.setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current;
+          const el = wrapRef.current;
+          if (!d || !el) return;
+          el.scrollLeft = d.l - (e.clientX - d.x);
+          el.scrollTop = d.t - (e.clientY - d.y);
+        }}
+        onPointerUp={() => { drag.current = null; }}
+      >
+        <div style={{ width: A3_W * scale, height: contentH * scale }}>
           <div ref={sheetsRef} className="he-print" style={{ width: A3_W, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
             {filtered.length === 0 ? (
               <div className="bg-white text-black p-10 text-xl" style={{ width: A3_W }}>Nenhum colaborador com esses filtros.</div>
