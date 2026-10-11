@@ -1,0 +1,8 @@
+{
+  "name": "Remix HoraExtra",
+  "description": "Controle mobile-first de presença e ausências em turnos de hora extra para chão de fábrica com importação e exportação Excel (.xlsx).",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
