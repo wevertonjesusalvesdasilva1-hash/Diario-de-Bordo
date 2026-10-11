@@ -1,5 +1,6 @@
 // Output formats for the plant's "CONTROLE DE PARADA DE MÁQUINAS (RAW)" workbook.
 import * as XLSX from 'xlsx';
+import { fmtDur } from './analysis.js';
 
 const clean = (v) => String(v ?? '').replace(/[\t\r\n]+/g, ' ').trim();
 
@@ -51,7 +52,7 @@ const PROD_TYPES = ['s', 'date', 's', 's', 'num', 'time', 'time', 'num', 'time',
 const STOP_TYPES = ['s', 'date', 'num', 'time', 'time', 'num', 's', 's'];
 
 // Builds the workbook with the same sheets/columns as the plant's spreadsheet.
-export function buildWorkbook(pages) {
+export function buildWorkbook(pages, analysis = null) {
   const { prod, stops } = allRows(pages);
 
   const ws1 = {};
@@ -86,9 +87,51 @@ export function buildWorkbook(pages) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws1, 'PRODUÇÃO');
   XLSX.utils.book_append_sheet(wb, ws2, 'PARADAS');
+  if (analysis) XLSX.utils.book_append_sheet(wb, analysisSheet(analysis), 'ANÁLISE');
   return wb;
 }
 
-export function workbookBytes(pages) {
-  return XLSX.write(buildWorkbook(pages), { type: 'array', bookType: 'xlsx', cellDates: true });
+export function workbookBytes(pages, analysis = null) {
+  return XLSX.write(buildWorkbook(pages, analysis), { type: 'array', bookType: 'xlsx', cellDates: true });
+}
+
+// Separate sheet: nothing here is meant to be pasted into the base. Only added after the person's OK.
+export function analysisSheet(a) {
+  const rows = [];
+  const add = (...r) => rows.push(r);
+  const blank = () => rows.push([]);
+  add('ANÁLISE DA LEITURA (feita após a conferência)');
+  add(`Gerada em ${new Date(a.generatedAt).toLocaleString('pt-BR')} · ${a.sheets} folha(s)`);
+  add(`Produzindo ${fmtDur(a.totals.prodMin)} · Parado ${fmtDur(a.totals.stopMin)} (${a.totals.pctStop} %) · Alertas: ${a.totals.alta} altos, ${a.totals.media} médios, ${a.totals.info} informativos${a.totals.fecham != null ? ` · Horários que fecham: ${a.totals.fecham} %` : ''}`);
+  blank();
+  const points = [...(a.ai ?? []).map((p) => ['IA', p]), ...a.machines.flatMap((m) => m.bullets.map((b) => [m.name, b]))];
+  add('PONTOS IMPORTANTES'); add('Origem', 'Ponto');
+  for (const [o, t] of points) add(o === 'IA' ? 'Resumo da IA' : o, t);
+  blank();
+  add('RESUMO POR MÁQUINA');
+  add('Máquina', 'Datas', 'Produzindo', 'Parado', '% parado', 'Paradas', 'Horários que fecham', 'Sobreposições', 'Intervalos sem registro');
+  for (const m of a.machines) add(m.name, m.dates.map((d) => d.slice(0, 5)).join(', '), fmtDur(m.prodMin), fmtDur(m.stopMin), m.pctStop / 100, m.stops, m.transitions.total ? `${m.transitions.ok} de ${m.transitions.total}` : '', m.transitions.overlaps, m.transitions.gaps);
+  const pctRows = rows.length - a.machines.length;
+  blank();
+  add('PARADAS POR MOTIVO');
+  add('Máquina', 'Motivo', 'Tempo', 'Quantidade', '% das paradas');
+  const motivoStart = rows.length;
+  for (const m of a.machines) for (const x of m.motivos) add(m.name, x.motivo, fmtDur(x.min), x.count, m.stopMin ? x.min / m.stopMin : 0);
+  const motivoEnd = rows.length;
+  blank();
+  add('PRODUÇÃO × TEMPO PADRÃO');
+  add('Máquina', 'Peça', 'Modelo', 'Linhas', 'Real (h)', 'Padrão (h)', '% do padrão');
+  const stdStart = rows.length;
+  for (const m of a.machines) for (const g of m.standards) add(m.name, g.peca, g.modelo, g.rows, Math.round(g.realH * 100) / 100, g.ratio != null ? Math.round(g.stdH * 100) / 100 : 'sem padrão', g.ratio != null ? g.ratio : '');
+  const stdEnd = rows.length;
+  blank();
+  add('ALERTAS PARA CONFERIR');
+  add('Gravidade', 'Máquina', 'Folha', 'Linha', 'Tipo', 'Descrição');
+  for (const i of a.issues) add(i.sev === 'alta' ? 'ALTA' : i.sev === 'media' ? 'média' : 'info', i.machine, i.label, i.linha || '', i.kind, i.text);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const pct = (r0, r1, col) => { for (let r = r0; r < r1; r++) { const c = ws[XLSX.utils.encode_cell({ r, c: col })]; if (c && typeof c.v === 'number') c.z = '0%'; } };
+  pct(pctRows, pctRows + a.machines.length, 4); pct(motivoStart, motivoEnd, 4); pct(stdStart, stdEnd, 6);
+  ws['!cols'] = [18, 26, 16, 16, 14, 14, 20, 16, 22].map((wch) => ({ wch })).concat([{ wch: 90 }]);
+  return ws;
 }

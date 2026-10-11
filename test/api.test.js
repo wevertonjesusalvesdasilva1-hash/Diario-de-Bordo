@@ -72,3 +72,15 @@ test('modelo que recusa thinkingConfig é repetido sem ele', async () => {
   assert.ok(bodies[0].generationConfig.thinkingConfig);
   assert.equal(bodies[1].generationConfig.thinkingConfig, undefined);
 });
+
+test('analyze: devolve pontos e recusa corpo inválido', async () => {
+  const analyze = (await import('../api/analyze.js')).default;
+  process.env.GEMINI_API_KEY = 'k';
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"pontos":["Parado 3h20","Conferir horário da linha 4"]}' }] } }] }) });
+  let r = mkRes(); await analyze({ method: 'POST', headers: { host: 'app.test' }, body: { resumo: { totais: { parado: '3h20' } } } }, r);
+  assert.equal(r.code, 200); assert.equal(r.body.pontos.length, 2);
+  r = mkRes(); await analyze({ method: 'POST', headers: { host: 'app.test' }, body: { resumo: 'x'.repeat(30000) } }, r);
+  assert.equal(r.code, 400);
+  r = mkRes(); await analyze({ method: 'POST', headers: { host: 'app.test', origin: 'https://evil.example' }, body: { resumo: {} } }, r);
+  assert.equal(r.code, 403);
+});

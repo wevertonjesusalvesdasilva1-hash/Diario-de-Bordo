@@ -1,3 +1,10 @@
 {
-  "functions": { "api/extract.js": { "maxDuration": 300 } }
+  "functions": {
+    "api/extract.js": {
+      "maxDuration": 300
+    },
+    "api/analyze.js": {
+      "maxDuration": 120
+    }
+  }
 }
