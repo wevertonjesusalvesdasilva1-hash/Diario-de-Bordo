@@ -98,13 +98,13 @@ test('folha de usinagem: máquina vem do nome escrito quando não há bolinha', 
   assert.equal(page.machineFlag, null);
 });
 
-test('X na divisa de duas colunas: mantém a leitura da IA se for uma delas, sem aviso', async () => {
+test('X na divisa de duas colunas: mantém a leitura da IA se for uma delas, mas avisa', async () => {
   const { applyInkMotivo } = await import('../src/core/rows.js');
   const page = buildPage({ maquina: 'RAW05', data: '02/10', producao: [], paradas: [
     { linha: 1, data: '02/10', chapa: '7910', ini: '08:00', fim: '08:10', turno: '1', motivo: 'SET-UP' },
     { linha: 2, data: '02/10', chapa: '7910', ini: '09:00', fim: '09:10', turno: '1', motivo: 'OUTROS' }] }, { year: 2026 });
   applyInkMotivo(page, [[6, 7], [6, 7]]); // TROCA DE PEÇA ou SET-UP
-  assert.equal(page.stops[0].flags.motivo, undefined);
+  assert.match(page.stops[0].flags.motivo, /tinta em duas colunas/);
   assert.match(page.stops[1].flags.motivo, /X entre TROCA DE PEÇA e SET-UP/);
 });
 
@@ -115,4 +115,17 @@ test('exportação funciona mesmo sem o nome da máquina', async () => {
   const { prod } = allRows([page]);
   assert.equal(prod[0][0], '');
   assert.ok(workbookBytes([page]).byteLength > 1000);
+});
+
+test('linhas numeradas à mão (1, 2, 9, 10) são realinhadas pela tinta; contagem diferente avisa', async () => {
+  const { alignRows } = await import('../src/core/rows.js');
+  const mk = (linha, ini) => ({ linha, data: '02/10', chapa: '11997', ini, fim: '23:59', turno: '2', motivo: 'OUTROS' });
+  const page = buildPage({ maquina: 'UMC 01', data: '02/10', producao: [], paradas: [mk(1, '07:30'), mk(2, '09:40'), mk(9, '22:20'), mk(10, '00:40')] }, { year: 2026 });
+  const warns = alignRows(page, { prodRows: [], stopRows: [0, 1, 3, 4], stopTurno: [false, false, false, true, true] });
+  assert.deepEqual(page.stops.map((r) => r.linha), [1, 2, 4, 5]);
+  assert.deepEqual(warns, []);
+  assert.match(page.stops[0].flags.turno, /não está escrito na folha/);
+  assert.equal(page.stops[3].flags.turno, undefined);
+  const w2 = alignRows(page, { prodRows: [], stopRows: [0, 1, 2, 3, 4] });
+  assert.match(w2[0], /5 parada\(s\) escrita\(s\) e foram lidas 4/);
 });

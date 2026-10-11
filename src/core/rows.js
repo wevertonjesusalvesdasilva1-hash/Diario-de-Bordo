@@ -175,8 +175,9 @@ export function applyInkMotivo(page, inkIdx) {
     if (idx == null || idx === -1) continue;
     if (Array.isArray(idx)) {
       // ink in two neighbouring columns (an X on the border): keep the model's reading if it is one of them
-      if (idx.map((i) => MOTIVOS[i]).includes(r.motivo)) continue;
-      r.flags.motivo = r.flags.motivo ? `${r.flags.motivo} · X entre ${idx.map((i) => MOTIVOS[i]).join(' e ')}` : `X entre ${idx.map((i) => MOTIVOS[i]).join(' e ')}`;
+      const names = idx.map((i) => MOTIVOS[i]).join(' e ');
+      const msg = idx.map((i) => MOTIVOS[i]).includes(r.motivo) ? `tinta em duas colunas (${names}), confira` : `X entre ${names}`;
+      r.flags.motivo = r.flags.motivo ? `${r.flags.motivo} · ${msg}` : msg;
       continue;
     }
     const fromInk = MOTIVOS[idx];
@@ -187,6 +188,30 @@ export function applyInkMotivo(page, inkIdx) {
       delete r.flags.motivo;
     }
   }
+}
+
+// The model sometimes numbers rows with the handwritten "N°" instead of the physical position.
+// The pixels say which printed rows really hold writing; when the count matches, rows are mapped
+// by order. Returns warnings about row counts that do not match.
+export function alignRows(page, ink) {
+  const warns = [];
+  const one = (rows, inkRows, label) => {
+    if (!inkRows) return;
+    if (rows.length === inkRows.length) { rows.forEach((r, i) => { r.linha = inkRows[i] + 1; }); return; }
+    warns.push(`a folha tem ${inkRows.length} ${label} escrita(s) e foram lidas ${rows.length}`);
+  };
+  one(page.prod, ink?.prodRows, 'linha(s) de produção');
+  one(page.stops, ink?.stopRows, 'parada(s)');
+  // a turno that the model filled in although the cell is blank on the sheet
+  const blank = (rows, turnoInk, field) => {
+    if (!turnoInk) return;
+    for (const r of rows) {
+      if (r.linha >= 1 && r[field] && turnoInk[r.linha - 1] === false) r.flags[field] = r.flags[field] ? `${r.flags[field]} · turno não está escrito na folha` : 'turno não está escrito na folha (deduzido)';
+    }
+  };
+  blank(page.prod, ink?.prodTurno, 'turno');
+  blank(page.stops, ink?.stopTurno, 'turno');
+  return warns;
 }
 
 // ------------------------------------------------------------------ sanity checks

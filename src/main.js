@@ -2,7 +2,7 @@ import { readFiles, toCanvas, jpegB64, jpegUrl } from './files.js';
 import { analyze, detectMachine } from './core/layout.js';
 import { inkIn } from './core/image.js';
 import { readSheet } from './core/gemini.js';
-import { buildPage, reconcile, applyInkMotivo } from './core/rows.js';
+import { buildPage, reconcile, applyInkMotivo, alignRows } from './core/rows.js';
 import { allRows, toTSV, workbookBytes } from './core/export.js';
 import { getLists, saveLists, learnAlias, resetLists } from './core/lists.js';
 import { saveState, loadState } from './store.js';
@@ -45,7 +45,7 @@ let saveTimer;
 function persist() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, status, error, machine, machineFlag, date, include, single, dup, geomWarn, prod, stops }) => ({ id, label, status, error, machine, machineFlag, date, include, single, dup, geomWarn, prod, stops }));
+    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, prod, stops }) => ({ id, label, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, prod, stops }));
     saveState({ pages: keep, nextId: state.nextId });
   }, 400);
 }
@@ -70,7 +70,7 @@ function prepare(image) {
   try { lay = analyze(image); } catch (e) { console.warn('layout', e); }
   if (!lay) {
     const full = toCanvas(image, 0, 0, image.width, image.height, 2000);
-    return { A: [jpegB64(full, 0.88)], B: [jpegB64(full, 0.9)], strips: { prod: [], stops: [] }, bubble: '', inkMotivo: [], geomOk: false };
+    return { A: [jpegB64(full, 0.88)], B: [jpegB64(full, 0.9)], strips: { prod: [], stops: [] }, bubble: '', inkMotivo: [], geomOk: false, rowInk: null };
   }
   const { img, prodX, prodY, stopX, stopY, scale: sc } = lay;
   const full = toCanvas(img, 0, 0, img.width, img.height, 2000);
@@ -84,7 +84,19 @@ function prepare(image) {
     if (!hit.length) return -1;
     return hit.length > 1 && hit[1][0] > hit[0][0] * 0.6 ? [hit[0][1], hit[1][1]] : hit[0][1];
   });
+  // which printed rows really hold writing, and whether their turno cell is filled
+  const cellInk = (xs, ys, r, cols) => cols.reduce((t, c) => t + inkIn(lay.masks, xs[c] + 3 * sc, ys[r] + 3 * sc, xs[c + 1] - 3 * sc, ys[r + 1] - 3 * sc), 0);
+  const min = 40 * sc * sc;
+  const rowsOf = (ys, test) => ys.slice(0, -1).map((_, r) => (test(r) ? r : -1)).filter((r) => r >= 0);
+  const prodRows = rowsOf(prodY, (r) => cellInk(prodX, prodY, r, [5, 6, 8, 9, 11, 12]) > min);
+  const stopRows = rowsOf(stopY, (r) => cellInk(stopX, stopY, r, [3, 4]) > min || inkMotivo[r] !== -1);
+  const rowInk = lay.geomOk ? {
+    prodRows, stopRows,
+    prodTurno: prodY.slice(0, -1).map((_, r) => cellInk(prodX, prodY, r, [13]) > min),
+    stopTurno: stopY.slice(0, -1).map((_, r) => cellInk(stopX, stopY, r, [5]) > min),
+  } : null;
   return {
+    rowInk,
     // the X column is only trusted when the printed grid was recognised on this sheet
     inkMotivo: lay.geomOk ? inkMotivo : [],
     geomOk: lay.geomOk,
@@ -113,8 +125,9 @@ async function readPage(p) {
     const single = a.status === 'rejected' || b.status === 'rejected';
     const json = single ? (a.status === 'fulfilled' ? a.value : b.value) : reconcile(a.value, b.value);
     const built = buildPage(json, { year: Number($('year').value) || new Date().getFullYear(), meta: { machineFromBubble: sec.bubble } });
+    const rowWarns = alignRows(built, sec.rowInk);
     applyInkMotivo(built, sec.inkMotivo);
-    Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk });
+    Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk, rowWarn: rowWarns.join('; ') });
     for (const r of p.prod) r.strip = sec.strips.prod[r.linha - 1];
     for (const r of p.stops) r.strip = sec.strips.stops[r.linha - 1];
     p.include = true;
@@ -229,6 +242,7 @@ function renderPage(p) {
       p.machineFlag ? h('span', { class: 'tag bad' }, p.machineFlag) : null,
       p.single ? h('span', { class: 'tag bad' }, 'só 1 leitura (a outra falhou)') : null,
       p.geomWarn ? h('span', { class: 'tag' }, 'grade da folha não reconhecida: confira os motivos') : null,
+      p.rowWarn ? h('span', { class: 'tag bad' }, p.rowWarn) : null,
       p.dup ? h('span', { class: 'tag bad' }, p.dup) : null,
       p.status === 'ok' ? h('span', { class: 'meta' }, `${p.prod.length} produção · ${p.stops.length} paradas`) : null,
       flags ? h('span', { class: 'tag' }, `${flags} para conferir`) : null),

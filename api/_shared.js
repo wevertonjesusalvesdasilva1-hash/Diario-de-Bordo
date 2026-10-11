@@ -68,7 +68,8 @@ REGRAS
 - PEÇA costuma ser: ${pecas.join(', ')}. MODELO costuma ser: ${modelos.join(', ')}. Se estiver escrito diferente, copie como está.
 - Na DESCRIÇÃO DA PARADA aparecem com frequência as palavras Tyorei (reunião; também escrita Tiorei, Fiorei, Forey, Chorei), Almoço, Janta, Arame, Setup, "Aguardando ponte". Se a palavra for parecida, escreva a forma correta.
 - O X do MOTIVO fica dentro de UMA coluna do cabeçalho; confira com cuidado de qual coluna é, olhando o cabeçalho diretamente acima dela (SET-UP e TROCA DE PEÇA são vizinhas, assim como TROCA DE CONSUMÍVEIS).
-- Use em "linha" o número da linha na tabela impressa, contando de cima.
+- Em "linha" use a POSIÇÃO FÍSICA da linha na grade, contando de cima (1 a 10), mesmo que haja linhas vazias antes. IGNORE o número escrito à mão na coluna N° (pode ser 1ª, 9º, 10º, repetido ou fora de ordem).
+- Deixe o TURNO em branco (null) quando a célula do turno estiver vazia na folha; não deduza pelo horário.
 - NÃO invente. Se não conseguir ler um campo, devolva null e coloque o nome do campo em "duvidas". Prefira admitir dúvida a chutar.
 - Responda somente com o JSON do esquema.`;
 }
