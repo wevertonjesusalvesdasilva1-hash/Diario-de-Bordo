@@ -218,7 +218,7 @@ function Sheet({
         </Box>
       </div>
 
-      <Box title={`Lista nominal (${recs.length}) · ${SORT_LABELS[sort]}${group && sort !== 'ALFA' && sort !== 'CHAPA' ? ' · agrupada' : ''}`}>
+      <Box title={`Lista nominal (${recs.length}) · ${SORT_LABELS[sort]}${group && (sort !== 'ALFA' && sort !== 'CHAPA' || showDate) ? ' · agrupada' : ''}`}>
         <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
           {table(r1)}
           {table(r2)}
@@ -350,7 +350,7 @@ export default function PlanejamentoHoraExtra({
   const [picked, setPicked] = useState<string[]>([selectedDate]);
   const [layout, setLayout] = useState<Layout>('COMBINED');
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [sort, setSort] = useState<SortMode>('CC');
+  const [sort, setSort] = useState<SortMode>('ALFA');
   const [group, setGroup] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -481,7 +481,7 @@ export default function PlanejamentoHoraExtra({
         perDay: mode === 'EACH',
         title: mode === 'DAY' ? days[0] : mode === 'EACH' ? `Dias separados ${daysTitle(days)}` : `Resumo ${daysTitle(days)}`,
         sort,
-        group: group && sort !== 'ALFA' && sort !== 'CHAPA',
+        group,
         filterNote,
       });
     } finally {
@@ -569,14 +569,14 @@ export default function PlanejamentoHoraExtra({
           {(Object.keys(SORT_LABELS) as SortMode[]).map((k) => <option key={k} value={k}>Ordem: {SORT_LABELS[k]}</option>)}
         </select>
         <input className={sel} placeholder="Buscar nome / chapa" value={filters.busca} onChange={(e) => setF('busca', e.target.value)} />
-        <label className="flex items-center gap-1.5 text-xs text-slate-300 px-1" title="Cria uma faixa com o subtotal para cada peça, líder ou centro de custo (conforme a Ordem escolhida)">
+        <label className="flex items-center gap-1.5 text-xs text-slate-300 px-1" title="Cria uma faixa com o subtotal para cada dia (ordem alfabética), peça, líder ou centro de custo (conforme a Ordem escolhida)">
           <input type="checkbox" checked={group} onChange={(e) => setGroup(e.target.checked)} />
           Separar em faixas
-          <span className="text-[10px] text-slate-500">(peça/líder/CC)</span>
+          <span className="text-[10px] text-slate-500">(dia/peça/líder/CC)</span>
         </label>
         <button
           type="button"
-          onClick={() => { setFilters(EMPTY_FILTERS); setSort('CC'); setGroup(true); }}
+          onClick={() => { setFilters(EMPTY_FILTERS); setSort('ALFA'); setGroup(true); }}
           className="rounded-lg border border-red-400/60 bg-red-950/40 px-2 py-1.5 text-xs font-bold text-red-300 hover:bg-red-950/70"
         >
           Limpar todos os filtros

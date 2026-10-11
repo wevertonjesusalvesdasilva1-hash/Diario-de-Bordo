@@ -25,7 +25,7 @@ export function halves<T>(xs: T[]): [T[], T[]] {
 
 export type SortMode = 'ALFA' | 'PECA' | 'LIDER' | 'CC' | 'CHAPA';
 export const SORT_LABELS: Record<SortMode, string> = {
-  ALFA: 'Alfabética (nome)',
+  ALFA: 'Alfabética (dias agrupados)',
   PECA: 'Por peça',
   LIDER: 'Por líder',
   CC: 'Por centro de custo',
@@ -62,20 +62,26 @@ export function applyFilters(recs: OvertimeRecord[], f: Filters) {
   );
 }
 
-export const groupKeyOf = (mode: SortMode, r: OvertimeRecord): string | null =>
-  mode === 'PECA' ? r.motivoHe.trim() || '—' : mode === 'LIDER' ? r.lider || 'Não identificado' : mode === 'CC' ? r.cc || 'Sem CC' : null;
+/** Faixa (grupo) de cada linha. Com vários dias e ordem alfabética/chapa, as faixas são as datas. */
+export const groupKeyOf = (mode: SortMode, r: OvertimeRecord, multiDate = false): string | null =>
+  mode === 'PECA' ? r.motivoHe.trim() || '—' : mode === 'LIDER' ? r.lider || 'Não identificado' : mode === 'CC' ? r.cc || 'Sem CC' : multiDate ? r.data : null;
 
+/**
+ * Prioridade: (1) ordem "maior" escolhida (peça/líder/CC) -> (2) data -> (3) responsáveis primeiro -> (4) nome.
+ * Em ordem alfabética/chapa a data vem primeiro: os dias ficam agrupados e, dentro de cada dia, ordenados.
+ */
 export function sortRecords(recs: OvertimeRecord[], mode: SortMode) {
   const byName = (a: OvertimeRecord, b: OvertimeRecord) => a.funcionario.localeCompare(b.funcionario, 'pt-BR');
+  const byDate = (a: OvertimeRecord, b: OvertimeRecord) => (a.dataSortKey || '').localeCompare(b.dataSortKey || '');
   const lead = (a: OvertimeRecord, b: OvertimeRecord) => Number(isLeaderRow(b)) - Number(isLeaderRow(a));
   const cmp: Record<SortMode, (a: OvertimeRecord, b: OvertimeRecord) => number> = {
-    ALFA: byName,
-    PECA: (a, b) => norm(a.motivoHe).localeCompare(norm(b.motivoHe)) || byName(a, b),
-    LIDER: (a, b) => (a.lider || '').localeCompare(b.lider || '', 'pt-BR') || lead(a, b) || byName(a, b),
-    CC: (a, b) => (a.cc || '').localeCompare(b.cc || '') || lead(a, b) || norm(a.motivoHe).localeCompare(norm(b.motivoHe)) || byName(a, b),
-    CHAPA: (a, b) => Number(a.chapa) - Number(b.chapa),
+    ALFA: (a, b) => byDate(a, b) || byName(a, b),
+    CHAPA: (a, b) => byDate(a, b) || Number(a.chapa) - Number(b.chapa),
+    PECA: (a, b) => norm(a.motivoHe).localeCompare(norm(b.motivoHe)) || byDate(a, b) || byName(a, b),
+    LIDER: (a, b) => (a.lider || '').localeCompare(b.lider || '', 'pt-BR') || byDate(a, b) || lead(a, b) || byName(a, b),
+    CC: (a, b) => (a.cc || '').localeCompare(b.cc || '') || byDate(a, b) || lead(a, b) || norm(a.motivoHe).localeCompare(norm(b.motivoHe)) || byName(a, b),
   };
-  return [...recs].sort((a, b) => (mode === 'ALFA' || mode === 'CHAPA' ? 0 : 0) || cmp[mode](a, b));
+  return [...recs].sort(cmp[mode]);
 }
 
 export type Row = { kind: 'group'; label: string; n: number } | { kind: 'rec'; r: OvertimeRecord; idx: number };
@@ -83,13 +89,14 @@ export type Row = { kind: 'group'; label: string; n: number } | { kind: 'rec'; r
 /** Linhas da lista nominal, já com cabeçalhos de grupo quando pedido. */
 export function buildRows(recs: OvertimeRecord[], mode: SortMode, group: boolean): Row[] {
   const sorted = sortRecords(recs, mode);
+  const multiDate = new Set(recs.map((r) => r.data)).size > 1;
   const rows: Row[] = [];
   let last: string | null = null;
   let idx = 0;
   const counts = new Map<string, number>();
-  if (group) sorted.forEach((r) => { const k = groupKeyOf(mode, r); if (k) counts.set(k, (counts.get(k) ?? 0) + 1); });
+  if (group) sorted.forEach((r) => { const k = groupKeyOf(mode, r, multiDate); if (k) counts.set(k, (counts.get(k) ?? 0) + 1); });
   sorted.forEach((r) => {
-    const k = group ? groupKeyOf(mode, r) : null;
+    const k = group ? groupKeyOf(mode, r, multiDate) : null;
     if (k && k !== last) {
       rows.push({ kind: 'group', label: k, n: counts.get(k) ?? 0 });
       last = k;
