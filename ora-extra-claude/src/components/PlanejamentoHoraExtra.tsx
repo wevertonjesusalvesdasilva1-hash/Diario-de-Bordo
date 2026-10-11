@@ -15,6 +15,7 @@ import {
   transpLabel,
   turno,
 } from '../utils/planning';
+import { OFFICIAL_LEADERS } from '../data/leaderDatabase';
 import { BRAND } from '../utils/brand';
 import { exportPlanningExcel } from '../utils/planningExcel';
 
@@ -227,6 +228,66 @@ function Sheet({
   );
 }
 
+
+/** Colaboradores com mais de um líder na base (ou sem líder): o usuário escolhe o líder certo. */
+function LeaderConflicts({ records, onSetLeader }: { records: OvertimeRecord[]; onSetLeader: (chapa: string, nome: string, lider: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const list = useMemo(() => {
+    const m = new Map<string, OvertimeRecord>();
+    records.forEach((r) => {
+      const multi = (r.lider || '').includes('/');
+      const none = !r.lider || norm(r.lider) === 'nao identificado';
+      if (multi || none) m.set(r.chapa || r.funcionario, r);
+    });
+    return [...m.values()].sort((a, b) => a.funcionario.localeCompare(b.funcionario, 'pt-BR'));
+  }, [records]);
+  const multi = list.filter((r) => (r.lider || '').includes('/')).length;
+  if (list.length === 0) return null;
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
+        <span>
+          ⚠ {multi > 0 && `${multi} colaborador${multi > 1 ? 'es' : ''} com mais de um líder cadastrado`}
+          {multi > 0 && list.length - multi > 0 && ' · '}
+          {list.length - multi > 0 && `${list.length - multi} sem líder`}
+        </span>
+        <button type="button" onClick={() => setOpen(true)} className="ml-auto rounded-lg bg-amber-500 px-3 py-1 font-bold text-slate-950">
+          Resolver agora
+        </button>
+      </div>
+      {open && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3" onClick={() => setOpen(false)}>
+          <div className="max-h-[85vh] w-full max-w-2xl overflow-auto rounded-2xl border border-slate-700 bg-slate-900 p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="font-bold">Definir o líder de cada colaborador</h3>
+              <button type="button" onClick={() => setOpen(false)} className="rounded-lg bg-slate-800 px-3 py-1 text-sm">Fechar</button>
+            </div>
+            <p className="mb-3 text-xs text-slate-400">
+              A base de líderes tem essas pessoas em mais de uma lista. Escolha o líder certo: a escolha é salva neste aparelho e vale para os próximos Excel.
+            </p>
+            {list.length === 0 && <p className="text-sm text-emerald-300">Tudo resolvido ✓</p>}
+            {list.map((r) => {
+              const cands = (r.lider || '').includes('/') ? r.lider.split('/').map((x) => x.trim()) : [...OFFICIAL_LEADERS];
+              return (
+                <div key={r.id} className="border-b border-slate-800 py-2">
+                  <div className="text-sm font-semibold">{r.funcionario} <span className="text-xs font-normal text-slate-400">· {r.chapa} · {r.motivoHe} · {r.cc}</span></div>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {cands.map((c) => (
+                      <button key={c} type="button" onClick={() => onSetLeader(r.chapa, r.funcionario, c)} className="rounded-lg bg-slate-800 px-3 py-1 text-xs font-bold text-slate-100 hover:bg-emerald-600">
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 const sel = 'rounded-lg bg-slate-800 border border-slate-700 px-2 py-1.5 text-xs text-slate-200 min-w-0';
 
 function MultiSelect({ label, all, options, value, onChange }: { label: string; all: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) {
@@ -273,10 +334,12 @@ export default function PlanejamentoHoraExtra({
   records,
   selectedDate,
   onUpload,
+  onSetLeader,
 }: {
   records: OvertimeRecord[];
   selectedDate: string;
   onUpload: () => void;
+  onSetLeader: (chapa: string, nome: string, lider: string) => void;
 }) {
   const dates = useMemo(() => {
     const m = new Map<string, string>();
@@ -466,6 +529,8 @@ export default function PlanejamentoHoraExtra({
           Imprimir / Salvar PDF (A3)
         </button>
       </div>
+
+      <LeaderConflicts records={scope} onSetLeader={onSetLeader} />
 
       {/* Dias: marque quantos quiser; com 2+ dias escolha folha separada ou resumo único */}
       <div className="flex flex-wrap items-center gap-1.5">

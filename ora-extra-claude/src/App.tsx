@@ -2382,6 +2382,7 @@ export default function App() {
             records={records}
             selectedDate={selectedDate}
             onUpload={() => fileInputRef.current?.click()}
+            onSetLeader={handleUpdateCollaboratorLeader}
           />
         )}
 
