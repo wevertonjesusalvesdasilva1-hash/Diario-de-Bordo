@@ -62,6 +62,7 @@ import {
   normalizePersonName,
   OFFICIAL_LEADERS,
   resolveCollaboratorLeader,
+  refreshCompositeLeader,
   saveLeaderOverride,
 } from './data/leaderDatabase';
 
@@ -117,7 +118,7 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((item, idx) => normalizeOvertimeRecord(item, idx));
+          return parsed.map((item, idx) => refreshCompositeLeader(normalizeOvertimeRecord(item, idx)));
         }
       }
     } catch {

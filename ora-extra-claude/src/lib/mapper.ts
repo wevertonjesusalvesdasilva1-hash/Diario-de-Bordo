@@ -1,5 +1,6 @@
 import { OvertimeRecord, TimelineEvent } from '../types';
 import { normalizeOvertimeRecord } from '../data/realSampleData';
+import { refreshCompositeLeader } from '../data/leaderDatabase';
 
 const toIso = (r: OvertimeRecord) => (r.dataSortKey && /^\d{4}-\d{2}-\d{2}$/.test(r.dataSortKey) ? r.dataSortKey : null);
 
@@ -42,5 +43,5 @@ export function fromRows(a: any, events: any[]): OvertimeRecord {
     .filter((e) => e.assignment_id === a.id)
     .map((e) => ({ id: e.id, time: e.hora, description: e.descricao, type: e.tipo ?? undefined }))
     .sort((x, y) => x.time.localeCompare(y.time));
-  return normalizeOvertimeRecord({ ...a.payload, id: a.id, timeline }, 0);
+  return refreshCompositeLeader(normalizeOvertimeRecord({ ...a.payload, id: a.id, timeline }, 0));
 }

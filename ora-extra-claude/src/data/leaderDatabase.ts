@@ -33,7 +33,7 @@ export const COLLABORATOR_LEADER_DIRECTORY: CollaboratorLeaderEntry[] = [
   {
     chapa: '10859',
     nome: 'AGNALDO CESAR DA SILVA',
-    lider: 'Alexandre / Odonei',
+    lider: 'Alexandre',
   },
   {
     chapa: '11348',
@@ -46,7 +46,7 @@ export const COLLABORATOR_LEADER_DIRECTORY: CollaboratorLeaderEntry[] = [
     chapa: '12371',
     nome: 'AIRTON DE SOUSA JUNIOR',
     aliasNomes: ['AIRTON DE SOUZA JUNIOR'],
-    lider: 'Alexandre / Odonei',
+    lider: 'Alexandre',
   },
   {
     chapa: '12480',
@@ -88,7 +88,7 @@ export const COLLABORATOR_LEADER_DIRECTORY: CollaboratorLeaderEntry[] = [
   {
     chapa: '10985',
     nome: 'ANDREI ANTONIO DOS SANTOS',
-    lider: 'Alexandre / Odonei',
+    lider: 'Alexandre',
   },
   {
     chapa: '8213',
@@ -139,7 +139,7 @@ export const COLLABORATOR_LEADER_DIRECTORY: CollaboratorLeaderEntry[] = [
   {
     chapa: '290044',
     nome: 'CRISTIANO ROBERTO DE FREITAS',
-    lider: 'Alexandre / Odonei',
+    lider: 'Alexandre',
   },
   {
     chapa: '12434',
@@ -262,7 +262,7 @@ export const COLLABORATOR_LEADER_DIRECTORY: CollaboratorLeaderEntry[] = [
   {
     chapa: '5056',
     nome: 'ISAAC PINTO DE ALMEIDA',
-    lider: 'Alexandre / Odonei',
+    lider: 'Alexandre',
   },
   {
     chapa: '11860',
@@ -338,7 +338,7 @@ export const COLLABORATOR_LEADER_DIRECTORY: CollaboratorLeaderEntry[] = [
   {
     chapa: '10967',
     nome: 'JUAREZ SEBASTIAO DA SILVA',
-    lider: 'Alexandre / Odonei',
+    lider: 'Alexandre',
   },
   {
     chapa: '11928',
@@ -353,7 +353,7 @@ export const COLLABORATOR_LEADER_DIRECTORY: CollaboratorLeaderEntry[] = [
   {
     chapa: '11381',
     nome: 'LEANDRO RARISSON DA CONCEICAO',
-    lider: 'Alexandre / Odonei',
+    lider: 'Alexandre',
   },
   {
     chapa: '10837',
@@ -363,7 +363,7 @@ export const COLLABORATOR_LEADER_DIRECTORY: CollaboratorLeaderEntry[] = [
   {
     chapa: '11100',
     nome: 'LEONARDO NOGUEIRA DUARTE',
-    lider: 'Alexandre / Odonei',
+    lider: 'Alexandre',
   },
   {
     chapa: '11513',
@@ -411,12 +411,12 @@ export const COLLABORATOR_LEADER_DIRECTORY: CollaboratorLeaderEntry[] = [
   {
     chapa: '12658',
     nome: 'MARCELO HENRIQUE DE MELO NASCIMENTO',
-    lider: 'Alexandre / Odonei',
+    lider: 'Alexandre',
   },
   {
     chapa: '11034',
     nome: 'MARCIO DA SILVA',
-    lider: 'Alexandre / Odonei',
+    lider: 'Alexandre',
   },
   {
     chapa: '12717',
@@ -437,7 +437,7 @@ export const COLLABORATOR_LEADER_DIRECTORY: CollaboratorLeaderEntry[] = [
     chapa: '8338',
     nome: 'MAURO HIROSHI SAKAKI',
     aliasNomes: ['MAURO H.', 'MAURO H'],
-    lider: 'Alexandre / Odonei',
+    lider: 'Alexandre',
   },
   {
     chapa: '9005',
@@ -504,7 +504,7 @@ export const COLLABORATOR_LEADER_DIRECTORY: CollaboratorLeaderEntry[] = [
   {
     chapa: '11483',
     nome: 'RAFAEL DA SILVA',
-    lider: 'Alexandre / Odonei',
+    lider: 'Alexandre',
   },
   {
     chapa: '12689',
@@ -767,4 +767,14 @@ export function matchesSelectedLeader(
     .filter(Boolean);
 
   return parts.some((p) => p === normSelected || p.includes(normSelected));
+}
+
+/**
+ * Registros salvos antes de uma correção da base podem ter um líder composto antigo
+ * ("Alexandre / Odonei"). Reaplica a base atual (e as escolhas do usuário) nesses casos.
+ */
+export function refreshCompositeLeader<T extends { chapa: string; funcionario: string; lider?: string }>(rec: T): T {
+  if (!rec.lider || !rec.lider.includes('/')) return rec;
+  const fresh = resolveCollaboratorLeader(rec.chapa, rec.funcionario);
+  return fresh && fresh !== rec.lider && fresh !== 'Não identificado' ? { ...rec, lider: fresh } : rec;
 }
