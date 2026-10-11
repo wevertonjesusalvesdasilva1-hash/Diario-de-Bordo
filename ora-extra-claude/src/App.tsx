@@ -29,6 +29,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react';
+import AdminUsers from './components/AdminUsers';
 import LoginScreen from './components/LoginScreen';
 import { useCloudSync } from './lib/useCloudSync';
 import { getRealFactoryDataset, normalizeOvertimeRecord } from './data/realSampleData';
@@ -1116,6 +1117,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0B0F19] text-slate-100 flex flex-col">
+      {cloud.session && <AdminUsers />}
       {cloud.state !== 'local' && (
         <div className="fixed bottom-2 right-2 z-50 rounded-full bg-slate-900/90 border border-slate-700 px-2.5 py-1 text-[10px] font-semibold text-slate-300">
           {{ 'signed-out': '● sem login', syncing: '● sincronizando', online: '● online', offline: '● offline (fila local)', error: '● erro de sync', local: '' }[cloud.state]}

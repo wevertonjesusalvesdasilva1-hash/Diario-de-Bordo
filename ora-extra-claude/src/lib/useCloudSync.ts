@@ -33,8 +33,8 @@ export function useCloudSync(
     if (!supabase) return;
     setState('syncing');
     const [a, e] = await Promise.all([
-      supabase.from('assignments').select('*'),
-      supabase.from('timeline_events').select('*'),
+      supabase.from('he_assignments').select('*'),
+      supabase.from('he_timeline_events').select('*'),
     ]);
     if (a.error || e.error) return setState('error');
     if (a.data && a.data.length > 0) {
@@ -54,15 +54,15 @@ export function useCloudSync(
     const rows = changed.map(toRows);
     const uniq = <T,>(xs: T[], k: (x: T) => string) => [...new Map(xs.map((x) => [k(x), x])).values()];
     const steps = [
-      supabase.from('employees').upsert(uniq(rows.map((r) => r.employee), (x) => x.chapa)),
-      supabase.from('shifts').upsert(uniq(rows.map((r) => r.shift), (x) => x.id)),
+      supabase.from('he_employees').upsert(uniq(rows.map((r) => r.employee), (x) => x.chapa)),
+      supabase.from('he_shifts').upsert(uniq(rows.map((r) => r.shift), (x) => x.id)),
     ];
     for (const s of steps) if ((await s).error) return setState('error');
-    const asg = await supabase.from('assignments').upsert(rows.map((r) => r.assignment));
+    const asg = await supabase.from('he_assignments').upsert(rows.map((r) => r.assignment));
     if (asg.error) return setState('error');
     const ev = rows.flatMap((r) => r.events);
     if (ev.length) {
-      const r = await supabase.from('timeline_events').upsert(ev, { ignoreDuplicates: true });
+      const r = await supabase.from('he_timeline_events').upsert(ev, { ignoreDuplicates: true });
       if (r.error) return setState('error');
     }
     changed.forEach((r) => snapshot.current.set(r.id, JSON.stringify(r)));
@@ -73,7 +73,7 @@ export function useCloudSync(
   useEffect(() => {
     if (!session) return setState(cloudEnabled ? 'signed-out' : 'local');
     loaded.current = false;
-    pull().then(() => push());
+    Promise.resolve(supabase?.rpc('he_ensure_profile')).then(() => pull()).then(() => push());
   }, [session, pull, push]);
 
   // push com debounce a cada mudança
@@ -89,11 +89,11 @@ export function useCloudSync(
     let t: ReturnType<typeof setTimeout>;
     const ch = supabase
       .channel('ora-extra-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'he_assignments' }, () => {
         clearTimeout(t);
         t = setTimeout(pull, 600);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'timeline_events' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'he_timeline_events' }, () => {
         clearTimeout(t);
         t = setTimeout(pull, 600);
       })
