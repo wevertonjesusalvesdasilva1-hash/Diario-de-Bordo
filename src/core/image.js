@@ -157,8 +157,21 @@ export function penCrop(m, x0, y0, x1, y1, { pad = 10, minInk = 25, sc = 1 } = {
 // ---- skew correction ----------------------------------------------------
 
 // Finds the small rotation (degrees) that makes the printed grid lines horizontal.
-export function estimateSkew(img, range = 3) {
+export function estimateSkew(img, range = 3, { thin = false } = {}) {
   const { dark, width: w, height: h } = masks(img);
+  if (thin) {
+    // keep only thin dark strokes (grid lines, text): table/background shadows around a photographed
+    // sheet are thick and would dominate the estimate
+    for (let x = 0; x < w; x++) {
+      let y = 0;
+      while (y < h) {
+        if (!dark[y * w + x]) { y++; continue; }
+        let e = y; while (e < h && dark[e * w + x]) e++;
+        if (e - y > 6) for (let k = y; k < e; k++) dark[k * w + x] = 0;
+        y = e;
+      }
+    }
+  }
   const pts = [];
   for (let y = 0; y < h; y += 2) {
     for (let x = 0; x < w; x += 2) if (dark[y * w + x]) pts.push(x, y);
@@ -187,11 +200,13 @@ export function estimateSkew(img, range = 3) {
   return best;
 }
 
-export function rotateSmall(img, deg) {
+export function rotateSmall(img, deg, fill = 255) {
   if (Math.abs(deg) < 0.03) return img;
   const { width: w, height: h, data: s } = img;
   const a = (deg * Math.PI) / 180, c = Math.cos(a), sn = Math.sin(a);
   const out = makeImage(w, h);
+  if (fill !== 255) out.data.fill(fill);
+  for (let i = 3; i < out.data.length; i += 4) out.data[i] = 255;
   const d = out.data;
   for (let y2 = 0; y2 < h; y2++) {
     for (let x2 = 0; x2 < w; x2++) {
@@ -207,5 +222,84 @@ export function rotateSmall(img, deg) {
       }
     }
   }
+  return out;
+}
+
+// ---- photos: find the sheet of paper in a phone picture and crop to it ---------------------------
+
+// Separates the bright paper from a darker table/background (Otsu threshold on a small copy) and crops
+// to the largest bright region. Returns the original image when no clear sheet is found.
+export function cropToPaper(img) {
+  const { width: w, height: h, data } = img;
+  const k = Math.max(1, Math.floor(Math.max(w, h) / 400));
+  const sw = Math.floor(w / k), sh = Math.floor(h / k);
+  if (sw < 40 || sh < 40) return img;
+  const gray = new Uint8Array(sw * sh);
+  const hist = new Array(256).fill(0);
+  for (let y = 0; y < sh; y++) {
+    for (let x = 0; x < sw; x++) {
+      const p = ((y * k) * w + x * k) * 4;
+      const g = Math.round(data[p] * 0.3 + data[p + 1] * 0.59 + data[p + 2] * 0.11);
+      gray[y * sw + x] = g; hist[g]++;
+    }
+  }
+  // Otsu
+  const total = sw * sh;
+  let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
+  let wB = 0, sumB = 0, best = 0, thr = 128;
+  for (let i = 0; i < 256; i++) {
+    wB += hist[i]; if (!wB) continue;
+    const wF = total - wB; if (!wF) break;
+    sumB += i * hist[i];
+    const between = wB * wF * (sumB / wB - (sum - sumB) / wF) ** 2;
+    if (between > best) { best = between; thr = i; }
+  }
+  const paper = new Uint8Array(total);
+  for (let i = 0; i < total; i++) paper[i] = gray[i] > thr ? 1 : 0;
+  // largest connected bright region
+  const seen = new Uint8Array(total);
+  let bestComp = null;
+  const stack = [];
+  for (let s0 = 0; s0 < total; s0++) {
+    if (!paper[s0] || seen[s0]) continue;
+    const c = { n: 0, minX: sw, maxX: 0, minY: sh, maxY: 0 };
+    stack.push(s0); seen[s0] = 1;
+    while (stack.length) {
+      const i = stack.pop(), x = i % sw, y = (i / sw) | 0;
+      c.n++; if (x < c.minX) c.minX = x; if (x > c.maxX) c.maxX = x; if (y < c.minY) c.minY = y; if (y > c.maxY) c.maxY = y;
+      if (x > 0 && paper[i - 1] && !seen[i - 1]) { seen[i - 1] = 1; stack.push(i - 1); }
+      if (x < sw - 1 && paper[i + 1] && !seen[i + 1]) { seen[i + 1] = 1; stack.push(i + 1); }
+      if (y > 0 && paper[i - sw] && !seen[i - sw]) { seen[i - sw] = 1; stack.push(i - sw); }
+      if (y < sh - 1 && paper[i + sw] && !seen[i + sw]) { seen[i + sw] = 1; stack.push(i + sw); }
+    }
+    if (!bestComp || c.n > bestComp.n) bestComp = c;
+  }
+  if (!bestComp || bestComp.n < total * 0.2) return img;
+  const bw = bestComp.maxX - bestComp.minX + 1, bh = bestComp.maxY - bestComp.minY + 1;
+  if (bw > sw * 0.96 && bh > sh * 0.96) return img; // the picture is already just the sheet
+  const mx = Math.round(sw * 0.015), my = Math.round(sh * 0.015);
+  const x0 = Math.max(0, (bestComp.minX - mx) * k), y0 = Math.max(0, (bestComp.minY - my) * k);
+  const x1 = Math.min(w, (bestComp.maxX + 1 + mx) * k), y1 = Math.min(h, (bestComp.maxY + 1 + my) * k);
+  const cw = x1 - x0, ch = y1 - y0;
+  const out = makeImage(cw, ch);
+  for (let y = 0; y < ch; y++) out.data.set(data.subarray(((y + y0) * w + x0) * 4, ((y + y0) * w + x0 + cw) * 4), y * cw * 4);
+  return out;
+}
+
+// Removes leftover dark bands (table, shadow) along the edges of an already cropped photo.
+export function trimDarkEdges(img) {
+  const { width: w, height: h, data } = img;
+  const bright = (x, y) => { const p = (y * w + x) * 4; return data[p] * 0.3 + data[p + 1] * 0.59 + data[p + 2] * 0.11 > 150; };
+  const colFrac = (x) => { let n = 0; for (let y = 0; y < h; y += 3) if (bright(x, y)) n++; return n / Math.ceil(h / 3); };
+  const rowFrac = (y) => { let n = 0; for (let x = 0; x < w; x += 3) if (bright(x, y)) n++; return n / Math.ceil(w / 3); };
+  let x0 = 0, x1 = w - 1, y0 = 0, y1 = h - 1;
+  while (x0 < w / 4 && colFrac(x0) < 0.6) x0++;
+  while (x1 > w * 3 / 4 && colFrac(x1) < 0.6) x1--;
+  while (y0 < h / 4 && rowFrac(y0) < 0.6) y0++;
+  while (y1 > h * 3 / 4 && rowFrac(y1) < 0.6) y1--;
+  const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+  if (cw === w && ch === h) return img;
+  const out = makeImage(cw, ch);
+  for (let y = 0; y < ch; y++) out.data.set(data.subarray(((y + y0) * w + x0) * 4, ((y + y0) * w + x0 + cw) * 4), y * cw * 4);
   return out;
 }

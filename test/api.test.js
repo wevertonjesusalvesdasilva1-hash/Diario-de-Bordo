@@ -84,3 +84,47 @@ test('analyze: devolve pontos e recusa corpo inválido', async () => {
   r = mkRes(); await analyze({ method: 'POST', headers: { host: 'app.test', origin: 'https://evil.example' }, body: { resumo: {} } }, r);
   assert.equal(r.code, 403);
 });
+
+test('código de acesso: sem variável o app fica aberto; com variável exige o código certo', async () => {
+  const login = (await import('../api/login.js')).default;
+  const extract = (await import('../api/extract.js')).default;
+  delete process.env.ACCESS_CODE;
+  let r = mkRes(); await login({ method: 'GET', headers: { host: 'app.test' } }, r);
+  assert.deepEqual(r.body, { required: false });
+  process.env.ACCESS_CODE = 'k7tq-m4xz2n'; process.env.GEMINI_API_KEY = 'k';
+  r = mkRes(); await login({ method: 'GET', headers: { host: 'app.test' } }, r);
+  assert.deepEqual(r.body, { required: true });
+  r = mkRes(); await login({ method: 'POST', headers: { host: 'app.test', 'x-forwarded-for': '5.5.5.5' }, body: { code: 'errado' } }, r);
+  assert.equal(r.code, 401);
+  r = mkRes(); await login({ method: 'POST', headers: { host: 'app.test', 'x-forwarded-for': '5.5.5.6' }, body: { code: 'k7tq-m4xz2n' } }, r);
+  assert.equal(r.code, 200);
+  // a leitura sem o código é recusada antes de gastar a cota
+  let called = 0; globalThis.fetch = async () => { called++; return { ok: true, json: async () => ({}) }; };
+  r = mkRes(); await extract({ method: 'POST', headers: { host: 'app.test', 'x-forwarded-for': '5.5.5.7' }, body: { images: ['QUJD'] } }, r);
+  assert.equal(r.code, 401); assert.equal(called, 0);
+  delete process.env.ACCESS_CODE;
+});
+
+test('código de acesso: 10 erros seguidos bloqueiam o IP por um tempo', async () => {
+  const login = (await import('../api/login.js')).default;
+  process.env.ACCESS_CODE = 'segredo-certo';
+  let last;
+  for (let i = 0; i < 11; i++) { last = mkRes(); await login({ method: 'POST', headers: { host: 'app.test', 'x-forwarded-for': '6.6.6.66' }, body: { code: 'x' + i } }, last); }
+  assert.equal(last.code, 429);
+  delete process.env.ACCESS_CODE;
+});
+
+test('terceira leitura: valida o pedido e devolve as respostas', async () => {
+  process.env.GEMINI_API_KEY = 'k'; delete process.env.ACCESS_CODE;
+  const bodies = [];
+  globalThis.fetch = async (url, init) => { bodies.push(JSON.parse(init.body)); return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"respostas":[{"id":"S10","campos":[{"campo":"fim","valor":"22:58"}]}]}' }] } }] }) }; };
+  const call = async (body, ip) => { const r = mkRes(); await handler({ method: 'POST', headers: { host: 'app.test', 'x-forwarded-for': ip }, body }, r); return r; };
+  let r = await call({ pass: 'C', images: ['QUJD'], ask: [{ id: 'S10', tabela: 'stops', linha: 10, campos: ['fim'] }] }, '4.4.4.1');
+  assert.equal(r.code, 200); assert.equal(r.body.data.respostas[0].campos[0].valor, '22:58');
+  assert.match(bodies[0].contents[0].parts[0].text, /fim \(FIM\)/);
+  assert.ok(bodies[0].generationConfig.responseSchema.properties.respostas, 'usa o esquema da 3ª leitura');
+  r = await call({ pass: 'C', images: ['QUJD'], ask: [{ id: 'S10', tabela: 'stops', linha: 10, campos: ['desc'] }] }, '4.4.4.2');
+  assert.equal(r.code, 400, 'campo que não pode ser pedido');
+  r = await call({ pass: 'C', images: ['QUJD', 'QUJD'], ask: [{ id: 'S1', tabela: 'stops', linha: 1, campos: ['fim'] }] }, '4.4.4.3');
+  assert.equal(r.code, 400, 'número de imagens diferente do pedido');
+});

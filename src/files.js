@@ -55,7 +55,7 @@ async function* photo(file) {
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
   ctx.drawImage(bmp, 0, 0, w, h);
   bmp.close?.();
-  yield { name: file.name, page: 1, total: 1, image: canvasToImage(canvas) };
+  yield { name: file.name, page: 1, total: 1, image: canvasToImage(canvas), photo: true };
 }
 
 export async function* readFiles(files) {

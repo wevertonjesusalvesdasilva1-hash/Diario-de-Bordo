@@ -2,6 +2,7 @@
 // Writes the "pontos importantes" of a REVIEWED reading. The model only sees the numbers computed by the
 // app (no images) and is told not to invent anything.
 import { gemini } from './_gemini.js';
+import { checkAccess } from './_auth.js';
 
 const SCHEMA = {
   type: 'OBJECT',
@@ -23,6 +24,8 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
   const origin = req.headers.origin;
   if (origin) { try { if (new URL(origin).host !== req.headers.host) return send(res, 403, { error: 'Origem não permitida' }); } catch { return send(res, 403, { error: 'Origem inválida' }); } }
+  const auth = checkAccess(req);
+  if (!auth.ok) return send(res, auth.status, { error: auth.error, auth: true });
   const key = process.env.GEMINI_API_KEY;
   if (!key) return send(res, 500, { error: 'GEMINI_API_KEY não está configurada no projeto da Vercel' });
   const { resumo } = req.body ?? {};

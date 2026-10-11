@@ -129,3 +129,35 @@ test('linhas numeradas à mão (1, 2, 9, 10) são realinhadas pela tinta; contag
   const w2 = alignRows(page, { prodRows: [], stopRows: [0, 1, 2, 3, 4] });
   assert.match(w2[0], /5 parada\(s\) escrita\(s\) e foram lidas 4/);
 });
+
+test('terceira leitura: só pede as células que divergem e vota 2 de 3', async () => {
+  const { collectAsk, applyThirdReading, alignJson } = await import('../src/core/rows.js');
+  const A = { maquina: 'RAW12', data: '02/10', producao: [], paradas: [
+    { linha: 1, data: '02/10', chapa: '11596', ini: '19:08', fim: '19:50', turno: '2', motivo: 'AGUARD. PEÇA' },
+    { linha: 9, data: '02/10', chapa: '11596', ini: '22:15', fim: '22:38', turno: '2', motivo: 'AGUARD. PEÇA' }] };
+  const B = { maquina: 'RAW12', data: '02/10', producao: [], paradas: [
+    { linha: 1, data: '02/10', chapa: '11596', ini: '19:08', fim: '19:50', turno: '2', motivo: 'AGUARD. PEÇA' },
+    { linha: 9, data: '02/10', chapa: '11596', ini: '22:15', fim: '22:58', turno: '2', motivo: 'AGUARD. PEÇA' }] };
+  const json = reconcile(A, B);
+  alignJson(json, { prodRows: [], stopRows: [0, 9] });          // linhas escritas à mão (1, 9) → posições impressas (1, 10)
+  assert.deepEqual(json.paradas.map((r) => r.linha), [1, 10]);
+  const ask = collectAsk(json);
+  assert.deepEqual(ask, [{ id: 'S10', tabela: 'stops', linha: 10, campos: ['fim'] }]); // só a célula que divergiu
+  applyThirdReading(json, [{ id: 'S10', campos: [{ campo: 'fim', valor: '22:58' }] }]);
+  const page = buildPage(json, { year: 2026, meta: { machineFromBubble: 'RAW12' } });
+  const r = page.stops.find((x) => x.linha === 10);
+  assert.equal(r.fim, '22:58', 'a 3ª leitura concordou com a 2ª');
+  assert.match(r.flags.fim, /2 de 3 leituras/);
+});
+
+test('terceira leitura: se concorda com a 1ª o aviso some; se as três divergem, avisa', async () => {
+  const { applyThirdReading } = await import('../src/core/rows.js');
+  const mk = () => reconcile({ producao: [], paradas: [{ linha: 1, data: '02/10', chapa: '7910', ini: '07:45', fim: '07:54', turno: '1', motivo: 'OUTROS' }] },
+                             { producao: [], paradas: [{ linha: 1, data: '02/10', chapa: '7910', ini: '07:45', fim: '07:51', turno: '1', motivo: 'OUTROS' }] });
+  let j = mk(); applyThirdReading(j, [{ id: 'S1', campos: [{ campo: 'fim', valor: '07:54' }] }]);
+  assert.equal(buildPage(j, { year: 2026 }).stops[0].flags.fim, undefined);
+  j = mk(); applyThirdReading(j, [{ id: 'S1', campos: [{ campo: 'fim', valor: '07:59' }] }]);
+  assert.match(buildPage(j, { year: 2026 }).stops[0].flags.fim, /3 leituras diferentes/);
+  j = mk(); applyThirdReading(j, [{ id: 'S1', campos: [{ campo: 'fim', valor: null }] }]);
+  assert.match(buildPage(j, { year: 2026 }).stops[0].flags.fim, /ilegível/);
+});
