@@ -114,3 +114,16 @@ create policy "realloc scope" on public.he_reallocations for all to authenticate
 
 alter publication supabase_realtime add table public.he_assignments, public.he_timeline_events;
 
+
+-- Login por usuário (sem e-mail real): "usuario@horaextra.local" é auto-confirmado
+create or replace function public.he_autoconfirm() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if new.email like '%@horaextra.local' then
+    new.email_confirmed_at := coalesce(new.email_confirmed_at, now());
+  end if;
+  return new;
+end $$;
+revoke execute on function public.he_autoconfirm() from public, anon, authenticated;
+create trigger he_autoconfirm_trg before insert on auth.users
+  for each row execute function public.he_autoconfirm();

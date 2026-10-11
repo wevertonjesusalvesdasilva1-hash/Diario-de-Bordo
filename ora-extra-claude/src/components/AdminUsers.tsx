@@ -48,7 +48,7 @@ export default function AdminUsers() {
             <h2 className="font-bold">Usuários e papéis</h2>
             {rows.map((r) => (
               <div key={r.id} className="space-y-1 border-b border-slate-800 pb-2">
-                <div className="text-xs text-slate-400">{r.email}</div>
+                <div className="text-xs text-slate-400">{(r.email ?? '').replace('@horaextra.local', '')}</div>
                 <div className="flex gap-2">
                   <select className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm" value={r.role} onChange={(e) => edit(r.id, { role: e.target.value })}>
                     <option value="leader">líder</option>
