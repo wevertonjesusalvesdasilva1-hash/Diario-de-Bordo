@@ -10,6 +10,6 @@ const { stopX, stopY, scale: sc } = lay;
 const out = stopY.slice(0, -1).map((_, r) => {
   const inks = MOTIVOS.map((__, i) => inkIn(lay.masks, stopX[6 + i] + 4 * sc, stopY[r] + 4 * sc, stopX[7 + i] - 4 * sc, stopY[r + 1] - 4 * sc));
   const hit = inks.map((v, i) => [v, i]).filter(([v]) => v > 45 * sc * sc).sort((a, b) => b[0] - a[0]);
-  return !hit.length ? '-' : hit.length > 1 && hit[1][0] > hit[0][0] * 0.6 ? '??' : MOTIVOS[hit[0][1]];
+  return !hit.length ? '-' : hit.length > 1 && hit[1][0] > hit[0][0] * 0.3 ? '??' : MOTIVOS[hit[0][1]];
 });
 console.log((lay.geomOk ? 'grade ok  ' : 'GRADE FORA ' + JSON.stringify(lay.geom) + ' ') + out.join(' | '));

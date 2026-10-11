@@ -82,7 +82,7 @@ function prepare(image) {
     const min = 45 * sc * sc;
     const hit = inks.map((v, i) => [v, i]).filter(([v]) => v > min).sort((a, b) => b[0] - a[0]);
     if (!hit.length) return -1;
-    return hit.length > 1 && hit[1][0] > hit[0][0] * 0.6 ? [hit[0][1], hit[1][1]] : hit[0][1];
+    return hit.length > 1 && hit[1][0] > hit[0][0] * 0.3 ? [hit[0][1], hit[1][1]] : hit[0][1];
   });
   // which printed rows really hold writing, and whether their turno cell is filled
   const cellInk = (xs, ys, r, cols) => cols.reduce((t, c) => t + inkIn(lay.masks, xs[c] + 3 * sc, ys[r] + 3 * sc, xs[c + 1] - 3 * sc, ys[r + 1] - 3 * sc), 0);
@@ -273,6 +273,14 @@ function updateSummary() {
   const inc = includedPages();
   const { prod, stops } = allRows(inc);
   const flags = inc.reduce((n, p) => n + countFlags(p), 0);
+  $('s-folhas').textContent = inc.length;
+  $('s-prod').textContent = prod.length;
+  $('s-stops').textContent = stops.length;
+  $('s-flags').textContent = flags;
+  const cells = prod.length * 10 + stops.length * 6;
+  const pct = cells ? Math.max(0, Math.round(100 - (flags / cells) * 100)) : null;
+  $('s-conf').textContent = pct == null ? '—' : `${pct}%`;
+  $('ring').setAttribute('stroke-dasharray', `${pct ?? 0} 100`);
   $('summary').textContent = `${inc.length} folha(s) · ${prod.length} linhas de produção · ${stops.length} paradas${flags ? ` · ${flags} célula(s) para conferir` : ' · nada pendente'}`;
 }
 
@@ -397,6 +405,18 @@ $('savelists').addEventListener('click', () => {
 $('resetlists').addEventListener('click', () => { resetLists(); fillLists(); toast('Listas restauradas ao padrão'); });
 
 document.title = 'Maple Tapping';
+
+// ---------------------------------------------------------------- theme (claro / escuro)
+const currentTheme = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+const themeLabel = () => { $('theme').textContent = currentTheme() === 'dark' ? 'Tema claro' : 'Tema escuro'; };
+$('theme').addEventListener('click', () => {
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  store.set('mt-theme', next);
+  themeLabel();
+});
+themeLabel();
+
 $('year').value = store.get('year') || new Date().getFullYear();
 $('year').addEventListener('change', () => store.set('year', $('year').value));
 fillLists();
