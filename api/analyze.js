@@ -16,7 +16,8 @@ Regras:
 - Use SOMENTE os números e fatos do JSON. Não invente causas, nomes, horários nem valores.
 - Destaque: o que mais parou a máquina e quanto, paradas longas, desvios de tempo contra o padrão, e horários que não fecham entre produção e paradas (a pessoa deve revisar).
 - Se um alerta indicar possível erro de horário, diga que precisa conferir na folha.
-- Não repita todos os alertas; resuma.`;
+- Não repita todos os alertas; resuma.
+- Escreva em português do Brasil com a acentuação correta (á, ã, ç, é, ô…) e use os nomes de máquinas, peças e motivos exatamente como aparecem no JSON.`;
 
 const send = (res, status, body) => res.status(status).setHeader('Cache-Control', 'no-store').json(body);
 
