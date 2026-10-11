@@ -64,6 +64,9 @@
 
     <section class="card" id="tools" hidden>
       <div class="row">
+        <button id="selall" type="button">Selecionar todas</button>
+        <button id="selnone" type="button" class="ghost">Desmarcar todas</button>
+        <span class="sel" id="selcount"></span>
         <label class="check"><input id="onlyflags" type="checkbox"> Mostrar só linhas com dúvida</label>
         <button id="clear" type="button" class="ghost">Limpar tudo</button>
       </div>
@@ -94,7 +97,8 @@
     <div class="actions">
       <button id="copyprod" type="button">Copiar PRODUÇÃO</button>
       <button id="copystop" type="button">Copiar PARADAS</button>
-      <button id="xlsx" type="button" class="primary">Baixar Excel</button>
+      <button id="xlsx" type="button" class="primary">Baixar Excel (selecionadas)</button>
+      <button id="xlsxall" type="button" class="primary">Baixar Excel com todas</button>
     </div>
   </footer>
   <div id="lightbox" hidden><img alt="Linha ampliada"></div>
