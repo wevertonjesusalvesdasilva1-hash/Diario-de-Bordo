@@ -12,4 +12,4 @@ const out = stopY.slice(0, -1).map((_, r) => {
   const hit = inks.map((v, i) => [v, i]).filter(([v]) => v > 45 * sc * sc).sort((a, b) => b[0] - a[0]);
   return !hit.length ? '-' : hit.length > 1 && hit[1][0] > hit[0][0] * 0.6 ? '??' : MOTIVOS[hit[0][1]];
 });
-console.log(out.join(' | '));
+console.log((lay.geomOk ? 'grade ok  ' : 'GRADE FORA ' + JSON.stringify(lay.geom) + ' ') + out.join(' | '));

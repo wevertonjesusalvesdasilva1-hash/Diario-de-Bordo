@@ -8,7 +8,7 @@ const textField = { type: 'STRING', nullable: true };
 export const SCHEMA = {
   type: 'OBJECT',
   properties: {
-    maquina: { type: 'STRING', nullable: true, description: 'RAW05, RAW06, RAW09, RAW10, RAW11 ou RAW12 (bolinha preenchida); texto escrito se for outra máquina' },
+    maquina: { type: 'STRING', nullable: true, description: 'Nome da máquina: RAW05, RAW06, RAW09, RAW10, RAW11 ou RAW12 (bolinha preenchida) ou, se vier escrito/impresso no campo MÁQUINA, UMC 01, UMC 02, HMC 16 ou NCBZ' },
     data: { type: 'STRING', nullable: true, description: 'data do cabeçalho, dd/mm' },
     producao: {
       type: 'ARRAY',
@@ -55,7 +55,7 @@ export function buildPrompt(pass, hints = {}) {
     : 'A primeira imagem é a folha inteira, já na posição correta; as seguintes são ampliações da tabela 1 e da tabela 2.';
   return `Você transcreve folhas manuscritas "DIÁRIO DE BORDO – PRODUÇÃO E PARADAS" (Komatsu, robôs de solda RAW). ${how}
 
-CABEÇALHO: MÁQUINA (bolinha preenchida entre 05, 06, 09, 10, 11, 12 → RAW05…RAW12) e DATA (dd/mm).
+CABEÇALHO: MÁQUINA e DATA (dd/mm). Nas folhas RAW há bolinhas (05, 06, 09, 10, 11, 12): a preenchida dá RAW05…RAW12. Nas folhas de usinagem o nome vem escrito ou impresso depois de "MÁQUINA:" (UMC 01, UMC 02, HMC 16 ou NCBZ; pode estar como UMC-01). Devolva o nome da máquina; se não conseguir ler, null.
 
 TABELA 1 – REGISTRO DE PRODUÇÃO (até 10 linhas): N°, DATA, PEÇA, MODELO e, para cada turno (1º, 2º, 3º), CHAPA, INÍCIO e FIM; depois TURNO QUE FINALIZOU (1, 2 ou 3) e OBSERVAÇÕES. Transcreva só as linhas que têm escrita.
 

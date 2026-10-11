@@ -21,7 +21,7 @@ export const PROD_COLS = ['n', 'data', 'peca', 'modelo', 'chapa1', 'ini1', 'fim1
 export const STOP_COLS = ['n', 'data', 'chapa', 'ini', 'fim', 'turno',
   'MECÂNICA', 'ELÉTRICA', 'PREVENTIVA', 'AGUARD. PEÇA', 'PONTE ROLANTE', 'CONSUMIVEIS', 'TROCA DE PEÇA ', 'SET-UP', 'OUTROS', 'FALTA DE PEÇA', 'desc'];
 export const MOTIVOS = STOP_COLS.slice(6, 16);
-export const MACHINES = ['RAW05', 'RAW06', 'RAW09', 'RAW10', 'RAW11', 'RAW12'];
+export const RAW_BUBBLES = ['RAW05', 'RAW06', 'RAW09', 'RAW10', 'RAW11', 'RAW12'];
 
 const THICK = 12 / 1754; // minimum bar thickness as a fraction of page width
 
@@ -91,33 +91,95 @@ export function analyze(imgIn) {
   const bar1 = bars[1] ?? { start: REF.bar1Top * sc, end: REF.bar1Bottom * sc };
   const bar2 = bars[2] ?? { start: (REF.bar2Bottom - 30) * sc, end: REF.bar2Bottom * sc };
 
-  // horizontal scale from the outer vertical lines of table 1
-  const prodBandY0 = bar1.end + (REF.prodTop - REF.bar1Bottom + 6) * sc;
-  const prodBandY1 = bar1.end + (REF.prodTop - REF.bar1Bottom + 6 + (REF.prodRows - 1) * REF.prodPitch) * sc;
-  const vProd = peaks(colSums(dark, w, h, prodBandY0, prodBandY1), (prodBandY1 - prodBandY0) * 0.5);
-  const left = snap(REF.left * sc, vProd, 25 * sc);
-  const rightGuess = REF.right * sc;
-  const right = snap(rightGuess, vProd, 25 * sc);
-  const sx = (right - left) / (REF.right - REF.left);
-
-  const mapX = (list, found) => list.map((x) => snap(left + (x - REF.left) * sx, found, 7 * sx));
-  const stopBandY0 = bar2.end + (REF.stopTop - REF.bar2Bottom + 6) * sc;
-  const stopBandY1 = bar2.end + (REF.stopTop - REF.bar2Bottom + 6 + (REF.stopRows - 1) * REF.stopPitch) * sc;
-  const vStop = peaks(colSums(dark, w, h, stopBandY0, stopBandY1), (stopBandY1 - stopBandY0) * 0.5);
-  const prodX = mapX(REF.prodX, vProd);
-  const stopX = mapX(REF.stopX, vStop);
-
-  // horizontal lines, measured in the wide free-text column (little handwriting there)
-  const rowBounds = (topRef, pitch, nRows, anchorBottom, anchorRefBottom, xA, xB) => {
-    const top = anchorBottom + (topRef - anchorRefBottom) * sc;
-    const hy = peaks(rowSums(dark, w, h, left + (xA - REF.left) * sx, left + (xB - REF.left) * sx),
-      (xB - xA) * sx * 0.6);
-    const out = [];
-    for (let i = 0; i <= nRows; i++) out.push(snap(top + i * pitch * sc, hy, 8 * sc));
-    return out;
+  // ---- vertical lines: measured from the page, so other versions of the form (different column
+  // widths, e.g. the blue one) work. The page is only trusted when the exact number of lines is found.
+  const vBand = (bar) => [bar.end + 110 * sc, bar.end + 360 * sc];
+  const vLines = (bar) => {
+    const [y0, y1] = vBand(bar);
+    return peaks(colSums(dark, w, h, y0, y1), (y1 - y0) * 0.5);
   };
-  const prodY = rowBounds(REF.prodTop, REF.prodPitch, REF.prodRows, bar1.end, REF.bar1Bottom, 1260, 1690);
-  const stopY = rowBounds(REF.stopTop, REF.stopPitch, REF.stopRows, bar2.end, REF.bar2Bottom, 1340, 1690);
+  // Pairs each expected line with a detected one (monotonic, minimum total distance), ignoring
+  // spurious lines such as stamps or long strokes. Returns null when a line cannot be found.
+  const matchLines = (found, ref) => {
+    if (found.length === ref.length) return found; // exactly the expected lines: take them as they are
+    if (found.length < ref.length) return null;
+    const first = found[0], last = found.at(-1);
+    const k = (last - first) / (ref.at(-1) - ref[0]);
+    const want = ref.map((x) => first + (x - ref[0]) * k);
+    const CAP = 32 * sc, n = want.length, m = found.length;
+    const INF = 1e9;
+    const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(INF));
+    const from = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let j = 0; j <= m; j++) dp[0][j] = 0;
+    for (let i = 1; i <= n; i++) {
+      for (let j = i; j <= m; j++) {
+        const d = Math.abs(found[j - 1] - want[i - 1]);
+        const useIt = d <= CAP ? dp[i - 1][j - 1] + d : INF;
+        const skip = dp[i][j - 1];
+        if (useIt <= skip) { dp[i][j] = useIt; from[i][j] = 1; } else { dp[i][j] = skip; from[i][j] = 0; }
+      }
+    }
+    if (dp[n][m] >= INF) return null;
+    const out = [];
+    for (let i = n, j = m; i > 0 && j > 0;) {
+      if (from[i][j]) { out.unshift(found[j - 1]); i--; j--; } else j--;
+    }
+    return out.length === n ? out : null;
+  };
+  const rawProd = vLines(bar1), rawStop = vLines(bar2);
+  let prodX = matchLines(rawProd, REF.prodX), stopX = matchLines(rawStop, REF.stopX);
+  let geomOk = !!prodX && !!stopX;
+  if (!geomOk) {
+    // fall back to the template of the grey form, snapped to whatever was found
+    const left = snap(REF.left * sc, rawProd, 25 * sc);
+    const right = snap(REF.right * sc, rawProd, 25 * sc);
+    const sx = (right - left) / (REF.right - REF.left);
+    const mapX = (list, found) => list.map((x) => snap(left + (x - REF.left) * sx, found, 7 * sx));
+    prodX = prodX ?? mapX(REF.prodX, rawProd); stopX = stopX ?? mapX(REF.stopX, rawStop);
+  }
+  const left = prodX[0], sx = (prodX.at(-1) - prodX[0]) / (REF.right - REF.left);
+
+  // ---- horizontal lines: rows have a uniform height, so find the bottom border and the pitch that
+  // best explains the (incomplete) set of lines found in the N° column.
+  // Lines are looked for in several narrow bands and merged, so handwriting in one band does not hide them.
+  const collectLines = (bands, from, to) => {
+    const all = [];
+    for (const [x0, x1] of bands) all.push(...peaks(rowSums(dark, w, h, x0, x1, Math.round(from), Math.round(to)), (x1 - x0) * 0.8));
+    all.sort((a, b) => a - b);
+    return all.reduce((acc, y) => (acc.length && y - acc.at(-1) < 4 * sc ? acc : [...acc, y]), []);
+  };
+  const fitRows = (bands, from, to, nRows) => {
+    const lines = collectLines(bands, from, to);
+    const aligned = (top, p) => { let n = 0; for (let k = 0; k <= nRows; k++) if (lines.some((l) => Math.abs(l - (top + k * p)) <= 2.5 * sc)) n++; return n; };
+    let best = null;
+    // the table top line is almost always found; try every pitch a row can have and keep the
+    // grid that explains the most of the (incomplete) set of lines
+    for (const top of lines) {
+      for (let p = 37 * sc; p <= 44 * sc; p += 0.1 * sc) {
+        const n = aligned(top, p);
+        if (n >= 5 && (!best || n > best.n)) best = { top, p, n };
+      }
+    }
+    // otherwise: the bottom border plus the pitch that explains most of the other lines
+    if (!best) {
+      for (const bottom of lines.slice(-3)) {
+        for (let p = 37 * sc; p <= 44 * sc; p += 0.1 * sc) {
+          const n = aligned(bottom - nRows * p, p);
+          if (n >= 6 && (!best || n > best.n)) best = { top: bottom - nRows * p, p, n };
+        }
+      }
+    }
+    if (!best) return null;
+    return Array.from({ length: nRows + 1 }, (_, k) => snap(best.top + k * best.p, lines, 2.5 * sc));
+  };
+  const nBands = (xs) => { const a = xs[0], b = xs[1], wd = b - a; return [[a + 0.05 * wd, a + 0.35 * wd], [a + 0.65 * wd, b - 0.05 * wd]]; };
+  const fitProd = fitRows([...nBands(prodX), [prodX[10] + 4 * sc, prodX[13] - 4 * sc]], bar1.end + 4 * sc, bar2.start - 2 * sc, REF.prodRows);
+  const fitStop = fitRows([...nBands(stopX), [stopX[16] + 6 * sc, stopX[17] - 6 * sc]], bar2.end + 4 * sc, h - 2 * sc, REF.stopRows);
+  const tmplRows = (topRef, pitch, nRows, anchorBottom, anchorRefBottom) =>
+    Array.from({ length: nRows + 1 }, (_, i) => anchorBottom + (topRef - anchorRefBottom) * sc + i * pitch * sc);
+  const prodY = fitProd ?? tmplRows(REF.prodTop, REF.prodPitch, REF.prodRows, bar1.end, REF.bar1Bottom);
+  const stopY = fitStop ?? tmplRows(REF.stopTop, REF.stopPitch, REF.stopRows, bar2.end, REF.bar2Bottom);
+  geomOk = geomOk && !!fitProd && !!fitStop;
 
   const bubbles = REF.bubbles.x.map((x) => ({
     x: left + (x - REF.left) * sx,
@@ -133,7 +195,7 @@ export function analyze(imgIn) {
 
   addBlackPen(m, { prodX, prodY, stopX, stopY }, sc);
 
-  return { img, masks: m, rotation: q, skew, scale: sc, prodX, prodY, stopX, stopY, bubbles, dateBox };
+  return { img, masks: m, rotation: q, skew, scale: sc, prodX, prodY, stopX, stopY, bubbles, dateBox, geomOk, geom: { v: [rawProd.length, rawStop.length], rows: [!!fitProd, !!fitStop] } };
 }
 
 export function detectMachine(layout) {
@@ -144,7 +206,7 @@ export function detectMachine(layout) {
   const idx = inks.indexOf(max);
   const second = [...inks].sort((a, b) => b - a)[1];
   const found = max > 60 * sc * sc && max > second * 1.8;
-  return { machine: found ? MACHINES[idx] : null, inks };
+  return { machine: found ? RAW_BUBBLES[idx] : null, inks };
 }
 
 // Some people write in black. Inside the table bodies everything that is dark and is not a

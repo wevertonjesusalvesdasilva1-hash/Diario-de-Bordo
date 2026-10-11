@@ -2,7 +2,7 @@
 // normalises every field and records why a cell deserves a second look (flags).
 import { normTime, normChapa, normTurno, normDate, normPeca, normModelo } from './parse.js';
 import { getLists, lookupAlias, aliasKey } from './lists.js';
-import { MOTIVOS } from '../data/vocab.js';
+import { MOTIVOS, MAQUINAS } from '../data/vocab.js';
 
 export const PROD_FIELDS = ['data', 'peca', 'modelo', 'chapa1', 'ini1', 'fim1', 'chapa2', 'ini2', 'fim2', 'chapa3', 'ini3', 'fim3', 'turno_finalizou', 'obs'];
 export const STOP_FIELDS = ['data', 'chapa', 'ini', 'fim', 'turno', 'motivo', 'descricao'];
@@ -15,6 +15,19 @@ export function normMotivo(text) {
   for (const [m, list] of Object.entries(alias)) if (list.includes(t)) return { value: m, flag: null };
   return { value: String(text).trim().toUpperCase(), flag: 'motivo desconhecido' };
 }
+
+// "UMC-01", "umc 1", "RAW 5", "hmc16", "NCBZ" → the name used in the base.
+export function normMachine(text) {
+  const t = String(text ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!t) return '';
+  let m;
+  if ((m = /^RAW0?(\d{1,2})$/.exec(t))) return `RAW${m[1].padStart(2, '0')}`;
+  if ((m = /^UMC0?(\d)$/.exec(t))) return `UMC 0${m[1]}`;
+  if ((m = /^HMC0?(\d{1,2})$/.exec(t))) return `HMC ${m[1].padStart(2, '0')}`;
+  if (/^NCB[Z2S]$/.test(t)) return 'NCBZ';
+  return '';
+}
+export const isKnownMachine = (m) => MAQUINAS.includes(m);
 
 // ------------------------------------------------------------------ two readings → one
 
@@ -145,7 +158,7 @@ export function buildPage(json, { year, meta = {} }) {
     if (!row.data && headerDate) { row.data = headerDate; row.flags.data = 'data do cabeçalho'; }
   }
   // the filled bubble is measured from the pixels, so it wins over the model's reading
-  const aiMachine = /^RAW\d\d$/.test(json.maquina ?? '') ? json.maquina : '';
+  const aiMachine = normMachine(json.maquina);
   const machine = meta.machineFromBubble || aiMachine;
   const machineFlag = meta.machineFromBubble && aiMachine && meta.machineFromBubble !== aiMachine ? `IA leu ${aiMachine}` : (machine ? null : 'máquina não identificada');
   const page = { machine, machineFlag, date: headerDate, prod, stops };
@@ -155,12 +168,17 @@ export function buildPage(json, { year, meta = {} }) {
 
 // The X is detected from the pixels (which column of the printed grid holds ink), which is
 // more reliable than the model's reading: the model tends to slip one column sideways.
-// inkIdx[linha-1] = index in MOTIVOS, -1 when no X was found, -2 when several columns have ink.
+// inkIdx[linha-1] = index in MOTIVOS, -1 when no X was found, or the two candidate indexes when the X sits on a border.
 export function applyInkMotivo(page, inkIdx) {
   for (const r of page.stops) {
     const idx = inkIdx?.[r.linha - 1];
     if (idx == null || idx === -1) continue;
-    if (idx === -2) { r.flags.motivo = r.flags.motivo ? `${r.flags.motivo} · mais de um X na linha` : 'mais de um X na linha'; continue; }
+    if (Array.isArray(idx)) {
+      // ink in two neighbouring columns (an X on the border): keep the model's reading if it is one of them
+      if (idx.map((i) => MOTIVOS[i]).includes(r.motivo)) continue;
+      r.flags.motivo = r.flags.motivo ? `${r.flags.motivo} · X entre ${idx.map((i) => MOTIVOS[i]).join(' e ')}` : `X entre ${idx.map((i) => MOTIVOS[i]).join(' e ')}`;
+      continue;
+    }
     const fromInk = MOTIVOS[idx];
     if (r.motivo !== fromInk) {
       r.flags.motivo = r.motivo ? `X está na coluna ${fromInk}; a IA leu ${r.motivo}` : `X está na coluna ${fromInk}`;
