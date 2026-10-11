@@ -219,3 +219,5 @@ td.flag.bad input, td.flag.bad select { background: var(--bad-soft); border-colo
 }
 
 .sel { font: 500 .8rem var(--f-mono); color: var(--accent); margin-inline: 6px; }
+.page-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.page-actions .rm { padding: 5px 10px; }
