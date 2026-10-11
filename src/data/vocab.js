@@ -1,11 +1,10 @@
 // Valores já usados na planilha CONTROLE DE PARADA DE MÁQUINAS (RAW).
 // O leitor usa estas listas para corrigir leituras duvidosas.
-export const CHAPAS = ['11596', '7910', '11833', '10977', '11647', '11046', '12273', '10785', '11678', '11275', '10777', '290049', '11997']; // as duas últimas aparecem nas folhas UMC
+export const CHAPAS = ['11596', '7910', '11833', '10977', '11647', '11046', '12273', '10785', '11678', '11275', '10777'];
 
 export const PECAS = [
   'VIGA BULLD', 'VIGA PC', 'LANÇA', 'CENTER FRAME', 'SUB BRACKET', 'BRACKET', 'S-CASE',
   'COLAR-CENTER FRAME', 'BOOM WA', 'ARTICULAÇÃO', 'FRAME TOP', 'LAMINA', 'ESTRUTURA', 'REFORÇO',
-  'MESA', 'LATERAL',
 ];
 
 export const MODELOS = [
@@ -13,7 +12,6 @@ export const MODELOS = [
   'PC500LC-10M0', 'PC130-10M0', 'PC130LC-10M0', 'PC240LC-8', 'D51', 'PC200-10M0', 'PC210F-10M0',
   'WA320-6', 'WA380-6', 'WA150', 'GD655-5', 'PC220F-10M0', 'D61-24/23', 'D51-22', 'PC160LC-8',
   'PC220F', 'WA320-8M0', 'PC200F-8', 'GD535', 'PC200F-8M0', 'PC210FLC-10M0',
-  '130', '150', 'D61', 'PC240', 'WA200',
 ];
 
 // Motivos exatamente como na aba ITENS (na ordem das colunas do formulário).
@@ -27,3 +25,8 @@ export const MOTIVOS = [
 export const MAQUINAS_RAW = ['RAW05', 'RAW06', 'RAW09', 'RAW10', 'RAW11', 'RAW12'];
 export const MAQUINAS_USINAGEM = ['UMC 01', 'UMC 02', 'HMC 16', 'NCBZ'];
 export const MAQUINAS = [...MAQUINAS_RAW, ...MAQUINAS_USINAGEM];
+
+// Listas iniciais da usinagem (UMC 01, UMC 02, HMC 16, NCBZ), vistas nas folhas UMC. Edite na tela.
+export const CHAPAS_USI = ['290049', '11997'];
+export const PECAS_USI = ['MESA', 'ARTICULAÇÃO', 'LATERAL'];
+export const MODELOS_USI = ['130', '150', 'D61', 'PC240', 'WA200'];

@@ -1,7 +1,7 @@
 // Turns the model's JSON into reviewable rows: reconciles two independent readings,
 // normalises every field and records why a cell deserves a second look (flags).
 import { normTime, normChapa, normTurno, normDate, normPeca, normModelo } from './parse.js';
-import { getLists, lookupAlias, aliasKey } from './lists.js';
+import { getLists, lookupAlias, aliasKey, setActiveGroup, groupOf } from './lists.js';
 import { MOTIVOS, MAQUINAS } from '../data/vocab.js';
 
 export const PROD_FIELDS = ['data', 'peca', 'modelo', 'chapa1', 'ini1', 'fim1', 'chapa2', 'ini2', 'fim2', 'chapa3', 'ini3', 'fim3', 'turno_finalizou', 'obs'];
@@ -159,6 +159,8 @@ function learned(kind, raw, row, key) {
 }
 
 export function buildPage(json, { year, meta = {} }) {
+  // RAW and usinagem sheets are checked against their own lists
+  setActiveGroup(groupOf(meta.machineFromBubble || normMachine(json.maquina)));
   const prod = [];
   for (const r of json.producao ?? []) {
     const d = new Set(r.duvidas ?? []);

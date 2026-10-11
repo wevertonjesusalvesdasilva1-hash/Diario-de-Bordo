@@ -5,9 +5,9 @@ import { inkIn, cropToPaper } from './core/image.js';
 import { readSheet } from './core/gemini.js';
 import { apiPost, checkLogin, login } from './api.js';
 import { usageText, nearLimit, getLimit, setLimit, quotaHit, clearQuota } from './usage.js';
-import { buildPage, reconcile, applyInkMotivo, alignRows, alignJson, collectAsk, applyThirdReading } from './core/rows.js';
+import { buildPage, reconcile, applyInkMotivo, alignRows, alignJson, collectAsk, applyThirdReading, normMachine } from './core/rows.js';
 import { allRows, toTSV, workbookBytes } from './core/export.js';
-import { getLists, saveLists, learnAlias, resetLists } from './core/lists.js';
+import { getLists, saveGroupLists, learnAlias, resetLists, setActiveGroup, groupOf as listGroup } from './core/lists.js';
 import { saveState, loadState } from './store.js';
 import { MOTIVOS, MAQUINAS } from './data/vocab.js';
 
@@ -141,6 +141,7 @@ async function readPage(p) {
       readSheet({ images: sec.B, pass: 'B', hints: hints() }),
     ]);
     if (a.status === 'rejected' && b.status === 'rejected') throw a.reason;
+    setActiveGroup(listGroup(sec.bubble || normMachine((a.value ?? b.value)?.maquina)));
     const single = a.status === 'rejected' || b.status === 'rejected';
     const json = single ? (a.status === 'fulfilled' ? a.value : b.value) : reconcile(a.value, b.value);
     // third reading, only for the cells where the first two readings disagree on a chapa or a time
@@ -777,8 +778,9 @@ document.addEventListener('keydown', (e) => {
 // ---------------------------------------------------------------- lists
 
 const lines = (s) => [...new Set(s.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean))];
+const listGroupSel = () => $('lgroup').value;
 function fillLists() {
-  const l = getLists();
+  const l = getLists(listGroupSel());
   $('l-chapas').value = l.chapas.join('\n');
   $('l-pecas').value = l.pecas.join('\n');
   $('l-modelos').value = l.modelos.join('\n');
@@ -789,71 +791,12 @@ function showLearned() {
   const n = Object.values(a).reduce((s, o) => s + Object.keys(o).length, 0);
   $('learned').textContent = n ? `${n} correção(ões) aprendida(s)` : '';
 }
+$('lgroup').addEventListener('change', fillLists);
 $('savelists').addEventListener('click', () => {
-  saveLists({ chapas: lines($('l-chapas').value).map((c) => c.replace(/\D/g, '')).filter(Boolean), pecas: lines($('l-pecas').value), modelos: lines($('l-modelos').value) });
-  toast('Listas salvas. Valem para as próximas leituras.');
+  saveGroupLists(listGroupSel(), { chapas: lines($('l-chapas').value).map((c) => c.replace(/\D/g, '')).filter(Boolean), pecas: lines($('l-pecas').value), modelos: lines($('l-modelos').value) });
+  toast(`Listas de ${listGroupSel() === 'usi' ? 'usinagem' : 'RAW'} salvas. Valem para as próximas leituras.`);
 });
-$('resetlists').addEventListener('click', () => { resetLists(); fillLists(); toast('Listas restauradas ao padrão'); });
-
-document.title = 'Maple Tapping';
-
-// ---------------------------------------------------------------- theme (claro / escuro)
-const currentTheme = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-const themeLabel = () => { $('theme').textContent = currentTheme() === 'dark' ? 'Tema claro' : 'Tema escuro'; };
-$('theme').addEventListener('click', () => {
-  const next = currentTheme() === 'dark' ? 'light' : 'dark';
-  document.documentElement.dataset.theme = next;
-  store.set('mt-theme', next);
-  themeLabel();
-});
-themeLabel();
-
-
-// ---------------------------------------------------------------- acesso, cota, câmera
-function showLock(msg) {
-  $('lock').hidden = false;
-  $('lockerr').hidden = !msg; $('lockerr').textContent = msg ?? '';
-  setTimeout(() => $('lockcode').focus(), 50);
-}
-$('lockform').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const r = await login($('lockcode').value.trim());
-  if (r.ok) { $('lock').hidden = true; $('lockcode').value = ''; } else showLock(r.error || 'Código inválido');
-});
-window.addEventListener('need-login', () => showLock('Digite o código de acesso'));
-checkLogin().then((st) => { if (st.required && !st.ok) showLock(); });
-
-function updateUsage() {
-  $('usage-text').textContent = usageText();
-  $('usage').classList.toggle('low', nearLimit());
-}
-function pendingPages() { return state.pages.filter((p) => p.status === 'erro' && p.pending && secrets.has(p.id)); }
-function updateQuotaUi() {
-  const q = quotaHit(), pend = pendingPages();
-  const show = !!(state.quotaHit || (q && pend.length));
-  $('quotabanner').hidden = !show;
-  if (!show) return;
-  $('quotamsg').textContent = `${q?.msg ?? 'O limite do plano gratuito do Gemini foi atingido.'}${pend.length ? ` ${pend.length} folha(s) aguardando.` : ''} A cota volta sozinha (confira em aistudio.google.com/usage). Depois é só retomar: o que já foi lido não é refeito.`;
-  $('resume').hidden = !pend.length;
-}
-async function resumePending() {
-  if (state.busy) return toast('Aguarde a leitura atual terminar');
-  const list = pendingPages();
-  if (!list.length) return;
-  state.busy = true; state.quotaHit = false; clearQuota();
-  try { for (const p of list) { await readPage(p); if (state.quotaHit) break; } }
-  finally { state.busy = false; updateSummary(); updateQuotaUi(); }
-  toast(state.quotaHit ? 'A cota acabou de novo. Tente mais tarde.' : 'Leitura retomada e concluída.');
-}
-$('resume').addEventListener('click', resumePending);
-$('quotaclear').addEventListener('click', () => { clearQuota(); state.quotaHit = false; updateQuotaUi(); });
-window.addEventListener('usage', () => { updateUsage(); updateQuotaUi(); });
-$('limit').value = getLimit() || '';
-$('limit').addEventListener('change', () => setLimit($('limit').value));
-updateUsage();
-
-// photo straight from the phone camera: added to the current reading (not replacing it)
-$('camera').addEventListener('change', (e) => { processFiles([...e.target.files], { append: true }); e.target.value = ''; });
+$('resetlists').addEventListener('click', () => { resetLists(listGroupSel()); fillLists(); toast('Listas restauradas ao padrão'); });
 
 $('year').value = store.get('year') || new Date().getFullYear();
 $('year').addEventListener('change', () => store.set('year', $('year').value));
