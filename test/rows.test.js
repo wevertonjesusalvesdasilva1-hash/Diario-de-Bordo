@@ -80,3 +80,39 @@ test('duas leituras com numeração de linha diferente são pareadas pelo conte�
   assert.equal(m.paradas.length, 1);
   assert.ok(!m.paradas[0].soUma);
 });
+
+test('nomes de máquina: RAW, UMC, HMC e NCBZ em qualquer grafia', async () => {
+  const { normMachine } = await import('../src/core/rows.js');
+  assert.equal(normMachine('RAW5'), 'RAW05');
+  assert.equal(normMachine('RAW 12'), 'RAW12');
+  assert.equal(normMachine('UMC-01'), 'UMC 01');
+  assert.equal(normMachine('umc 2'), 'UMC 02');
+  assert.equal(normMachine('HMC16'), 'HMC 16');
+  assert.equal(normMachine('NCBZ'), 'NCBZ');
+  assert.equal(normMachine('XYZ'), '');
+});
+
+test('folha de usinagem: máquina vem do nome escrito quando não há bolinha', () => {
+  const page = buildPage({ maquina: 'UMC-01', data: '03/10', producao: [], paradas: [] }, { year: 2026, meta: { machineFromBubble: '' } });
+  assert.equal(page.machine, 'UMC 01');
+  assert.equal(page.machineFlag, null);
+});
+
+test('X na divisa de duas colunas: mantém a leitura da IA se for uma delas, sem aviso', async () => {
+  const { applyInkMotivo } = await import('../src/core/rows.js');
+  const page = buildPage({ maquina: 'RAW05', data: '02/10', producao: [], paradas: [
+    { linha: 1, data: '02/10', chapa: '7910', ini: '08:00', fim: '08:10', turno: '1', motivo: 'SET-UP' },
+    { linha: 2, data: '02/10', chapa: '7910', ini: '09:00', fim: '09:10', turno: '1', motivo: 'OUTROS' }] }, { year: 2026 });
+  applyInkMotivo(page, [[6, 7], [6, 7]]); // TROCA DE PEÇA ou SET-UP
+  assert.equal(page.stops[0].flags.motivo, undefined);
+  assert.match(page.stops[1].flags.motivo, /X entre TROCA DE PEÇA e SET-UP/);
+});
+
+test('exportação funciona mesmo sem o nome da máquina', async () => {
+  const { allRows, workbookBytes } = await import('../src/core/export.js');
+  const page = buildPage({ maquina: null, data: '02/10', producao: [{ linha: 1, data: '02/10', peca: 'LANÇA', modelo: 'PC210F-10M0', chapa1: '7910', ini1: '07:00', fim1: '08:00', turno_finalizou: '1' }], paradas: [] }, { year: 2026 });
+  assert.equal(page.machine, '');
+  const { prod } = allRows([page]);
+  assert.equal(prod[0][0], '');
+  assert.ok(workbookBytes([page]).byteLength > 1000);
+});

@@ -1,12 +1,12 @@
 import { readFiles, toCanvas, jpegB64, jpegUrl } from './files.js';
-import { analyze, detectMachine, MACHINES } from './core/layout.js';
+import { analyze, detectMachine } from './core/layout.js';
 import { inkIn } from './core/image.js';
 import { readSheet } from './core/gemini.js';
 import { buildPage, reconcile, applyInkMotivo } from './core/rows.js';
 import { allRows, toTSV, workbookBytes } from './core/export.js';
 import { getLists, saveLists, learnAlias, resetLists } from './core/lists.js';
 import { saveState, loadState } from './store.js';
-import { MOTIVOS } from './data/vocab.js';
+import { MOTIVOS, MAQUINAS } from './data/vocab.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -45,7 +45,7 @@ let saveTimer;
 function persist() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, status, error, machine, machineFlag, date, include, single, dup, prod, stops }) => ({ id, label, status, error, machine, machineFlag, date, include, single, dup, prod, stops }));
+    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, status, error, machine, machineFlag, date, include, single, dup, geomWarn, prod, stops }) => ({ id, label, status, error, machine, machineFlag, date, include, single, dup, geomWarn, prod, stops }));
     saveState({ pages: keep, nextId: state.nextId });
   }, 400);
 }
@@ -70,7 +70,7 @@ function prepare(image) {
   try { lay = analyze(image); } catch (e) { console.warn('layout', e); }
   if (!lay) {
     const full = toCanvas(image, 0, 0, image.width, image.height, 2000);
-    return { A: [jpegB64(full, 0.88)], B: [jpegB64(full, 0.9)], strips: { prod: [], stops: [] }, bubble: '', inkMotivo: [] };
+    return { A: [jpegB64(full, 0.88)], B: [jpegB64(full, 0.9)], strips: { prod: [], stops: [] }, bubble: '', inkMotivo: [], geomOk: false };
   }
   const { img, prodX, prodY, stopX, stopY, scale: sc } = lay;
   const full = toCanvas(img, 0, 0, img.width, img.height, 2000);
@@ -82,10 +82,12 @@ function prepare(image) {
     const min = 45 * sc * sc;
     const hit = inks.map((v, i) => [v, i]).filter(([v]) => v > min).sort((a, b) => b[0] - a[0]);
     if (!hit.length) return -1;
-    return hit.length > 1 && hit[1][0] > hit[0][0] * 0.6 ? -2 : hit[0][1];
+    return hit.length > 1 && hit[1][0] > hit[0][0] * 0.6 ? [hit[0][1], hit[1][1]] : hit[0][1];
   });
   return {
-    inkMotivo,
+    // the X column is only trusted when the printed grid was recognised on this sheet
+    inkMotivo: lay.geomOk ? inkMotivo : [],
+    geomOk: lay.geomOk,
     A: [jpegB64(full, 0.88), jpegB64(crop(prodX, prodY, 62, 2200), 0.9), jpegB64(crop(stopX, stopY, 100, 2200), 0.9)],
     B: [jpegB64(crop(prodX, prodY, 62, 2400), 0.92), jpegB64(crop(stopX, stopY, 100, 2400), 0.92)],
     strips: { prod: prodY.slice(0, -1).map((_, i) => strip(prodX, prodY, i)), stops: stopY.slice(0, -1).map((_, i) => strip(stopX, stopY, i)) },
@@ -112,10 +114,10 @@ async function readPage(p) {
     const json = single ? (a.status === 'fulfilled' ? a.value : b.value) : reconcile(a.value, b.value);
     const built = buildPage(json, { year: Number($('year').value) || new Date().getFullYear(), meta: { machineFromBubble: sec.bubble } });
     applyInkMotivo(built, sec.inkMotivo);
-    Object.assign(p, built, { status: 'ok', single });
+    Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk });
     for (const r of p.prod) r.strip = sec.strips.prod[r.linha - 1];
     for (const r of p.stops) r.strip = sec.strips.stops[r.linha - 1];
-    p.include = /^RAW\d\d$/.test(p.machine);
+    p.include = true;
     markDuplicates();
   } catch (e) {
     p.status = 'erro'; p.error = e.message;
@@ -221,11 +223,12 @@ function renderPage(p) {
   const header = h('header', {},
     h('h2', {}, p.label,
       p.status === 'ok' ? h('select', { dataset: { p: p.id, act: 'machine' } },
-        h('option', { value: '' }, 'máquina?'), MACHINES.map((m) => h('option', { value: m, selected: m === p.machine }, m)),
-        p.machine && !MACHINES.includes(p.machine) ? h('option', { value: p.machine, selected: true }, p.machine) : null) : null,
+        h('option', { value: '' }, 'máquina?'), MAQUINAS.map((m) => h('option', { value: m, selected: m === p.machine }, m)),
+        p.machine && !MAQUINAS.includes(p.machine) ? h('option', { value: p.machine, selected: true }, p.machine) : null) : null,
       p.status === 'ok' && p.date ? h('span', { class: 'meta' }, p.date.slice(0, 5)) : null,
       p.machineFlag ? h('span', { class: 'tag bad' }, p.machineFlag) : null,
       p.single ? h('span', { class: 'tag bad' }, 'só 1 leitura (a outra falhou)') : null,
+      p.geomWarn ? h('span', { class: 'tag' }, 'grade da folha não reconhecida: confira os motivos') : null,
       p.dup ? h('span', { class: 'tag bad' }, p.dup) : null,
       p.status === 'ok' ? h('span', { class: 'meta' }, `${p.prod.length} produção · ${p.stops.length} paradas`) : null,
       flags ? h('span', { class: 'tag' }, `${flags} para conferir`) : null),
@@ -236,7 +239,7 @@ function renderPage(p) {
   if (p.status === 'lendo') bodyKids.push(h('p', {}, 'Lendo esta página (duas leituras)…'));
   if (p.status === 'erro') bodyKids.push(h('p', { class: 'err' }, `Não consegui ler: ${p.error}`), h('button', { type: 'button', dataset: { act: 'retry', p: p.id } }, 'Tentar de novo'));
   if (p.status === 'ok') {
-    if (!/^RAW\d\d$/.test(p.machine)) bodyKids.push(h('p', { class: 'note' }, 'Esta folha não é de uma máquina RAW, por isso ficou fora da exportação. Escolha a máquina ou marque "incluir" para usar mesmo assim.'));
+    if (!p.machine) bodyKids.push(h('p', { class: 'note' }, 'A máquina desta folha não foi identificada. Escolha acima; se deixar em branco, o Excel sai com a coluna ROBÔ vazia.'));
     bodyKids.push(
       h('h3', {}, 'Produção'), p.prod.length ? tableFor(p, 'prod', p.prod, PROD_FIELDS) : h('p', { class: 'note' }, 'Nenhuma linha de produção preenchida.'),
       h('button', { type: 'button', dataset: { act: 'add', p: p.id, k: 'prod' } }, '+ linha'),
@@ -275,7 +278,7 @@ document.addEventListener('input', (e) => {
 
 document.addEventListener('change', (e) => {
   const d = e.target.dataset;
-  if (d?.act === 'machine') { const p = pageOf(d.p); p.machine = e.target.value; p.machineFlag = null; p.include = !!e.target.value; renderPage(p); updateSummary(); persist(); return; }
+  if (d?.act === 'machine') { const p = pageOf(d.p); p.machine = e.target.value; p.machineFlag = null; renderPage(p); updateSummary(); persist(); return; }
   if (d?.act === 'include') { const p = pageOf(d.p); p.include = e.target.checked; renderPage(p); updateSummary(); persist(); return; }
   if (d?.f && e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true }));
   // teach the app: what the model read → what the person typed
@@ -330,9 +333,7 @@ async function copy(text, what) {
 function exportable() {
   const inc = includedPages();
   if (!inc.length) { toast('Nenhuma folha marcada para exportar'); return null; }
-  const missing = inc.find((p) => !/^RAW\d\d$/.test(p.machine));
-  if (missing) { toast(`Escolha a máquina da folha ${missing.label}`); return null; }
-  return inc;
+  return inc; // folhas sem máquina saem com a coluna ROBÔ vazia
 }
 
 $('copyprod').addEventListener('click', () => { const inc = exportable(); if (inc) copy(toTSV(allRows(inc).prod), 'PRODUÇÃO'); });
@@ -380,6 +381,7 @@ $('savelists').addEventListener('click', () => {
 });
 $('resetlists').addEventListener('click', () => { resetLists(); fillLists(); toast('Listas restauradas ao padrão'); });
 
+document.title = 'Maple Tapping';
 $('year').value = store.get('year') || new Date().getFullYear();
 $('year').addEventListener('change', () => store.set('year', $('year').value));
 fillLists();
