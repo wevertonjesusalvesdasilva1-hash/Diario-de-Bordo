@@ -161,3 +161,24 @@ test('terceira leitura: se concorda com a 1ª o aviso some; se as três divergem
   j = mk(); applyThirdReading(j, [{ id: 'S1', campos: [{ campo: 'fim', valor: null }] }]);
   assert.match(buildPage(j, { year: 2026 }).stops[0].flags.fim, /ilegível/);
 });
+
+test('listas por grupo: usinagem tem chapas e peças próprias, RAW continua com as dela', async () => {
+  const { resetLists, getLists, setActiveGroup, saveGroupLists } = await import('../src/core/lists.js');
+  resetLists();
+  setActiveGroup('raw');
+  assert.ok(getLists().chapas.includes('7910') && !getLists().chapas.includes('290049'));
+  setActiveGroup('usi');
+  assert.ok(getLists().chapas.includes('290049') && !getLists().chapas.includes('7910'));
+  // a UMC sheet is checked against its own lists: MESA / 130 are known, 290049 too
+  const j = { maquina: 'UMC-01', data: '02/10', producao: [{ linha: 1, data: '02/10', peca: 'MESA', modelo: '130', chapa1: '290049', ini1: '07:45', fim1: '09:40' }], paradas: [] };
+  const page = buildPage(j, { year: 2026 });
+  assert.equal(page.machine, 'UMC 01');
+  assert.deepEqual(page.prod[0].flags, {});
+  // the same data on a RAW machine is flagged (unknown chapa/peça/modelo for solda)
+  const raw = buildPage({ ...j, maquina: 'RAW05' }, { year: 2026 });
+  assert.ok(raw.prod[0].flags.chapa1 && raw.prod[0].flags.peca);
+  // editing one group does not touch the other
+  saveGroupLists('usi', { chapas: ['123456'] });
+  setActiveGroup('raw'); assert.ok(getLists().chapas.includes('7910'));
+  resetLists();
+});
