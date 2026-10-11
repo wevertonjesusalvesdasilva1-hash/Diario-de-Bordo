@@ -235,17 +235,22 @@ async function processFiles(files, { append = false } = {}) {
 // ---------------------------------------------------------------- rendering
 
 const PROD_FIELDS = [
-  ['data', 'DATA', 104], ['peca', 'PEÇA', 110], ['modelo', 'MODELO', 120],
+  ['data', 'DATA', 112], ['peca', 'PEÇA', 110], ['modelo', 'MODELO', 120],
   ['chapa1', 'CHAPA', 66, 'num'], ['ini1', 'INÍCIO', 60, 'num'], ['fim1', 'FIM', 60, 'num'],
   ['chapa2', 'CHAPA 2º', 66, 'num'], ['ini2', 'INÍCIO', 60, 'num'], ['fim2', 'FIM', 60, 'num'],
   ['chapa3', 'CHAPA 3º', 66, 'num'], ['ini3', 'INÍCIO', 60, 'num'], ['fim3', 'FIM', 60, 'num'],
   ['turno', 'TURNO FINAL', 52, 'num'], ['obs', 'OBSERVAÇÕES', 160],
 ];
 const STOP_FIELDS = [
-  ['data', 'DATA', 104], ['chapa', 'CHAPA', 66, 'num'], ['ini', 'INÍCIO', 60, 'num'], ['fim', 'FIM', 60, 'num'],
+  ['data', 'DATA', 112], ['chapa', 'CHAPA', 66, 'num'], ['ini', 'INÍCIO', 60, 'num'], ['fim', 'FIM', 60, 'num'],
   ['turno', 'TURNO', 52, 'num'], ['motivo', 'MOTIVO', 150], ['desc', 'DESCRIÇÃO', 260],
 ];
 const BAD = /inválid|ilegível|desconhecid|sem motivo|falta|iguais|corrigida|duração|parada de|fora da lista/;
+
+// DATA fields: digits only, slashes inserted on the fly (DD/MM/AAAA); DD/MM gets the sheet year on leaving the field
+const maskDate = (v) => { const d = String(v).replace(/\D/g, '').slice(0, 8); return d.length > 4 ? `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}` : d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d; };
+const withYear = (v) => (/^\d{2}\/\d{2}$/.test(v) ? `${v}/${$('year').value || new Date().getFullYear()}` : v);
+const dateAttrs = { inputmode: 'numeric', maxlength: 10, placeholder: 'DD/MM/AAAA', autocomplete: 'off' };
 
 function fieldCell(p, kind, ri, row, [key, , , cls]) {
   const flag = row.flags?.[key];
@@ -253,7 +258,7 @@ function fieldCell(p, kind, ri, row, [key, , , cls]) {
   const attrs = { dataset: { p: p.id, k: kind, r: ri, f: key }, title: flag || row.learned?.[key] ? `${flag ?? ''}${row.learned?.[key] ? ` (aprendido: li "${row.learned[key]}")` : ''}` : false };
   const control = key === 'motivo'
     ? h('select', attrs, h('option', { value: '' }, '—'), [...MOTIVOS, ...(row.motivo && !MOTIVOS.includes(row.motivo) ? [row.motivo] : [])].map((m) => h('option', { value: m, selected: m === row.motivo }, m)))
-    : h('input', { ...attrs, type: 'text', value: row[key] ?? '', spellcheck: false });
+    : h('input', { ...attrs, ...(key === 'data' ? dateAttrs : {}), type: 'text', value: row[key] ?? '', spellcheck: false });
   return h('td', { class: `${cls ?? ''}${flag ? ' flag' : ''}${bad ? ' bad' : ''}` }, control);
 }
 
@@ -362,6 +367,7 @@ document.addEventListener('input', (e) => {
   if (!d?.f) return;
   const row = pageOf(d.p)?.[d.k]?.[Number(d.r)];
   if (!row) return;
+  if (d.f === 'data') e.target.value = maskDate(e.target.value);
   row[d.f === 'desc' ? 'desc' : d.f] = e.target.value;
   if (row.flags?.[d.f]) { delete row.flags[d.f]; e.target.closest('td').classList.remove('flag', 'bad'); }
   updateSummary(); persist();
@@ -369,6 +375,7 @@ document.addEventListener('input', (e) => {
 
 document.addEventListener('change', (e) => {
   const d = e.target.dataset;
+  if (d?.f === 'data') { const v = withYear(e.target.value); if (v !== e.target.value) { e.target.value = v; e.target.dispatchEvent(new Event('input', { bubbles: true })); } }
   if (d?.act === 'machine') { const p = pageOf(d.p); p.machine = e.target.value; p.machineFlag = null; renderPage(p); updateSummary(); persist(); return; }
   if (d?.act === 'include') { const p = pageOf(d.p); p.include = e.target.checked; renderPage(p); updateSummary(); persist(); return; }
   if (d?.f && e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true }));
@@ -774,7 +781,8 @@ function renderQR() {
   if (field) {
     input = field === 'motivo'
       ? h('select', { id: 'qrinput' }, h('option', { value: '' }, '—'), [...MOTIVOS, ...(row.motivo && !MOTIVOS.includes(row.motivo) ? [row.motivo] : [])].map((m) => h('option', { value: m, selected: m === row.motivo }, m)))
-      : h('input', { id: 'qrinput', type: 'text', value: row[field] ?? '', spellcheck: false, autocomplete: 'off' });
+      : h('input', { id: 'qrinput', type: 'text', value: row[field] ?? '', spellcheck: false, autocomplete: 'off', ...(field === 'data' ? dateAttrs : {}) });
+    if (field === 'data') input.addEventListener('input', () => { input.value = maskDate(input.value); });
     const sugg = suggestionChips(row, field);
     chips = sugg.length ? h('div', { class: 'chips' }, h('span', { class: 'note' }, 'Outras leituras:'), sugg.map((c) => h('button', { type: 'button', class: 'chip', dataset: { qr: 'chip', v: c.v } }, c.label))) : null;
   }
@@ -791,7 +799,7 @@ function qrConfirm() {
   const it = qr.items[qr.i];
   if (it?.field) {
     const el = $('qrinput');
-    const value = (el?.value ?? '').trim();
+    const value = it.field === 'data' ? withYear((el?.value ?? '').trim()) : (el?.value ?? '').trim();
     const row = it.row, f = it.field;
     const kind = f === 'desc' ? 'desc' : f;
     row[kind] = value;
