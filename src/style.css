@@ -278,3 +278,16 @@ tr.hl td { animation: hl 2.2s ease; }
 .chip { padding: 4px 12px; font: 500 .95rem var(--f-mono); letter-spacing: 0; text-transform: none; }
 .qrkeys { margin-top: 12px; }
 .qrdone { text-align: center; padding: 18px 0; }
+
+/* painel */
+:root { --m0:#f2b84b; --m1:#ffd93d; --m2:#6bcb77; --m3:#ff6b6b; --m4:#4d96ff; --m5:#c77dff; --m6:#ff9f45; --m7:#2ee6c8; --m8:#9aa5b1; --m9:#ff7ab6; }
+:root[data-theme="light"] { --m0:#b9770e; --m1:#a08500; --m2:#2e8b3f; --m3:#c93c3c; --m4:#1f6fd1; --m5:#8a3fc4; --m6:#c4600e; --m7:#078a80; --m8:#6b7683; --m9:#c43b84; }
+.brow .track.plain { background: var(--line2); height: 14px; }
+.stack { display: flex; height: 100%; min-width: 3px; }
+.stack i { position: static; display: block; box-shadow: none; min-width: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 6px 0 10px; font-size: .78rem; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; }
+.hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; height: 130px; align-items: end; }
+.hcol { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 3px; }
+.hcol i { display: block; width: 100%; background: var(--warn); min-height: 1px; }
+.hcol small { font: 400 .62rem var(--f-mono); color: var(--muted); }
