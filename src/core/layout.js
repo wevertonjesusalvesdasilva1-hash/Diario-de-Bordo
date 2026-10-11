@@ -148,14 +148,19 @@ export function analyze(imgIn) {
     all.sort((a, b) => a - b);
     return all.reduce((acc, y) => (acc.length && y - acc.at(-1) < 4 * sc ? acc : [...acc, y]), []);
   };
-  const fitRows = (bands, from, to, nRows) => {
+  // `limits` pins where the table can start/end (header height is fixed on every version of the form).
+  const fitRows = (bands, from, to, nRows, limits) => {
     const lines = collectLines(bands, from, to);
+    const okTop = (t) => t >= limits.topMin && t <= limits.topMax;
+    const okBottom = (b) => b >= limits.bottomMin && b <= limits.bottomMax;
     const aligned = (top, p) => { let n = 0; for (let k = 0; k <= nRows; k++) if (lines.some((l) => Math.abs(l - (top + k * p)) <= 2.5 * sc)) n++; return n; };
     let best = null;
     // the table top line is almost always found; try every pitch a row can have and keep the
     // grid that explains the most of the (incomplete) set of lines
     for (const top of lines) {
+      if (!okTop(top)) continue;
       for (let p = 37 * sc; p <= 44 * sc; p += 0.1 * sc) {
+        if (!okBottom(top + nRows * p)) continue;
         const n = aligned(top, p);
         if (n >= 5 && (!best || n > best.n)) best = { top, p, n };
       }
@@ -164,8 +169,10 @@ export function analyze(imgIn) {
     if (!best) {
       for (const bottom of lines.slice(-3)) {
         for (let p = 37 * sc; p <= 44 * sc; p += 0.1 * sc) {
-          const n = aligned(bottom - nRows * p, p);
-          if (n >= 6 && (!best || n > best.n)) best = { top: bottom - nRows * p, p, n };
+          const top = bottom - nRows * p;
+          if (!okTop(top) || !okBottom(bottom)) continue;
+          const n = aligned(top, p);
+          if (n >= 6 && (!best || n > best.n)) best = { top, p, n };
         }
       }
     }
@@ -173,8 +180,10 @@ export function analyze(imgIn) {
     return Array.from({ length: nRows + 1 }, (_, k) => snap(best.top + k * best.p, lines, 2.5 * sc));
   };
   const nBands = (xs) => { const a = xs[0], b = xs[1], wd = b - a; return [[a + 0.05 * wd, a + 0.35 * wd], [a + 0.65 * wd, b - 0.05 * wd]]; };
-  const fitProd = fitRows([...nBands(prodX), [prodX[10] + 4 * sc, prodX[13] - 4 * sc]], bar1.end + 4 * sc, bar2.start - 2 * sc, REF.prodRows);
-  const fitStop = fitRows([...nBands(stopX), [stopX[16] + 6 * sc, stopX[17] - 6 * sc]], bar2.end + 4 * sc, h - 2 * sc, REF.stopRows);
+  const fitProd = fitRows([...nBands(prodX), [prodX[10] + 4 * sc, prodX[13] - 4 * sc]], bar1.end + 4 * sc, bar2.start - 2 * sc, REF.prodRows,
+    { topMin: bar1.end + 30 * sc, topMax: bar1.end + 75 * sc, bottomMin: bar2.start - 16 * sc, bottomMax: bar2.start + 3 * sc });
+  const fitStop = fitRows([...nBands(stopX), [stopX[16] + 6 * sc, stopX[17] - 6 * sc]], bar2.end + 4 * sc, h - 2 * sc, REF.stopRows,
+    { topMin: bar2.end + 60 * sc, topMax: bar2.end + 115 * sc, bottomMin: bar2.end + 60 * sc + 380 * sc, bottomMax: h });
   const tmplRows = (topRef, pitch, nRows, anchorBottom, anchorRefBottom) =>
     Array.from({ length: nRows + 1 }, (_, i) => anchorBottom + (topRef - anchorRefBottom) * sc + i * pitch * sc);
   const prodY = fitProd ?? tmplRows(REF.prodTop, REF.prodPitch, REF.prodRows, bar1.end, REF.bar1Bottom);
