@@ -310,3 +310,27 @@ tr.hl td { animation: hl 2.2s ease; }
 .totop svg { width: 22px; height: 22px; }
 .totop:hover { filter: brightness(1.1); }
 @media (max-width: 640px) { .totop { right: 12px; bottom: 150px; } }
+
+/* cards visuais: ícone, número grande e linha do tempo */
+.fcards { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+.fcard .fhead { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }
+.fcard .fhead > div:nth-child(2) { display: grid; gap: 4px; justify-items: start; }
+.ficon { width: 40px; height: 40px; display: grid; place-items: center; font-size: 1.3rem; border: 1px solid currentColor; color: var(--warn); }
+.fcard.alta .ficon { color: var(--bad); }
+.fcard.info .ficon { color: var(--muted); }
+.fbig { text-align: right; line-height: 1.05; }
+.fbig b { display: block; font: 600 1.7rem var(--f-head); letter-spacing: .02em; }
+.fbig small { color: var(--muted); font-size: .72rem; }
+.tl { display: grid; gap: 4px; }
+.tlbar { position: relative; height: 26px; background: var(--line2); overflow: hidden; }
+.tlbar .seg { position: absolute; top: 0; bottom: 0; display: block; opacity: .9; }
+.tlbar .seg.conflict { background: repeating-linear-gradient(45deg, var(--bad) 0 5px, transparent 5px 10px); outline: 2px solid var(--bad); outline-offset: -2px; opacity: 1; z-index: 2; }
+.tlbar .seg.excess { background: repeating-linear-gradient(45deg, var(--bad) 0 6px, rgb(255 107 107 / .45) 6px 12px) !important; }
+.tlbar .seg.gap { background: transparent; border: 1px dashed var(--muted); }
+.tlaxis { position: relative; height: 14px; }
+.tlaxis .tick { position: absolute; transform: translateX(-50%); font: 400 .62rem var(--f-mono); color: var(--muted); }
+.tllegend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .74rem; color: var(--muted); }
+.tllegend .dot { display: inline-block; width: 9px; height: 9px; margin-right: 5px; }
+.tllegend .dot.conflict, .tllegend .dot.excess { background: var(--bad); }
+.tllegend .dot.gap { border: 1px dashed var(--muted); }
+@media (max-width: 640px) { .fcards { grid-template-columns: 1fr; } }

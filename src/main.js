@@ -563,6 +563,19 @@ function goToRow(pid, table, ri) {
   setTimeout(() => el.classList.remove('hl'), 2300);
 }
 
+// Timeline strip for a card: coloured segments on a clock axis, so the finding can be seen at a glance.
+const hhmm = (abs) => { const m = ((abs % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+function timeline(v) {
+  const span = v.to - v.from, pct = (x) => `${(((x - v.from) / span) * 100).toFixed(2)}%`;
+  const segColor = (g) => g.kind === 'prod' ? 'var(--accent)' : g.kind === 'stop' ? motColor(g.motivo) : g.kind === 'conflict' || g.kind === 'excess' ? 'var(--bad)' : 'transparent';
+  const bars = v.segs.filter((g) => g.kind !== 'conflict').map((g) => h('i', { class: `seg ${g.kind}`, style: `left:${pct(g.start)};width:calc(${pct(g.end)} - ${pct(g.start)});background:${segColor(g)}`, title: `${g.label} ${hhmm(g.start)}–${hhmm(g.end)}` }));
+  const over = v.segs.filter((g) => g.kind === 'conflict').map((g) => h('i', { class: 'seg conflict', style: `left:${pct(g.start)};width:calc(${pct(g.end)} - ${pct(g.start)})`, title: `Conflito ${hhmm(g.start)}–${hhmm(g.end)}` }));
+  const ticks = [];
+  for (let t = Math.ceil(v.from / 60) * 60; t <= v.to; t += 60) if ((t - v.from) / span > 0.06 && (t - v.from) / span < 0.94) ticks.push(h('span', { class: 'tick', style: `left:${pct(t)}` }, hhmm(t)));
+  const legend = v.segs.map((g) => h('span', { class: 'lg' }, h('i', { class: `dot ${g.kind}`, style: g.kind === 'gap' ? '' : `background:${segColor(g)}` }), `${g.label} ${hhmm(g.start)}–${hhmm(g.end)}`));
+  return h('div', { class: 'tl' }, h('div', { class: 'tlbar' }, ...bars, ...over), h('div', { class: 'tlaxis' }, ...ticks), h('div', { class: 'tllegend' }, ...legend));
+}
+
 const SEV = { alta: ['Alta', 'tag bad'], media: ['Média', 'tag'], info: ['Info', 'tag'] };
 
 function renderAnalysis() {
@@ -601,6 +614,7 @@ function renderAnalysis() {
           h('td', {}, g.ratio != null ? fmtDur(g.stdH * 60) : 'sem padrão'), h('td', {}, g.ratio != null ? `${Math.round(g.ratio * 100)} %` : '—')))))) : null));
   }
 
+  const ICON = { 'produzindo parado': '⚠', 'registros sobrepostos': '⇄', 'parada longa': '⏱', 'sem registro': '?' };
   const KIND = { 'produzindo parado': 'Produzindo e parado ao mesmo tempo', 'registros sobrepostos': 'Registros sobrepostos', 'parada longa': 'Parada mais longa que o normal', 'sem registro': 'Tempo sem registro' };
   const goBtn = (i) => h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: i.page, k: i.table, r: i.ri } }, 'Ir para a linha');
   const bySheet = new Map();
@@ -608,9 +622,10 @@ function renderAnalysis() {
   const cardsBlock = a.cards.length
     ? [...bySheet].map(([title, list]) => h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, title, h('span', { class: 'badge-ai' }, `${list.length} ponto${list.length === 1 ? '' : 's'}`)),
       h('div', { class: 'fcards' }, list.map((c) => h('article', { class: `fcard ${c.sev}` },
-        h('div', { class: 'fhead' }, h('span', { class: SEV[c.sev][1] }, SEV[c.sev][0]), h('strong', {}, KIND[c.kind] ?? c.kind)),
+        h('div', { class: 'fhead' }, h('span', { class: 'ficon' }, ICON[c.kind] ?? '!'), h('div', {}, h('span', { class: SEV[c.sev][1] }, SEV[c.sev][0]), h('strong', {}, KIND[c.kind] ?? c.kind)),
+          c.viz?.big ? h('div', { class: 'fbig' }, h('b', {}, c.viz.big), h('small', {}, c.viz.bigLabel)) : null),
+        c.viz ? timeline(c.viz) : null,
         h('p', {}, c.headline),
-        c.chips?.length ? h('div', { class: 'chips' }, c.chips.map((x) => h('span', { class: 'chip static' }, x))) : null,
         c.why ? h('p', { class: 'note' }, c.why) : null,
         goBtn(c))))))
     : [h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Pontos para validar'), h('p', { class: 'note' }, 'Nada fora do esperado: produção e paradas não se contradizem, não há paradas longas demais nem tempo sem registro.'))];

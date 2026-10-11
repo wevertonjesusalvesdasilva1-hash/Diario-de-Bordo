@@ -16,6 +16,14 @@ const range = (e) => `${clock(e.start)}–${clock(e.end)}`;
 const dayOf = (page) => (page.date || '').slice(0, 5) || 'sem data';
 const nome = (m) => (m ? m.charAt(0) + m.slice(1).toLowerCase() : 'sem motivo');
 
+// Timeline drawing data for a card: a window of time with coloured segments (prod / stop / conflict / excess / gap).
+const clip = (seg, from, to) => (seg.end <= from || seg.start >= to ? null : { ...seg, start: Math.max(seg.start, from), end: Math.min(seg.end, to) });
+function viz(segs, pad = 30, big, bigLabel) {
+  const from = Math.min(...segs.map((x) => x.start)) - pad, to = Math.max(...segs.map((x) => x.end)) + pad;
+  return { from, to, segs: segs.map((x) => clip(x, from, to)).filter(Boolean), big, bigLabel };
+}
+const S = (kind, e, extra = {}) => ({ kind, start: e.start, end: e.end, label: e.type === 'prod' ? 'Produção' : nome(e.motivo), motivo: e.motivo, ...extra });
+
 export function buildCards(events, pages) {
   const pageById = new Map(pages.map((p) => [p.id, p]));
   const cards = [];
@@ -44,12 +52,14 @@ export function buildCards(events, pages) {
           add('alta', 'produzindo parado', stop,
             `${sheet(stop)}: a folha mostra produção das ${range(prod)}, mas também uma parada das ${range(stop)} por ${nome(stop.motivo)}${why}. Nos ${dur(ov)} em comum a máquina aparece produzindo e parada ao mesmo tempo.`,
             [`Produção linha ${prod.linha || prod.ri + 1}: ${range(prod)}`, `Parada linha ${stop.linha || stop.ri + 1}: ${range(stop)}`, `${dur(ov)} em conflito`],
-            { why: 'Ou o operador não parou a produção no horário, ou a parada/produção foi anotada com o horário errado. Vale conferir com ele.' });
+            { why: 'Ou o operador não parou a produção no horário, ou a parada/produção foi anotada com o horário errado. Vale conferir com ele.',
+              viz: viz([S('prod', prod), S('stop', stop), { kind: 'conflict', start: Math.max(a.start, b.start), end: Math.min(a.end, b.end), label: 'Conflito' }], 30, dur(ov), 'em conflito') });
         } else {
           const t = a.type === 'prod' ? 'produções' : 'paradas';
           add('alta', 'registros sobrepostos', b,
             `${sheet(b)}: duas ${t} se sobrepõem por ${dur(ov)} (${range(a)} e ${range(b)}).`,
-            [`Linha ${a.linha || a.ri + 1}: ${range(a)}`, `Linha ${b.linha || b.ri + 1}: ${range(b)}`]);
+            [`Linha ${a.linha || a.ri + 1}: ${range(a)}`, `Linha ${b.linha || b.ri + 1}: ${range(b)}`],
+            { viz: viz([S(a.type, a), S(b.type, b), { kind: 'conflict', start: b.start, end: Math.min(a.end, b.end), label: 'Conflito' }], 30, dur(ov), 'sobrepostos') });
         }
       }
     }
@@ -64,7 +74,8 @@ export function buildCards(events, pages) {
       const sev = !desc || d >= lim * 2 ? 'alta' : 'media';
       add(sev, 'parada longa', s,
         `${sheet(s)}: ${nome(s.motivo)} de ${dur(d)} (${range(s)}); o normal é até ${dur(lim)}. ${desc ? `Ele comentou: "${desc}", mas vale validar se explica todo esse tempo.` : 'Não há comentário explicando.'}`,
-        [`Parada linha ${s.linha || s.ri + 1}`, `${dur(d)} contra ${dur(lim)} normal`, desc ? 'com comentário' : 'sem comentário']);
+        [`Parada linha ${s.linha || s.ri + 1}`, `${dur(d)} contra ${dur(lim)} normal`, desc ? 'com comentário' : 'sem comentário'],
+        { viz: viz([S('stop', { ...s, end: s.start + lim }, { label: `${nome(s.motivo)} (normal)` }), { kind: 'excess', start: s.start + lim, end: s.end, label: 'Passou do normal' }], 30, dur(d), `normal: ${dur(lim)}`) });
     }
 
     // 3. no record at all between two records of the same shift
@@ -76,7 +87,8 @@ export function buildCards(events, pages) {
           const mixed = cover.type !== e.type;
           add(mixed ? 'media' : 'info', 'sem registro', e,
             `${sheet(e)}: nada foi anotado entre ${clock(cover.end)} e ${clock(e.start)} (${dur(gap)}). Não sabemos se a máquina estava produzindo ou parada${mixed ? '; um dos dois horários pode estar errado' : ''}.`,
-            [`Antes: ${cover.type === 'prod' ? 'produção' : 'parada'} até ${clock(cover.end)}`, `Depois: ${e.type === 'prod' ? 'produção' : 'parada'} desde ${clock(e.start)}`, `${dur(gap)} sem registro`]);
+            [`Antes: ${cover.type === 'prod' ? 'produção' : 'parada'} até ${clock(cover.end)}`, `Depois: ${e.type === 'prod' ? 'produção' : 'parada'} desde ${clock(e.start)}`, `${dur(gap)} sem registro`],
+            { viz: viz([S(cover.type, cover), { kind: 'gap', start: cover.end, end: e.start, label: 'Sem registro' }, S(e.type, e)].map((x, i, arr) => (i === 1 ? x : x)), 45, dur(gap), 'sem registro') });
         }
       }
       if (!cover || e.end > cover.end) cover = e;
