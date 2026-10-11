@@ -53,9 +53,9 @@ test('horário errado de uma parada (22:38 em vez de 22:58) aparece como interva
     stops: [stop(10, '02/10/2026', '22:15', '22:38', 'AGUARD. PEÇA')],
   };
   const a = analyze([page]);
-  const gap = a.issues.find((i) => i.kind === 'lacuna' && i.sev === 'media');
+  const gap = a.issues.find((i) => i.kind === 'sem registro' && i.sev === 'media');
   assert.ok(gap, 'deveria apontar a lacuna');
-  assert.match(gap.text, /20 min sem registro/);
+  assert.match(gap.text, /22:38 e 22:58 \(20 min\)/);
 });
 
 test('horário final errado (14:00 em vez de 08:40) vira alerta de tempo contra o padrão', () => {
@@ -74,10 +74,10 @@ test('sobreposição entre parada e produção é alerta alto', () => {
     stops: [stop(3, '02/10/2026', '11:05', '11:35', 'SET-UP')],
   };
   const a = analyze([page]);
-  const ov = a.issues.find((i) => i.kind === 'sobreposição');
+  const ov = a.issues.find((i) => i.kind === 'produzindo parado');
   assert.ok(ov);
   assert.equal(ov.sev, 'alta');
-  assert.match(ov.text, /5 min/);
+  assert.match(ov.text, /5 min em comum/);
 });
 
 test('parada sem motivo, OUTROS sem descrição e linha sem data são sinalizados', () => {
@@ -108,4 +108,28 @@ test('Excel ganha a aba ANÁLISE só quando há análise; PRODUÇÃO e PARADAS f
   assert.match(txt, /TROCA DE PEÇA/);
   // a base continua igual com ou sem a análise
   assert.equal(XLSX.utils.sheet_to_csv(com.Sheets['PRODUÇÃO']), XLSX.utils.sheet_to_csv(sem.Sheets['PRODUÇÃO']));
+});
+
+test('exemplo do almoço: produção das 07:50 às 13:00 com parada de almoço 11:30–12:30', () => {
+  const page = {
+    id: 4, label: 'f', machine: 'RAW05', date: '14/10/2026',
+    prod: [prod(1, '14/10/2026', { chapa1: '7910', ini1: '07:50', fim1: '13:00' })],
+    stops: [stop(1, '14/10/2026', '11:30', '12:30', 'OUTROS', { desc: 'almoço' })],
+  };
+  const a = analyze([page]);
+  const c = a.cards.find((x) => x.kind === 'produzindo parado');
+  assert.ok(c);
+  assert.match(c.headline, /RAW05 · folha do dia 14\/10/);
+  assert.match(c.headline, /07:50–13:00/);
+  assert.match(c.headline, /11:30–12:30/);
+});
+
+test('troca de peça de 40 min sem comentário é apontada; com comentário também, mas como média', () => {
+  const mk = (desc) => ({ id: 5, label: 'f', machine: 'RAW05', date: '14/10/2026', prod: [],
+    stops: [stop(1, '14/10/2026', '09:00', '09:40', 'TROCA DE PEÇA', { desc })] });
+  const sem = analyze([mk('')]).cards.find((x) => x.kind === 'parada longa');
+  assert.ok(sem); assert.equal(sem.sev, 'alta'); assert.match(sem.headline, /Não há comentário/);
+  const com = analyze([mk('quebrou gabarito')]).cards.find((x) => x.kind === 'parada longa');
+  assert.equal(com.sev, 'media'); assert.match(com.headline, /quebrou gabarito/);
+  assert.equal(analyze([{ ...mk(''), stops: [stop(1, '14/10/2026', '09:00', '09:20', 'TROCA DE PEÇA')] }]).cards.filter((x) => x.kind === 'parada longa').length, 0);
 });

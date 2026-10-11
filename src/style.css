@@ -291,3 +291,15 @@ tr.hl td { animation: hl 2.2s ease; }
 .hcol { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; gap: 3px; }
 .hcol i { display: block; width: 100%; background: var(--warn); min-height: 1px; }
 .hcol small { font: 400 .62rem var(--f-mono); color: var(--muted); }
+
+/* cards da análise */
+.fcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; margin-top: 10px; }
+.fcard { border: 1px solid var(--line2); border-left: 3px solid var(--warn); padding: 12px 14px; display: grid; gap: 8px; align-content: start; background: var(--warn-soft); }
+.fcard.alta { border-left-color: var(--bad); background: var(--bad-soft); }
+.fcard.info { border-left-color: var(--line); background: transparent; }
+.fcard p { margin: 0; font-size: .9rem; line-height: 1.45; }
+.fcard .fhead { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.fcard .fhead strong { font: 500 .8rem var(--f-head); letter-spacing: .06em; }
+.fcard .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip.static { cursor: default; font: 400 .72rem var(--f-mono); padding: 3px 8px; border: 1px solid var(--line2); color: var(--muted); }
+.fcard button { justify-self: start; padding: 5px 10px; }

@@ -582,8 +582,8 @@ function renderAnalysis() {
         tile('Produzindo', fmtDur(a.totals.prodMin), 'tempo registrado'),
         tile('Parado', fmtDur(a.totals.stopMin), `${a.totals.pctStop} % do tempo`),
         tile('Horários que fecham', a.totals.fecham == null ? '—' : `${a.totals.fecham}%`, 'entre produção e paradas'),
-        tile('Alertas altos', String(a.totals.alta), 'sobreposições', a.totals.alta ? 'warn' : ''),
-        tile('Alertas médios', String(a.totals.media), 'para conferir', a.totals.media ? 'warn' : ''))),
+        tile('Pontos graves', String(a.totals.alta), 'para validar', a.totals.alta ? 'warn' : ''),
+        tile('Pontos médios', String(a.totals.media), 'para conferir', a.totals.media ? 'warn' : ''))),
     h('section', { class: 'card' }, h('h3', {}, 'Pontos importantes', h('span', { class: 'badge-ai' }, 'resumo da IA')), aiBlock),
   ];
 
@@ -601,12 +601,24 @@ function renderAnalysis() {
           h('td', {}, g.ratio != null ? fmtDur(g.stdH * 60) : 'sem padrão'), h('td', {}, g.ratio != null ? `${Math.round(g.ratio * 100)} %` : '—')))))) : null));
   }
 
-  sections.push(h('section', { class: 'card' }, h('h3', {}, `Alertas para conferir (${a.issues.length})`),
-    a.issues.length ? a.issues.map((i) => h('div', { class: 'issue' },
-      h('span', { class: SEV[i.sev][1] }, SEV[i.sev][0]),
-      h('div', {}, i.text, h('small', {}, `${i.machine} · ${i.label} · linha ${i.linha || '?'}`)),
-      h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: i.page, k: i.table, r: i.ri } }, 'Ir para a linha')))
-      : h('p', { class: 'note' }, 'Nenhum alerta: os horários fecham entre produção e paradas e nada fugiu do padrão.')));
+  const KIND = { 'produzindo parado': 'Produzindo e parado ao mesmo tempo', 'registros sobrepostos': 'Registros sobrepostos', 'parada longa': 'Parada mais longa que o normal', 'sem registro': 'Tempo sem registro' };
+  const goBtn = (i) => h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: i.page, k: i.table, r: i.ri } }, 'Ir para a linha');
+  const bySheet = new Map();
+  for (const c of a.cards) { const k = `${c.machine} · folha do dia ${c.day}`; if (!bySheet.has(k)) bySheet.set(k, []); bySheet.get(k).push(c); }
+  const cardsBlock = a.cards.length
+    ? [...bySheet].map(([title, list]) => h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, title, h('span', { class: 'badge-ai' }, `${list.length} ponto${list.length === 1 ? '' : 's'}`)),
+      h('div', { class: 'fcards' }, list.map((c) => h('article', { class: `fcard ${c.sev}` },
+        h('div', { class: 'fhead' }, h('span', { class: SEV[c.sev][1] }, SEV[c.sev][0]), h('strong', {}, KIND[c.kind] ?? c.kind)),
+        h('p', {}, c.headline),
+        c.chips?.length ? h('div', { class: 'chips' }, c.chips.map((x) => h('span', { class: 'chip static' }, x))) : null,
+        c.why ? h('p', { class: 'note' }, c.why) : null,
+        goBtn(c))))))
+    : [h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Pontos para validar'), h('p', { class: 'note' }, 'Nada fora do esperado: produção e paradas não se contradizem, não há paradas longas demais nem tempo sem registro.'))];
+  sections.splice(2, 0, ...cardsBlock);
+  const others = a.issues.filter((i) => !a.cards.includes(i));
+  if (others.length) sections.push(h('section', { class: 'card' }, h('h3', {}, `Outras conferências (${others.length})`),
+    others.map((i) => h('div', { class: 'issue' }, h('span', { class: SEV[i.sev][1] }, SEV[i.sev][0]),
+      h('div', {}, i.text, h('small', {}, `${i.machine} · ${i.label} · linha ${i.linha || '?'}`)), goBtn(i)))));
   root.replaceChildren(...sections);
 }
 
@@ -866,6 +878,66 @@ $('savelists').addEventListener('click', () => {
   toast(`Listas de ${listGroupSel() === 'usi' ? 'usinagem' : 'RAW'} salvas. Valem para as próximas leituras.`);
 });
 $('resetlists').addEventListener('click', () => { resetLists(listGroupSel()); fillLists(); toast('Listas restauradas ao padrão'); });
+
+document.title = 'Maple Tapping';
+
+// ---------------------------------------------------------------- theme (claro / escuro)
+const currentTheme = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+const themeLabel = () => { $('theme').textContent = currentTheme() === 'dark' ? 'Tema claro' : 'Tema escuro'; };
+$('theme').addEventListener('click', () => {
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  store.set('mt-theme', next);
+  themeLabel();
+});
+themeLabel();
+
+
+// ---------------------------------------------------------------- acesso, cota, câmera
+function showLock(msg) {
+  $('lock').hidden = false;
+  $('lockerr').hidden = !msg; $('lockerr').textContent = msg ?? '';
+  setTimeout(() => $('lockcode').focus(), 50);
+}
+$('lockform').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const r = await login($('lockcode').value.trim());
+  if (r.ok) { $('lock').hidden = true; $('lockcode').value = ''; } else showLock(r.error || 'Código inválido');
+});
+window.addEventListener('need-login', () => showLock('Digite o código de acesso'));
+checkLogin().then((st) => { if (st.required && !st.ok) showLock(); });
+
+function updateUsage() {
+  $('usage-text').textContent = usageText();
+  $('usage').classList.toggle('low', nearLimit());
+}
+function pendingPages() { return state.pages.filter((p) => p.status === 'erro' && p.pending && secrets.has(p.id)); }
+function updateQuotaUi() {
+  const q = quotaHit(), pend = pendingPages();
+  const show = !!(state.quotaHit || (q && pend.length));
+  $('quotabanner').hidden = !show;
+  if (!show) return;
+  $('quotamsg').textContent = `${q?.msg ?? 'O limite do plano gratuito do Gemini foi atingido.'}${pend.length ? ` ${pend.length} folha(s) aguardando.` : ''} A cota volta sozinha (confira em aistudio.google.com/usage). Depois é só retomar: o que já foi lido não é refeito.`;
+  $('resume').hidden = !pend.length;
+}
+async function resumePending() {
+  if (state.busy) return toast('Aguarde a leitura atual terminar');
+  const list = pendingPages();
+  if (!list.length) return;
+  state.busy = true; state.quotaHit = false; clearQuota();
+  try { for (const p of list) { await readPage(p); if (state.quotaHit) break; } }
+  finally { state.busy = false; updateSummary(); updateQuotaUi(); }
+  toast(state.quotaHit ? 'A cota acabou de novo. Tente mais tarde.' : 'Leitura retomada e concluída.');
+}
+$('resume').addEventListener('click', resumePending);
+$('quotaclear').addEventListener('click', () => { clearQuota(); state.quotaHit = false; updateQuotaUi(); });
+window.addEventListener('usage', () => { updateUsage(); updateQuotaUi(); });
+$('limit').value = getLimit() || '';
+$('limit').addEventListener('change', () => setLimit($('limit').value));
+updateUsage();
+
+// photo straight from the phone camera: added to the current reading (not replacing it)
+$('camera').addEventListener('change', (e) => { processFiles([...e.target.files], { append: true }); e.target.value = ''; });
 
 $('year').value = store.get('year') || new Date().getFullYear();
 $('year').addEventListener('change', () => store.set('year', $('year').value));

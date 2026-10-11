@@ -3,6 +3,7 @@
 // Pure functions, no browser APIs.
 import { PADRAO } from '../data/padrao.js';
 import { aliasKey } from './lists.js';
+import { buildCards } from './cards.js';
 
 export const GAP_MIN = 10;        // minutes without any record that deserve a look
 export const GAP_MAX = 6 * 60;    // beyond this the machine is considered not scheduled (night, weekend…)
@@ -177,14 +178,18 @@ export function analyze(pages) {
   const byMachine = new Map();
   for (const p of pages) { const k = p.machine || 'SEM MÁQUINA'; if (!byMachine.has(k)) byMachine.set(k, []); byMachine.get(k).push(p); }
   const machines = [...byMachine.entries()].map(([name, ps]) => summarise(name, events.filter((e) => e.machine === name), ps));
-  const issues = [...machines.flatMap((m) => m.issues), ...skipped.map((s) => ({ sev: 'media', kind: 'incompleto', machine: s.machine, text: s.text, page: s.page, label: s.label, table: s.table, ri: s.ri, linha: s.linha }))]
+  const cards = buildCards(events, pages);
+  // overlaps, gaps and stop durations are now cards; the other checks (standard time, missing reason) stay as issues
+  const keep = (i) => !['sobreposição', 'lacuna'].includes(i.kind);
+  for (const m of machines) m.issues = m.issues.filter(keep);
+  const issues = [...cards, ...machines.flatMap((m) => m.issues), ...skipped.map((s) => ({ sev: 'media', kind: 'incompleto', machine: s.machine, text: s.text, page: s.page, label: s.label, table: s.table, ri: s.ri, linha: s.linha }))]
     .sort((a, b) => RANK[a.sev] - RANK[b.sev]);
   const prodMin = machines.reduce((s, m) => s + m.prodMin, 0), stopMin = machines.reduce((s, m) => s + m.stopMin, 0);
   const tr = machines.reduce((s, m) => ({ total: s.total + m.transitions.total, ok: s.ok + m.transitions.ok }), { total: 0, ok: 0 });
   return {
     generatedAt: new Date().toISOString(),
     sheets: pages.length,
-    machines, issues,
+    machines, issues, cards,
     totals: {
       prodMin, stopMin, pctStop: prodMin + stopMin ? Math.round((stopMin / (prodMin + stopMin)) * 100) : 0,
       alta: issues.filter((i) => i.sev === 'alta').length, media: issues.filter((i) => i.sev === 'media').length, info: issues.filter((i) => i.sev === 'info').length,
