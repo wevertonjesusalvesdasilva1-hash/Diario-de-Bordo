@@ -23,6 +23,11 @@ const A3_W = 1587;
 const A3_H = 1123;
 
 type Mode = 'DAY' | 'EACH' | 'COMBINED';
+type Layout = 'EACH' | 'COMBINED';
+
+/** "02/10/2026" + "03/10/2026" -> "02/10 + 03/10/2026" */
+const daysTitle = (ds: string[]) =>
+  ds.length === 1 ? ds[0] : ds.slice(0, -1).map((d) => d.slice(0, 5)).join(' + ') + ' + ' + ds[ds.length - 1];
 
 const Box = ({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) => (
   <section className={`border ${className}`} style={{ breakInside: 'avoid', borderColor: BRAND.blue }}>
@@ -279,15 +284,22 @@ export default function PlanejamentoHoraExtra({
     return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([d]) => d);
   }, [records]);
 
-  const [mode, setMode] = useState<Mode>('DAY');
-  const [pick, setPick] = useState<string>(selectedDate);
+  const [picked, setPicked] = useState<string[]>([selectedDate]);
+  const [layout, setLayout] = useState<Layout>('COMBINED');
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<SortMode>('CC');
   const [group, setGroup] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  const day = dates.includes(pick) ? pick : dates[0];
-  const scope = useMemo(() => (mode === 'DAY' ? records.filter((r) => r.data === day) : records), [mode, records, day]);
+  // dias escolhidos (ordem cronológica); se nada válido, usa o primeiro dia
+  const days = useMemo(() => {
+    const v = dates.filter((d) => picked.includes(d));
+    return v.length ? v : dates.slice(0, 1);
+  }, [dates, picked]);
+  const mode: Mode = days.length === 1 ? 'DAY' : layout;
+  const toggleDay = (d: string) =>
+    setPicked(days.includes(d) ? (days.length > 1 ? days.filter((x) => x !== d) : days) : [...days, d]);
+  const scope = useMemo(() => records.filter((r) => days.includes(r.data)), [records, days]);
 
   // opções dos filtros (baseadas no escopo atual)
   const opts = useMemo(() => {
@@ -325,12 +337,12 @@ export default function PlanejamentoHoraExtra({
 
   const sheets: { key: string; title: string; recs: OvertimeRecord[]; showDate: boolean }[] =
     mode === 'DAY'
-      ? [{ key: day, title: day, recs: filtered, showDate: false }]
+      ? [{ key: days[0], title: days[0], recs: filtered, showDate: false }]
       : mode === 'EACH'
-      ? dates
+      ? days
           .map((d) => ({ key: d, title: d, recs: filtered.filter((r) => r.data === d), showDate: false }))
           .filter((x) => x.recs.length > 0)
-      : [{ key: 'ALL', title: dates.length > 1 ? `${dates[0].slice(0, 5)} a ${dates[dates.length - 1]}` : dates[0], recs: filtered, showDate: true }];
+      : [{ key: 'ALL', title: daysTitle(days), recs: filtered, showDate: true }];
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const sheetsRef = useRef<HTMLDivElement>(null);
@@ -395,7 +407,7 @@ export default function PlanejamentoHoraExtra({
     const ro = new ResizeObserver(count);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [mode, day, filtered, sort, group]);
+  }, [mode, days, filtered, sort, group]);
 
   const setF = <K extends keyof Filters>(k: K, v: Filters[K]) => setFilters((f) => ({ ...f, [k]: v }));
   const exportExcel = async () => {
@@ -404,7 +416,7 @@ export default function PlanejamentoHoraExtra({
       await exportPlanningExcel({
         recs: filtered,
         perDay: mode === 'EACH',
-        title: mode === 'DAY' ? day : mode === 'EACH' ? 'Todos os dias (separados)' : 'Resumo consolidado',
+        title: mode === 'DAY' ? days[0] : mode === 'EACH' ? `Dias separados ${daysTitle(days)}` : `Resumo ${daysTitle(days)}`,
         sort,
         group: group && sort !== 'ALFA' && sort !== 'CHAPA',
         filterNote,
@@ -455,18 +467,25 @@ export default function PlanejamentoHoraExtra({
         </button>
       </div>
 
-      {/* O que sai: dia, todos separados ou resumo único */}
+      {/* Dias: marque quantos quiser; com 2+ dias escolha folha separada ou resumo único */}
       <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-slate-400 mr-1">Dias:</span>
         {dates.map((d) => (
-          <button key={d} onClick={() => { setMode('DAY'); setPick(d); }} className={chip(mode === 'DAY' && day === d)}>
-            {d}
+          <button key={d} aria-pressed={days.includes(d)} onClick={() => toggleDay(d)} className={chip(days.includes(d))}>
+            {days.includes(d) ? '✓ ' : ''}{d}
           </button>
         ))}
         {dates.length > 1 && (
-          <>
-            <button onClick={() => setMode('EACH')} className={chip(mode === 'EACH')}>Todos os dias (1 folha por dia)</button>
-            <button onClick={() => setMode('COMBINED')} className={chip(mode === 'COMBINED')}>Resumo único (todos os dias)</button>
-          </>
+          <button onClick={() => setPicked([...dates])} className="rounded-lg px-3 py-1.5 text-xs font-bold bg-slate-700 text-slate-100">
+            Todos os dias
+          </button>
+        )}
+        {days.length > 1 && (
+          <span className="ml-auto flex items-center gap-1.5">
+            <span className="text-xs text-slate-400">Saída:</span>
+            <button aria-pressed={layout === 'COMBINED'} onClick={() => setLayout('COMBINED')} className={chip(layout === 'COMBINED')}>Resumo único</button>
+            <button aria-pressed={layout === 'EACH'} onClick={() => setLayout('EACH')} className={chip(layout === 'EACH')}>1 folha por dia</button>
+          </span>
         )}
       </div>
 

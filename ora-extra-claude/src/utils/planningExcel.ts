@@ -139,7 +139,7 @@ export async function exportPlanningExcel(opts: {
   };
   addList('Lista', opts.recs, true);
   if (opts.perDay) {
-    [...new Set(opts.recs.map((r) => r.data))].forEach((d) => addList(d.replace(/\//g, '-'), opts.recs.filter((r) => r.data === d), false));
+    [...new Map(opts.recs.map((r) => [r.data, r.dataSortKey] as const))].sort((a, b) => a[1].localeCompare(b[1])).map(([d]) => d).forEach((d) => addList(d.replace(/\//g, '-'), opts.recs.filter((r) => r.data === d), false));
   }
 
   const buf = await wb.xlsx.writeBuffer();
