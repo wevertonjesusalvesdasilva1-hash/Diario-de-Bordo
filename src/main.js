@@ -14,7 +14,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
 
-const state = { pages: [], nextId: 1, busy: false };
+const state = { pages: [], nextId: 1, batch: 0, busy: false, undo: null };
 const secrets = new Map(); // page id → { images } kept only in memory, for "tentar de novo"
 
 function h(tag, attrs = {}, ...kids) {
@@ -42,20 +42,22 @@ function toast(msg) {
 // ---------------------------------------------------------------- persistence
 
 let saveTimer;
-function persist() {
+function persist(delay = 400) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, prod, stops }) => ({ id, label, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, prod, stops }));
-    saveState({ pages: keep, nextId: state.nextId });
-  }, 400);
+    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, prod, stops }) => ({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, prod, stops }));
+    saveState({ pages: keep, nextId: state.nextId, batch: state.batch });
+  }, delay);
 }
 
 async function restore() {
   const saved = await loadState();
   if (!saved?.pages?.length) return;
   state.nextId = saved.nextId ?? saved.pages.length + 1;
+  state.batch = saved.batch ?? 0;
   for (const p of saved.pages) {
     if (p.status === 'erro') p.error = `${p.error || 'Erro'} (envie o arquivo de novo para repetir)`;
+    p.file ??= String(p.label).split(' · pág.')[0];
     state.pages.push(p);
     $('pages').append(h('section', { class: 'card page', id: `page-${p.id}` }));
     renderPage(p);
@@ -159,6 +161,7 @@ function markDuplicates() {
 async function processFiles(files) {
   if (state.busy) return toast('Aguarde a leitura atual terminar');
   state.busy = true;
+  discardUndo(); // a new upload makes the last deletion final
   const st = $('status');
   st.hidden = false;
   let n = 0;
@@ -168,7 +171,8 @@ async function processFiles(files) {
       st.replaceChildren(h('div', {}, `Lendo ${item.name}, página ${item.page}${item.total > 1 ? ` de ${item.total}` : ''}… não feche esta aba.`), h('progress', { max: item.total, value: item.page - 1 }));
       await new Promise((r) => setTimeout(r)); // let the browser paint
       const prep = prepare(item.image);
-      const p = { id: state.nextId++, label: `${item.name} · pág. ${item.page}`, status: 'lendo', error: '', machine: '', date: '', include: false, prod: [], stops: [] };
+      if (item.page === 1) state.batch++;
+      const p = { id: state.nextId++, batch: state.batch, file: item.name, label: `${item.name} · pág. ${item.page}`, status: 'lendo', error: '', machine: '', date: '', include: false, prod: [], stops: [] };
       secrets.set(p.id, prep);
       state.pages.push(p);
       $('pages').append(h('section', { class: 'card page', id: `page-${p.id}` }));
@@ -247,9 +251,11 @@ function renderPage(p) {
       p.dup ? h('span', { class: 'tag bad' }, p.dup) : null,
       p.status === 'ok' ? h('span', { class: 'meta' }, `${p.prod.length} produção · ${p.stops.length} paradas`) : null,
       flags ? h('span', { class: 'tag' }, `${flags} para conferir`) : null),
-    p.status === 'ok'
-      ? h('label', {}, h('input', { type: 'checkbox', checked: p.include, dataset: { p: p.id, act: 'include' } }), ' incluir na exportação')
-      : null);
+    h('div', { class: 'page-actions' },
+      p.status === 'ok'
+        ? h('label', {}, h('input', { type: 'checkbox', checked: p.include, dataset: { p: p.id, act: 'include' } }), ' incluir na exportação')
+        : null,
+      h('button', { type: 'button', class: 'ghost rm', title: 'Excluir esta folha', dataset: { act: 'delpage', p: p.id } }, 'Excluir folha')));
   const bodyKids = [];
   if (p.status === 'lendo') bodyKids.push(h('p', {}, 'Lendo esta página (duas leituras)…'));
   if (p.status === 'erro') bodyKids.push(h('p', { class: 'err' }, `Não consegui ler: ${p.error}`), h('button', { type: 'button', dataset: { act: 'retry', p: p.id } }, 'Tentar de novo'));
@@ -274,6 +280,10 @@ function updateSummary() {
   const inc = includedPages();
   const { prod, stops } = allRows(inc);
   const flags = inc.reduce((n, p) => n + countFlags(p), 0);
+  const last = lastGroup();
+  $('dellast').hidden = !last.length;
+  $('dellast').textContent = last.length ? `Zerar última leitura (${last[0].file}) e subir novo arquivo` : 'Zerar última leitura';
+  $('undo').hidden = !state.undo;
   const all = okPages().length;
   $('selcount').textContent = all ? `${inc.length} de ${all} folha(s) selecionada(s)` : '';
   $('xlsx').disabled = !inc.length;
@@ -347,6 +357,7 @@ document.addEventListener('click', (e) => {
   if (act === 'rm') { p[k].splice(Number(r), 1); renderPage(p); updateSummary(); persist(); }
   if (act === 'add') { p[k].push({ linha: 0, flags: {}, raw: {}, learned: {} }); renderPage(p); updateSummary(); persist(); }
   if (act === 'retry') readPage(p);
+  if (act === 'delpage') removePages([p], `Folha ${p.label} excluída.`);
 });
 
 async function copy(text, what) {
@@ -386,10 +397,50 @@ function selectAll(on) {
 $('selall').addEventListener('click', () => selectAll(true));
 $('selnone').addEventListener('click', () => selectAll(false));
 
+// ---------------------------------------------------------------- excluir / desfazer
+function lastGroup() {
+  const lastPage = state.pages.at(-1);
+  if (!lastPage) return [];
+  return state.pages.filter((p) => (lastPage.batch != null ? p.batch === lastPage.batch : p.file === lastPage.file));
+}
+function rebuildDom() {
+  $('pages').replaceChildren(...state.pages.map((p) => h('section', { class: 'card page', id: `page-${p.id}` })));
+  state.pages.forEach(renderPage);
+}
+function discardUndo() {
+  if (state.undo) for (const { page } of state.undo) secrets.delete(page.id);
+  state.undo = null;
+}
+function removePages(list, message) {
+  if (state.busy) return toast('Aguarde a leitura terminar para excluir');
+  if (!list.length) return;
+  discardUndo();
+  state.undo = list.map((page) => ({ page, index: state.pages.indexOf(page) })).sort((a, b) => a.index - b.index);
+  state.pages = state.pages.filter((p) => !list.includes(p));
+  rebuildDom(); markDuplicates(); updateSummary(); persist(0);
+  toast(`${message} Use "Desfazer exclusão" se foi sem querer.`);
+}
+// Clears the last file's reading and leaves the app ready for the next file.
+$('dellast').addEventListener('click', () => {
+  const g = lastGroup();
+  if (!g.length || state.busy) return state.busy ? toast('Aguarde a leitura terminar') : undefined;
+  removePages(g, `Leitura de ${g[0].file} zerada. Pronto para o próximo arquivo.`);
+  $('upload').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  $('drop').classList.add('over');
+  setTimeout(() => $('drop').classList.remove('over'), 1800);
+});
+$('undo').addEventListener('click', () => {
+  if (!state.undo) return;
+  for (const { page, index } of state.undo) state.pages.splice(Math.min(index, state.pages.length), 0, page);
+  state.undo = null;
+  rebuildDom(); markDuplicates(); updateSummary(); persist(0);
+  toast('Exclusão desfeita');
+});
+
 $('onlyflags').addEventListener('change', (e) => $('pages').classList.toggle('onlyflags', e.target.checked));
 $('clear').addEventListener('click', () => {
   if ($('clear').dataset.sure !== '1') { $('clear').dataset.sure = '1'; $('clear').textContent = 'Clique de novo para apagar tudo'; setTimeout(() => { $('clear').dataset.sure = ''; $('clear').textContent = 'Limpar tudo'; }, 4000); return; }
-  state.pages.length = 0; secrets.clear(); $('pages').replaceChildren(); $('clear').dataset.sure = ''; $('clear').textContent = 'Limpar tudo';
+  state.pages.length = 0; secrets.clear(); state.undo = null; $('pages').replaceChildren(); $('clear').dataset.sure = ''; $('clear').textContent = 'Limpar tudo';
   updateSummary(); persist();
 });
 
