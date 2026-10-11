@@ -226,13 +226,15 @@ const sel = 'rounded-lg bg-slate-800 border border-slate-700 px-2 py-1.5 text-xs
 
 function MultiSelect({ label, all, options, value, onChange }: { label: string; all: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) {
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setQ(''); return; }
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, [open]);
+  const shown = options.filter((o) => norm(o).includes(norm(q)));
   const toggle = (o: string) => onChange(value.includes(o) ? value.filter((x) => x !== o) : [...value, o]);
   const text = value.length === 0 ? `${label}: ${all}` : value.length === 1 ? `${label}: ${value[0]}` : `${label}: ${value.length} selec.`;
   return (
@@ -242,11 +244,14 @@ function MultiSelect({ label, all, options, value, onChange }: { label: string; 
       </button>
       {open && (
         <div className="absolute z-30 mt-1 w-64 max-h-72 overflow-auto rounded-xl border border-slate-600 bg-slate-900 p-1.5 shadow-xl">
+          {options.length > 8 && (
+            <input autoFocus className="mb-1 w-full rounded-lg bg-slate-800 border border-slate-700 px-2 py-1 text-xs" placeholder={`Buscar ${label.toLowerCase()}…`} value={q} onChange={(e) => setQ(e.target.value)} />
+          )}
           <div className="flex justify-between px-1.5 py-1 text-[11px]">
-            <button type="button" className="text-amber-300 underline" onClick={() => onChange([...options])}>marcar todos</button>
+            <button type="button" className="text-amber-300 underline" onClick={() => onChange([...new Set([...value, ...shown])])}>marcar {q ? 'os da busca' : 'todos'}</button>
             <button type="button" className="text-slate-300 underline" onClick={() => onChange([])}>limpar</button>
           </div>
-          {options.map((o) => (
+          {shown.map((o) => (
             <label key={o} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-800 cursor-pointer">
               <input type="checkbox" checked={value.includes(o)} onChange={() => toggle(o)} />
               <span className="truncate">{o}</span>
@@ -441,10 +446,18 @@ export default function PlanejamentoHoraExtra({
           {(Object.keys(SORT_LABELS) as SortMode[]).map((k) => <option key={k} value={k}>Ordem: {SORT_LABELS[k]}</option>)}
         </select>
         <input className={sel} placeholder="Buscar nome / chapa" value={filters.busca} onChange={(e) => setF('busca', e.target.value)} />
-        <label className="flex items-center gap-1.5 text-xs text-slate-300 px-1">
+        <label className="flex items-center gap-1.5 text-xs text-slate-300 px-1" title="Cria uma faixa com o subtotal para cada peça, líder ou centro de custo (conforme a Ordem escolhida)">
           <input type="checkbox" checked={group} onChange={(e) => setGroup(e.target.checked)} />
-          Agrupar por ordem
+          Separar em faixas
+          <span className="text-[10px] text-slate-500">(peça/líder/CC)</span>
         </label>
+        <button
+          type="button"
+          onClick={() => { setFilters(EMPTY_FILTERS); setSort('CC'); setGroup(true); }}
+          className="rounded-lg border border-red-400/60 bg-red-950/40 px-2 py-1.5 text-xs font-bold text-red-300 hover:bg-red-950/70"
+        >
+          Limpar todos os filtros
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
@@ -452,11 +465,6 @@ export default function PlanejamentoHoraExtra({
           {filtered.length} de {scope.length} colaboradores
           {filterNote ? ` · ${filterNote}` : ''}
         </span>
-        {filterNote && (
-          <button className="underline text-amber-300" onClick={() => setFilters(EMPTY_FILTERS)}>
-            limpar filtros
-          </button>
-        )}
         <span className="ml-auto">
           Simulação A3 paisagem · {pages} página{pages > 1 ? 's' : ''} · zoom {Math.round(scale * 100)}%
         </span>
