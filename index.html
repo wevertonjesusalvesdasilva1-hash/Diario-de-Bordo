@@ -4,19 +4,55 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Maple Tapping</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <script>
+    // applies the saved theme before the first paint (no flash)
+    try { var t = localStorage.getItem('mt-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
   <header class="top">
-    <h1>Maple Tapping</h1>
-    <p>Diário de Bordo: envie as folhas digitalizadas (PDF ou foto), confira o que ficou destacado e leve PRODUÇÃO e PARADAS para a base. Máquinas RAW, UMC 01, UMC 02, HMC 16 e NCBZ.</p>
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="20" r="15" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="20" cy="20" r="8" fill="none" stroke="currentColor" stroke-width="1" opacity=".6"/>
+        <path d="M20 2v8M20 30v8M2 20h8M30 20h8" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="20" cy="20" r="2.2" fill="currentColor"/>
+      </svg>
+      <div>
+        <h1>Maple Tapping</h1>
+        <p class="sub">Diário de Bordo · RAW · UMC 01 · UMC 02 · HMC 16 · NCBZ</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="live"><i></i>Sistema online</span>
+      <button id="theme" type="button" class="ghost" aria-label="Alternar tema claro ou escuro">Tema claro</button>
+    </div>
   </header>
 
   <main>
+    <section class="stats" id="stats" aria-label="Resumo">
+      <div class="tile"><span class="lab">Folhas</span><b id="s-folhas">0</b><small>incluídas</small></div>
+      <div class="tile"><span class="lab">Produção</span><b id="s-prod">0</b><small>linhas</small></div>
+      <div class="tile"><span class="lab">Paradas</span><b id="s-stops">0</b><small>registros</small></div>
+      <div class="tile warn"><span class="lab">Conferir</span><b id="s-flags">0</b><small>células</small></div>
+      <div class="tile ring">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="track" cx="50" cy="50" r="40"/>
+          <circle class="val" id="ring" cx="50" cy="50" r="40" pathLength="100" stroke-dasharray="0 100"/>
+        </svg>
+        <div class="ring-num"><b id="s-conf">—</b><small>sem dúvida</small></div>
+      </div>
+    </section>
+
     <section class="card" id="upload">
-      <strong>1. Folhas</strong>
+      <h2 class="ptitle">Entrada de folhas</h2>
       <div id="drop" class="drop" tabindex="0">
-        <p>Arraste os arquivos aqui ou <label class="link">escolha<input id="files" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
+        <div class="scan" aria-hidden="true"></div>
+        <p class="big">Arraste os arquivos aqui ou <label class="link">escolha<input id="files" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
         <p class="note">PDF com várias páginas ou fotos JPG/PNG. A página pode estar girada ou levemente torta. Cada folha é lida duas vezes e as diferenças ficam marcadas (cerca de 1 minuto por folha).</p>
       </div>
       <label class="row">Ano das datas
@@ -28,8 +64,8 @@
 
     <section class="card" id="tools" hidden>
       <div class="row">
-        <label><input id="onlyflags" type="checkbox"> Mostrar só linhas com dúvida</label>
-        <button id="clear" type="button">Limpar tudo</button>
+        <label class="check"><input id="onlyflags" type="checkbox"> Mostrar só linhas com dúvida</label>
+        <button id="clear" type="button" class="ghost">Limpar tudo</button>
       </div>
     </section>
 
@@ -37,7 +73,7 @@
 
     <section class="card">
       <details id="listsbox">
-        <summary><strong>Listas de conferência</strong> <span class="note">chapas, peças e modelos usados para checar a leitura</span></summary>
+        <summary><span class="ptitle inline">Listas de conferência</span> <span class="note">chapas, peças e modelos usados para checar a leitura</span></summary>
         <p class="note">Uma linha por valor. Chapa nova (operador novo) deve entrar aqui, senão será marcada como desconhecida.</p>
         <div class="lists">
           <label>Chapas<textarea id="l-chapas" rows="8" spellcheck="false"></textarea></label>
@@ -46,7 +82,7 @@
         </div>
         <div class="row">
           <button id="savelists" type="button">Salvar listas</button>
-          <button id="resetlists" type="button">Restaurar padrão</button>
+          <button id="resetlists" type="button" class="ghost">Restaurar padrão</button>
           <span class="note" id="learned"></span>
         </div>
       </details>
