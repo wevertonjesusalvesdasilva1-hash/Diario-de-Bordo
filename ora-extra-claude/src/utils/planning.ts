@@ -33,23 +33,30 @@ export const SORT_LABELS: Record<SortMode, string> = {
 };
 
 export interface Filters {
-  lider: string;
-  peca: string;
-  cc: string;
-  turno: string;
+  lider: string[];
+  peca: string[];
+  cc: string[];
+  turno: string[];
   transporte: string; // ALL | COM | SEM
   busca: string;
 }
-export const EMPTY_FILTERS: Filters = { lider: '', peca: '', cc: '', turno: '', transporte: 'ALL', busca: '' };
+export const EMPTY_FILTERS: Filters = { lider: [], peca: [], cc: [], turno: [], transporte: 'ALL', busca: '' };
+
+/** "Alexandre / Odonei" -> ['Alexandre', 'Odonei'] (um colaborador pode ter mais de um líder). */
+export const leaderNames = (r: OvertimeRecord): string[] => {
+  const parts = (r.lider || '').split('/').map((x) => x.trim()).filter(Boolean);
+  return parts.length ? parts : ['Não identificado'];
+};
 
 export function applyFilters(recs: OvertimeRecord[], f: Filters) {
   const q = norm(f.busca);
+  const pecas = new Set(f.peca.map(norm));
   return recs.filter(
     (r) =>
-      (!f.lider || (r.lider || 'Não identificado') === f.lider) &&
-      (!f.peca || norm(r.motivoHe) === norm(f.peca)) &&
-      (!f.cc || r.cc === f.cc) &&
-      (!f.turno || turno(r) === f.turno) &&
+      (f.lider.length === 0 || leaderNames(r).some((n) => f.lider.includes(n))) &&
+      (pecas.size === 0 || pecas.has(norm(r.motivoHe))) &&
+      (f.cc.length === 0 || f.cc.includes(r.cc)) &&
+      (f.turno.length === 0 || f.turno.includes(turno(r))) &&
       (f.transporte === 'ALL' || (f.transporte === 'COM') === needsTransport(r)) &&
       (!q || norm(`${r.funcionario} ${r.chapa} ${r.motivoHe}`).includes(q)),
   );

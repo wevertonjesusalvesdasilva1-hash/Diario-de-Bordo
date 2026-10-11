@@ -19,6 +19,11 @@ export async function exportPlanningExcel(opts: {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Hora Extra Claude';
   const sum = buildSummary(opts.recs);
+  let logoId: number | null = null;
+  try {
+    const res = await fetch('/komatsu-logo-white.png');
+    if (res.ok) logoId = wb.addImage({ buffer: await res.arrayBuffer(), extension: 'png' });
+  } catch { /* sem logo, segue */ }
 
   const setup = (ws: import('exceljs').Worksheet, repeat?: string) => {
     ws.pageSetup = {
@@ -50,7 +55,8 @@ export async function exportPlanningExcel(opts: {
   rs.getCell('A1').value = 'PLANEJAMENTO DE HORA EXTRA';
   rs.getCell('A1').font = { bold: true, size: 20, color: { argb: 'FFFFFFFF' } };
   rs.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BLACK } };
-  rs.getRow(1).height = 32;
+  rs.getRow(1).height = 40;
+  if (logoId !== null) rs.addImage(logoId, { tl: { col: 6.3, row: 0.1 }, ext: { width: 175, height: 36 } });
   rs.properties.tabColor = { argb: YELLOW };
   rs.mergeCells('A2:H2');
   rs.getCell('A2').value = `${opts.title} · ${sum.locais.join(' / ')} · Gestor: ${sum.gestores.join(' / ')}`;
@@ -92,10 +98,12 @@ export async function exportPlanningExcel(opts: {
     const heads = [...(showDate ? ['Data'] : []), '#', 'Chapa', 'Funcionário', 'Peça / Atividade', 'CC', 'Líder', 'Turno', 'Transporte', 'Refeição', 'Aprovação'];
     ws.columns = heads.map((h) => ({ width: { Data: 12, '#': 5, Chapa: 9, Funcionário: 36, 'Peça / Atividade': 28, CC: 7, Líder: 22, Turno: 14, Transporte: 34, Refeição: 11, Aprovação: 11 }[h] ?? 12 }));
     ws.mergeCells(1, 1, 1, heads.length);
+    ws.getCell(1, 1).alignment = { vertical: 'middle' };
     ws.getCell(1, 1).value = `LISTA NOMINAL — ${name} · ordenada: ${SORT_LABELS[opts.sort]}${opts.group ? ' (agrupada)' : ''}${opts.filterNote ? ' · ' + opts.filterNote : ''}`;
     ws.getCell(1, 1).font = { bold: true, size: 14, color: { argb: BLACK } };
     ws.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: YELLOW } };
     ws.properties.tabColor = { argb: BLACK };
+    ws.getRow(1).height = 40;
     const hr = ws.getRow(3);
     heads.forEach((h, i) => {
       const c = hr.getCell(i + 1);

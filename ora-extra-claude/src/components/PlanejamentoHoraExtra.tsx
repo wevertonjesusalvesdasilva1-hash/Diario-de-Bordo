@@ -8,6 +8,7 @@ import {
   Filters,
   halves,
   isLeaderRow,
+  leaderNames,
   norm,
   SORT_LABELS,
   SortMode,
@@ -113,8 +114,9 @@ function Sheet({
 
   return (
     <div className="bg-white text-black p-5 font-sans" style={{ width: A3_W, minHeight: A3_H, boxSizing: 'border-box' }}>
-      <div className="flex items-end justify-between px-4 py-3 mb-3 text-white" style={{ background: BRAND.blue, borderBottom: `8px solid ${BRAND.yellow}` }}>
-        <div>
+      <div className="flex items-center justify-between gap-4 px-4 py-3 mb-3 text-white" style={{ background: BRAND.blue, borderBottom: `8px solid ${BRAND.yellow}` }}>
+        <img src="/komatsu-logo-white.png" alt="Komatsu" style={{ height: 48 }} />
+        <div className="mr-auto">
           <h1 className="text-3xl font-black tracking-tight">PLANEJAMENTO DE HORA EXTRA</h1>
           <p className="text-sm font-semibold" style={{ color: BRAND.yellow }}>
             {s.locais.join(' / ') || '—'} · Gestor: {s.gestores.join(' / ') || '—'}
@@ -222,6 +224,41 @@ function Sheet({
 
 const sel = 'rounded-lg bg-slate-800 border border-slate-700 px-2 py-1.5 text-xs text-slate-200 min-w-0';
 
+function MultiSelect({ label, all, options, value, onChange }: { label: string; all: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+  const toggle = (o: string) => onChange(value.includes(o) ? value.filter((x) => x !== o) : [...value, o]);
+  const text = value.length === 0 ? `${label}: ${all}` : value.length === 1 ? `${label}: ${value[0]}` : `${label}: ${value.length} selec.`;
+  return (
+    <div ref={ref} className="relative min-w-0">
+      <button type="button" onClick={() => setOpen(!open)} className={`${sel} w-full text-left truncate ${value.length ? 'border-amber-400 text-amber-200' : ''}`}>
+        {text} ▾
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 w-64 max-h-72 overflow-auto rounded-xl border border-slate-600 bg-slate-900 p-1.5 shadow-xl">
+          <div className="flex justify-between px-1.5 py-1 text-[11px]">
+            <button type="button" className="text-amber-300 underline" onClick={() => onChange([...options])}>marcar todos</button>
+            <button type="button" className="text-slate-300 underline" onClick={() => onChange([])}>limpar</button>
+          </div>
+          {options.map((o) => (
+            <label key={o} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-800 cursor-pointer">
+              <input type="checkbox" checked={value.includes(o)} onChange={() => toggle(o)} />
+              <span className="truncate">{o}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 export default function PlanejamentoHoraExtra({
   records,
   selectedDate,
@@ -253,19 +290,28 @@ export default function PlanejamentoHoraExtra({
     const pecas = new Map<string, string>();
     scope.forEach((r) => pecas.set(norm(r.motivoHe), r.motivoHe.trim()));
     return {
-      lider: uniq((r) => r.lider || 'Não identificado'),
+      lider: [...new Set(scope.flatMap(leaderNames))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
       peca: [...pecas.values()].sort((a, b) => a.localeCompare(b, 'pt-BR')),
       cc: uniq((r) => r.cc),
       turno: uniq(turno),
     };
   }, [scope]);
 
+  // ao trocar de dia/escopo, remove seleções que não existem mais
+  useEffect(() => {
+    setFilters((f) => {
+      const keep = (v: string[], o: string[]) => v.filter((x) => o.includes(x));
+      const n = { ...f, lider: keep(f.lider, opts.lider), peca: keep(f.peca, opts.peca), cc: keep(f.cc, opts.cc), turno: keep(f.turno, opts.turno) };
+      return n.lider.length === f.lider.length && n.peca.length === f.peca.length && n.cc.length === f.cc.length && n.turno.length === f.turno.length ? f : n;
+    });
+  }, [opts]);
+
   const filtered = useMemo(() => applyFilters(scope, filters), [scope, filters]);
   const filterNote = [
-    filters.lider && `Líder ${filters.lider}`,
-    filters.peca && `Peça ${filters.peca}`,
-    filters.cc && `CC ${filters.cc}`,
-    filters.turno && `Turno ${filters.turno}`,
+    filters.lider.length > 0 && `Líder: ${filters.lider.join(', ')}`,
+    filters.peca.length > 0 && `Peça: ${filters.peca.join(', ')}`,
+    filters.cc.length > 0 && `CC: ${filters.cc.join(', ')}`,
+    filters.turno.length > 0 && `Turno: ${filters.turno.join(', ')}`,
     filters.transporte !== 'ALL' && (filters.transporte === 'COM' ? 'Com transporte' : 'Sem transporte'),
     filters.busca && `Busca "${filters.busca}"`,
   ]
@@ -307,7 +353,7 @@ export default function PlanejamentoHoraExtra({
     return () => ro.disconnect();
   }, [mode, day, filtered, sort, group]);
 
-  const setF = (k: keyof Filters, v: string) => setFilters((f) => ({ ...f, [k]: v }));
+  const setF = <K extends keyof Filters>(k: K, v: Filters[K]) => setFilters((f) => ({ ...f, [k]: v }));
   const exportExcel = async () => {
     setBusy(true);
     try {
@@ -382,22 +428,10 @@ export default function PlanejamentoHoraExtra({
 
       {/* Filtros e ordenação */}
       <div className="grid gap-1.5 grid-cols-2 sm:grid-cols-4 lg:grid-cols-8">
-        <select className={sel} value={filters.lider} onChange={(e) => setF('lider', e.target.value)}>
-          <option value="">Líder: todos</option>
-          {opts.lider.map((o) => <option key={o}>{o}</option>)}
-        </select>
-        <select className={sel} value={filters.peca} onChange={(e) => setF('peca', e.target.value)}>
-          <option value="">Peça: todas</option>
-          {opts.peca.map((o) => <option key={o}>{o}</option>)}
-        </select>
-        <select className={sel} value={filters.cc} onChange={(e) => setF('cc', e.target.value)}>
-          <option value="">CC: todos</option>
-          {opts.cc.map((o) => <option key={o}>{o}</option>)}
-        </select>
-        <select className={sel} value={filters.turno} onChange={(e) => setF('turno', e.target.value)}>
-          <option value="">Turno: todos</option>
-          {opts.turno.map((o) => <option key={o}>{o}</option>)}
-        </select>
+        <MultiSelect label="Líder" all="todos" options={opts.lider} value={filters.lider} onChange={(v) => setF('lider', v)} />
+        <MultiSelect label="Peça" all="todas" options={opts.peca} value={filters.peca} onChange={(v) => setF('peca', v)} />
+        <MultiSelect label="CC" all="todos" options={opts.cc} value={filters.cc} onChange={(v) => setF('cc', v)} />
+        <MultiSelect label="Turno" all="todos" options={opts.turno} value={filters.turno} onChange={(v) => setF('turno', v)} />
         <select className={sel} value={filters.transporte} onChange={(e) => setF('transporte', e.target.value)}>
           <option value="ALL">Transporte: todos</option>
           <option value="COM">Com transporte</option>
