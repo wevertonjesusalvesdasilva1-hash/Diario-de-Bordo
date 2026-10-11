@@ -1,8 +1,10 @@
 import { OvertimeRecord } from '../types';
+import { argb, BRAND } from './brand';
 import { buildRows, buildSummary, fixText, needsTransport, SortMode, SORT_LABELS, transpLabel, turno } from './planning';
 
-const BLACK = 'FF000000';
-const GRAY = 'FFE5E7EB';
+const BLACK = argb(BRAND.blue); // azul Komatsu (cabeçalhos)
+const YELLOW = argb(BRAND.yellow);
+const GRAY = argb(BRAND.yellowSoft); // destaque dos responsáveis
 
 /** Gera .xlsx formatado (A3 paisagem, cabeçalho repetido, autofiltro). */
 export async function exportPlanningExcel(opts: {
@@ -46,10 +48,14 @@ export async function exportPlanningExcel(opts: {
   rs.columns = [{ width: 38 }, { width: 12 }, { width: 4 }, { width: 38 }, { width: 12 }, { width: 4 }, { width: 38 }, { width: 12 }];
   rs.mergeCells('A1:H1');
   rs.getCell('A1').value = 'PLANEJAMENTO DE HORA EXTRA';
-  rs.getCell('A1').font = { bold: true, size: 20 };
+  rs.getCell('A1').font = { bold: true, size: 20, color: { argb: 'FFFFFFFF' } };
+  rs.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BLACK } };
+  rs.getRow(1).height = 32;
+  rs.properties.tabColor = { argb: YELLOW };
   rs.mergeCells('A2:H2');
   rs.getCell('A2').value = `${opts.title} · ${sum.locais.join(' / ')} · Gestor: ${sum.gestores.join(' / ')}`;
-  rs.getCell('A2').font = { size: 11, bold: true };
+  rs.getCell('A2').font = { size: 11, bold: true, color: { argb: BLACK } };
+  rs.getCell('A2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: YELLOW } };
   rs.mergeCells('A3:H3');
   rs.getCell('A3').value = `Total: ${sum.total} colaboradores · ${sum.aprovados} aprovados${opts.filterNote ? ' · Filtros: ' + opts.filterNote : ''}`;
 
@@ -59,6 +65,7 @@ export async function exportPlanningExcel(opts: {
     t.value = title;
     t.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BLACK } };
+    t.border = { bottom: { style: 'medium', color: { argb: YELLOW } } };
     rows.forEach((r, i) => {
       const a = rs.getCell(top + 1 + i, col);
       const b = rs.getCell(top + 1 + i, col + 1);
@@ -86,14 +93,16 @@ export async function exportPlanningExcel(opts: {
     ws.columns = heads.map((h) => ({ width: { Data: 12, '#': 5, Chapa: 9, Funcionário: 36, 'Peça / Atividade': 28, CC: 7, Líder: 22, Turno: 14, Transporte: 34, Refeição: 11, Aprovação: 11 }[h] ?? 12 }));
     ws.mergeCells(1, 1, 1, heads.length);
     ws.getCell(1, 1).value = `LISTA NOMINAL — ${name} · ordenada: ${SORT_LABELS[opts.sort]}${opts.group ? ' (agrupada)' : ''}${opts.filterNote ? ' · ' + opts.filterNote : ''}`;
-    ws.getCell(1, 1).font = { bold: true, size: 14 };
+    ws.getCell(1, 1).font = { bold: true, size: 14, color: { argb: BLACK } };
+    ws.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: YELLOW } };
+    ws.properties.tabColor = { argb: BLACK };
     const hr = ws.getRow(3);
     heads.forEach((h, i) => {
       const c = hr.getCell(i + 1);
       c.value = h;
       c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BLACK } };
-      c.border = border;
+      c.border = { ...border, bottom: { style: 'medium', color: { argb: YELLOW } } };
     });
     let row = 4;
     buildRows(recs, opts.sort, opts.group).forEach((x) => {
@@ -101,8 +110,8 @@ export async function exportPlanningExcel(opts: {
         ws.mergeCells(row, 1, row, heads.length);
         const c = ws.getCell(row, 1);
         c.value = `${x.label}  —  ${x.n}`;
-        c.font = { bold: true };
-        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1D5DB' } };
+        c.font = { bold: true, color: { argb: BLACK } };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: argb(BRAND.blueSoft) } };
       } else {
         const r = x.r;
         const vals = [...(showDate ? [r.data] : []), x.idx, Number(r.chapa) || r.chapa, r.funcionario, r.motivoHe, r.cc, r.lider, turno(r), transpLabel(r), fixText(r.refeicao), r.aprovacao];

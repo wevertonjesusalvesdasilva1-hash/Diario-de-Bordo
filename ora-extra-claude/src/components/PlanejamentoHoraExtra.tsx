@@ -14,6 +14,7 @@ import {
   transpLabel,
   turno,
 } from '../utils/planning';
+import { BRAND } from '../utils/brand';
 import { exportPlanningExcel } from '../utils/planningExcel';
 
 // A3 paisagem: 420 x 297 mm a 96 dpi
@@ -23,8 +24,8 @@ const A3_H = 1123;
 type Mode = 'DAY' | 'EACH' | 'COMBINED';
 
 const Box = ({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) => (
-  <section className={`border border-black ${className}`} style={{ breakInside: 'avoid' }}>
-    <h3 className="bg-black text-white text-[11px] font-bold uppercase tracking-wide px-2 py-1">{title}</h3>
+  <section className={`border ${className}`} style={{ breakInside: 'avoid', borderColor: BRAND.blue }}>
+    <h3 className="text-white text-[11px] font-bold uppercase tracking-wide px-2 py-1" style={{ background: BRAND.blue, borderBottom: `3px solid ${BRAND.yellow}` }}>{title}</h3>
     <div className="p-2">{children}</div>
   </section>
 );
@@ -35,7 +36,7 @@ function MiniTable({ rows, head }: { rows: (string | number)[][]; head: string[]
       <thead>
         <tr>
           {head.map((h, i) => (
-            <th key={h} className={`border-b border-black pb-0.5 font-bold ${i === head.length - 1 ? 'text-right' : 'text-left'}`}>
+            <th key={h} className={`border-b pb-0.5 font-bold ${i === head.length - 1 ? 'text-right' : 'text-left'}`} style={{ borderColor: BRAND.blue, color: BRAND.blue }}>
               {h}
             </th>
           ))}
@@ -79,7 +80,7 @@ function Sheet({
   const table = (list: typeof rows) => (
     <table className="w-full text-[10.5px] border-collapse self-start">
       <thead style={{ display: 'table-header-group' }}>
-        <tr className="border-b-2 border-black text-left">
+        <tr className="border-b-2 text-left" style={{ borderColor: BRAND.blue, color: BRAND.blue }}>
           {cols.map((c) => (
             <th key={c} className="py-0.5 pr-1.5">{c}</th>
           ))}
@@ -88,13 +89,13 @@ function Sheet({
       <tbody>
         {list.map((x, i) =>
           x.kind === 'group' ? (
-            <tr key={`g${i}`} className="bg-gray-300 font-bold" style={{ breakInside: 'avoid' }}>
+            <tr key={`g${i}`} className="font-bold" style={{ breakInside: 'avoid', background: BRAND.blueSoft, color: BRAND.blue }}>
               <td colSpan={cols.length} className="px-1 py-0.5">
                 {x.label} — {x.n}
               </td>
             </tr>
           ) : (
-            <tr key={x.r.id} className={`border-b border-gray-300 ${isLeaderRow(x.r) ? 'font-bold bg-gray-200' : ''}`} style={{ breakInside: 'avoid' }}>
+            <tr key={x.r.id} className={`border-b border-gray-300 ${isLeaderRow(x.r) ? 'font-bold' : ''}`} style={{ breakInside: 'avoid', background: isLeaderRow(x.r) ? BRAND.yellowSoft : undefined }}>
               {showDate && <td className="py-0.5 pr-1.5 tabular-nums">{x.r.data.slice(0, 5)}</td>}
               <td className="py-0.5 pr-1.5 tabular-nums">{x.idx}</td>
               <td className="pr-1.5 tabular-nums">{x.r.chapa}</td>
@@ -112,16 +113,16 @@ function Sheet({
 
   return (
     <div className="bg-white text-black p-5 font-sans" style={{ width: A3_W, minHeight: A3_H, boxSizing: 'border-box' }}>
-      <div className="flex items-end justify-between border-b-4 border-black pb-2 mb-3">
+      <div className="flex items-end justify-between px-4 py-3 mb-3 text-white" style={{ background: BRAND.blue, borderBottom: `8px solid ${BRAND.yellow}` }}>
         <div>
           <h1 className="text-3xl font-black tracking-tight">PLANEJAMENTO DE HORA EXTRA</h1>
-          <p className="text-sm font-semibold">
+          <p className="text-sm font-semibold" style={{ color: BRAND.yellow }}>
             {s.locais.join(' / ') || '—'} · Gestor: {s.gestores.join(' / ') || '—'}
           </p>
           {filterNote && <p className="text-xs">Filtros: {filterNote}</p>}
         </div>
         <div className="text-right">
-          <p className="text-4xl font-black tabular-nums">{title}</p>
+          <p className="text-4xl font-black tabular-nums" style={{ color: BRAND.yellow }}>{title}</p>
           <p className="text-xs">
             {s.aprovados}/{s.total} aprovados
           </p>
@@ -129,7 +130,7 @@ function Sheet({
       </div>
 
       <div className="grid gap-3 mb-3 items-start" style={{ gridTemplateColumns: 'repeat(6, 1fr)' }}>
-        <div className="border-2 border-black p-2 text-center self-stretch flex flex-col justify-center">
+        <div className="border-2 p-2 text-center self-stretch flex flex-col justify-center" style={{ borderColor: BRAND.blue, background: BRAND.yellow, color: BRAND.blue }}>
           <p className="text-[10px] font-bold uppercase">Total</p>
           <p className="text-5xl font-black tabular-nums leading-none">{s.total}</p>
           <p className="text-[10px]">colaboradores</p>
@@ -186,7 +187,7 @@ function Sheet({
             {halves(s.pieces).map((half, i) => (
               <table key={i} className="w-full text-[11px] border-collapse self-start">
                 <thead>
-                  <tr className="border-b border-black text-left">
+                  <tr className="border-b text-left" style={{ borderColor: BRAND.blue, color: BRAND.blue }}>
                     <th>Peça</th>
                     <th>CC</th>
                     <th>Soldadores</th>
@@ -344,6 +345,7 @@ export default function PlanejamentoHoraExtra({
           html, body { background: #fff !important; }
           body * { visibility: hidden !important; }
           .he-print, .he-print * { visibility: visible !important; }
+          .he-print, .he-print * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .he-print { position: absolute; left: 0; top: 0; transform: none !important; width: ${A3_W}px !important; }
           .he-sheet-break { break-after: page; }
         }
