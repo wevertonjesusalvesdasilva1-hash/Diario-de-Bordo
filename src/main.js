@@ -89,7 +89,8 @@ function prepare(image) {
   const min = 40 * sc * sc;
   const rowsOf = (ys, test) => ys.slice(0, -1).map((_, r) => (test(r) ? r : -1)).filter((r) => r >= 0);
   const prodRows = rowsOf(prodY, (r) => cellInk(prodX, prodY, r, [5, 6, 8, 9, 11, 12]) > min);
-  const stopRows = rowsOf(stopY, (r) => cellInk(stopX, stopY, r, [3, 4]) > min || inkMotivo[r] !== -1);
+  // a stain on the reason columns must not count as a row: a real stop always has a chapa or times
+  const stopRows = rowsOf(stopY, (r) => cellInk(stopX, stopY, r, [2, 3, 4]) > min);
   const rowInk = lay.geomOk ? {
     prodRows, stopRows,
     prodTurno: prodY.slice(0, -1).map((_, r) => cellInk(prodX, prodY, r, [13]) > min),
