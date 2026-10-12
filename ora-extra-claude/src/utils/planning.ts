@@ -184,3 +184,11 @@ export function buildSummary(recs: OvertimeRecord[]) {
     pieces: [...pm.values()].sort((a, b) => b.people.length - a.people.length || a.nome.localeCompare(b.nome)),
   };
 }
+
+/** Nome padrão dos arquivos baixados: Planejamento_HE_Komatsu_2026-10-03[_a_2026-10-05][_por-dia][_filtrado] */
+export function exportBaseName(days: string[], perDay: boolean, filtered: boolean) {
+  const iso = (d: string) => d.split('/').reverse().join('-');
+  const list = [...days].map(iso).sort();
+  const span = list.length === 1 ? list[0] : `${list[0]}_a_${list[list.length - 1]}${list.length > 2 ? `_${list.length}-dias` : ''}`;
+  return `Planejamento_HE_Komatsu_${span}${list.length > 1 && perDay ? '_por-dia' : ''}${filtered ? '_filtrado' : ''}`;
+}

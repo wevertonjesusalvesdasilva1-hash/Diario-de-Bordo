@@ -14,6 +14,7 @@ export async function exportPlanningExcel(opts: {
   levels: SortLevel[];
   group: boolean;
   filterNote: string;
+  fileName: string;
 }) {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
@@ -146,7 +147,7 @@ export async function exportPlanningExcel(opts: {
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Planejamento_Hora_Extra_${opts.title.replace(/[^\w-]+/g, '_')}.xlsx`;
+  a.download = `${opts.fileName}.xlsx`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }

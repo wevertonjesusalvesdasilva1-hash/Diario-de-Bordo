@@ -5,6 +5,7 @@ import {
   buildRows,
   buildSummary,
   EMPTY_FILTERS,
+  exportBaseName,
   Filters,
   halves,
   isLeaderRow,
@@ -25,6 +26,7 @@ import {
 import { OFFICIAL_LEADERS } from '../data/leaderDatabase';
 import { BRAND } from '../utils/brand';
 import { exportPlanningExcel } from '../utils/planningExcel';
+import { exportPlanningPdf } from '../utils/planningPdf';
 
 // A3 paisagem: 420 x 297 mm a 96 dpi
 const A3_W = 1587;
@@ -37,8 +39,8 @@ type Layout = 'EACH' | 'COMBINED';
 const daysTitle = (ds: string[]) =>
   ds.length === 1 ? ds[0] : ds.slice(0, -1).map((d) => d.slice(0, 5)).join(' + ') + ' + ' + ds[ds.length - 1];
 
-const Box = ({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) => (
-  <section className={`border ${className}`} style={{ breakInside: 'avoid', borderColor: BRAND.blue }}>
+const Box = ({ title, children, className = '', listMark = false }: { title: string; children: React.ReactNode; className?: string; listMark?: boolean }) => (
+  <section data-list={listMark ? '' : undefined} className={`border ${className}`} style={{ breakInside: 'avoid', borderColor: BRAND.blue }}>
     <h3 className="text-white text-[11px] font-bold uppercase tracking-wide px-2 py-1" style={{ background: BRAND.blue, borderBottom: `3px solid ${BRAND.yellow}` }}>{title}</h3>
     <div className="p-2">{children}</div>
   </section>
@@ -98,7 +100,7 @@ function Sheet({
   const cols = colDefs.map((c) => c.label);
 
   const table = (list: typeof rows) => (
-    <table className="w-full text-[10.5px] border-collapse self-start">
+    <table className="w-full text-[10px] leading-[1.15] border-collapse self-start">
       <thead style={{ display: 'table-header-group' }}>
         <tr className="border-b-2 text-left" style={{ borderColor: BRAND.blue, color: BRAND.blue }}>
           {colDefs.map((c) => {
@@ -106,7 +108,7 @@ function Sheet({
             return (
               <th
                 key={c.label}
-                className={`py-0.5 pr-1.5 select-none ${c.key && onSortHeader ? 'cursor-pointer hover:underline' : ''}`}
+                className={`py-px pr-1 select-none ${c.key && onSortHeader ? 'cursor-pointer hover:underline' : ''}`}
                 title={c.key && onSortHeader ? 'Clique para classificar · Shift+clique para somar outro critério' : undefined}
                 onClick={c.key && onSortHeader ? (e) => onSortHeader(c.key as ColKey, e.shiftKey) : undefined}
               >
@@ -132,15 +134,15 @@ function Sheet({
             </tr>
           ) : (
             <tr key={x.r.id} className={`border-b border-gray-300 ${isLeaderRow(x.r) ? 'font-bold' : ''}`} style={{ breakInside: 'avoid', background: isLeaderRow(x.r) ? BRAND.yellowSoft : undefined }}>
-              <td className="py-0.5 pr-1.5 tabular-nums">{x.r.data.slice(0, 5)}</td>
-              <td className="py-0.5 pr-1.5 tabular-nums">{x.idx}</td>
-              <td className="pr-1.5 tabular-nums">{x.r.chapa}</td>
-              <td className="pr-1.5">{x.r.funcionario}</td>
-              <td className="pr-1.5">{x.r.motivoHe}</td>
-              <td className="pr-1.5">{x.r.cc}</td>
-              <td className="pr-1.5">{x.r.lider}</td>
-              <td className="pr-1.5 whitespace-nowrap tabular-nums font-semibold">{x.r.de && x.r.ate ? `${x.r.de}–${x.r.ate}` : '—'}</td>
-              <td className="pr-1.5">{transpLabel(x.r)}</td>
+              <td className="py-px pr-1 tabular-nums whitespace-nowrap">{x.r.data.slice(0, 5)}</td>
+              <td className="py-px pr-1 tabular-nums">{x.idx}</td>
+              <td className="pr-1 tabular-nums whitespace-nowrap">{x.r.chapa}</td>
+              <td className="pr-1">{x.r.funcionario}</td>
+              <td className="pr-1">{x.r.motivoHe}</td>
+              <td className="pr-1 whitespace-nowrap">{x.r.cc}</td>
+              <td className="pr-1 whitespace-nowrap">{x.r.lider}</td>
+              <td className="pr-1 whitespace-nowrap tabular-nums font-semibold">{x.r.de && x.r.ate ? `${x.r.de}–${x.r.ate}` : '—'}</td>
+              <td className="pr-1">{transpLabel(x.r)}</td>
             </tr>
           ),
         )}
@@ -248,7 +250,7 @@ function Sheet({
         </Box>
       </div>
 
-      <Box title={`Lista nominal (${recs.length}) · classificada por ${levelsLabel(levels)}${group ? ' · agrupada' : ''}`}>
+      <Box listMark title={`Lista nominal (${recs.length}) · classificada por ${levelsLabel(levels)}${group ? ' · agrupada' : ''}`}>
         <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
           {table(r1)}
           {table(r2)}
@@ -384,6 +386,8 @@ export default function PlanejamentoHoraExtra({
   const [sortOpen, setSortOpen] = useState(false);
   const [group, setGroup] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [pdfJob, setPdfJob] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   // dias escolhidos (ordem cronológica); se nada válido, usa o primeiro dia
   const days = useMemo(() => {
@@ -521,6 +525,22 @@ export default function PlanejamentoHoraExtra({
       return [{ col, dir: 'asc' }];
     });
   };
+  const fileName = exportBaseName(days, mode === 'EACH', filterNote !== '');
+  // Baixar PDF direto: monta as folhas fora da tela, gera o PDF A3 e dispara o download com nome padrão.
+  useEffect(() => {
+    if (!pdfJob) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await (document as Document & { fonts?: { ready: Promise<unknown> } }).fonts?.ready;
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        if (!cancelled && exportRef.current) await exportPlanningPdf(exportRef.current, `${fileName}.pdf`);
+      } finally {
+        if (!cancelled) setPdfJob(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [pdfJob]); // eslint-disable-line react-hooks/exhaustive-deps
   const exportExcel = async () => {
     setBusy(true);
     try {
@@ -531,6 +551,7 @@ export default function PlanejamentoHoraExtra({
         levels,
         group,
         filterNote,
+        fileName,
       });
     } finally {
       setBusy(false);
@@ -573,8 +594,11 @@ export default function PlanejamentoHoraExtra({
         <button disabled={busy || filtered.length === 0} onClick={exportExcel} className="rounded-xl border border-sky-500/50 bg-sky-950/40 px-3 py-2 text-sm font-bold text-sky-300 disabled:opacity-50">
           {busy ? 'Gerando…' : 'Baixar Excel formatado'}
         </button>
-        <button disabled={filtered.length === 0} onClick={() => window.print()} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-50">
-          Imprimir / Salvar PDF (A3)
+        <button disabled={pdfJob || filtered.length === 0} onClick={() => setPdfJob(true)} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-50">
+          {pdfJob ? 'Gerando PDF…' : 'Baixar PDF (A3)'}
+        </button>
+        <button disabled={filtered.length === 0} onClick={() => window.print()} className="rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-bold text-slate-200 disabled:opacity-50">
+          Imprimir
         </button>
       </div>
 
@@ -721,6 +745,16 @@ export default function PlanejamentoHoraExtra({
           </div>
         </div>
       </div>
+
+      {pdfJob && (
+        <div ref={exportRef} aria-hidden style={{ position: 'fixed', left: 0, top: 0, width: A3_W, zIndex: -9999, pointerEvents: 'none' }}>
+          {sheets.map((x) => (
+            <div key={x.key} data-export-sheet>
+              <Sheet title={x.title} recs={x.recs} showDate={x.showDate} levels={levels} group={group} filterNote={filterNote} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
