@@ -1,6 +1,6 @@
 import { OvertimeRecord } from '../types';
 import { argb, BRAND } from './brand';
-import { buildRows, buildSummary, fixText, needsTransport, SortMode, SORT_LABELS, transpLabel, turno } from './planning';
+import { buildRows, buildSummary, fixText, levelsLabel, needsTransport, SortLevel, transpLabel, turno } from './planning';
 
 const BLACK = argb(BRAND.blue); // azul Komatsu (cabeçalhos)
 const YELLOW = argb(BRAND.yellow);
@@ -11,7 +11,7 @@ export async function exportPlanningExcel(opts: {
   recs: OvertimeRecord[];
   perDay: boolean;
   title: string;
-  sort: SortMode;
+  levels: SortLevel[];
   group: boolean;
   filterNote: string;
 }) {
@@ -99,7 +99,7 @@ export async function exportPlanningExcel(opts: {
     ws.columns = heads.map((h) => ({ width: { Data: 12, '#': 5, Chapa: 9, Funcionário: 36, 'Peça / Atividade': 28, CC: 7, Líder: 22, Turno: 14, Transporte: 34, Refeição: 11, Aprovação: 11 }[h] ?? 12 }));
     ws.mergeCells(1, 1, 1, heads.length);
     ws.getCell(1, 1).alignment = { vertical: 'middle' };
-    ws.getCell(1, 1).value = `LISTA NOMINAL — ${name} · ordenada: ${SORT_LABELS[opts.sort]}${opts.group ? ' (agrupada)' : ''}${opts.filterNote ? ' · ' + opts.filterNote : ''}`;
+    ws.getCell(1, 1).value = `LISTA NOMINAL — ${name} · classificada por ${levelsLabel(opts.levels)}${opts.group ? ' (agrupada)' : ''}${opts.filterNote ? ' · ' + opts.filterNote : ''}`;
     ws.getCell(1, 1).font = { bold: true, size: 14, color: { argb: BLACK } };
     ws.getCell(1, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: YELLOW } };
     ws.properties.tabColor = { argb: BLACK };
@@ -113,7 +113,7 @@ export async function exportPlanningExcel(opts: {
       c.border = { ...border, bottom: { style: 'medium', color: { argb: YELLOW } } };
     });
     let row = 4;
-    buildRows(recs, opts.sort, opts.group).forEach((x) => {
+    buildRows(recs, opts.levels, opts.group).forEach((x) => {
       if (x.kind === 'group') {
         ws.mergeCells(row, 1, row, heads.length);
         const c = ws.getCell(row, 1);

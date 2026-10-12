@@ -10,7 +10,14 @@ import {
   isLeaderRow,
   leaderNames,
   norm,
+  COL_LABELS,
+  ColKey,
+  levelsKey,
+  levelsLabel,
+  matchPreset,
+  presetLevels,
   SORT_LABELS,
+  SortLevel,
   SortMode,
   transpLabel,
   turno,
@@ -68,29 +75,51 @@ function Sheet({
   title,
   recs,
   showDate,
-  sort,
+  levels,
+  onSortHeader,
   group,
   filterNote,
 }: {
   title: string;
   recs: OvertimeRecord[];
   showDate: boolean;
-  sort: SortMode;
+  levels: SortLevel[];
+  onSortHeader?: (col: ColKey, additive: boolean) => void;
   group: boolean;
   filterNote: string;
 }) {
   const s = useMemo(() => buildSummary(recs), [recs]);
-  const rows = useMemo(() => buildRows(recs, sort, group), [recs, sort, group]);
+  const rows = useMemo(() => buildRows(recs, levels, group), [recs, levels, group]);
   const [r1, r2] = halves(rows);
-  const cols = ['Data', '#', 'Chapa', 'Funcionário', 'Peça', 'CC', 'Líder', 'Horário', 'Transporte'];
+  const colDefs: { label: string; key: ColKey | null }[] = [
+    { label: 'Data', key: 'data' }, { label: '#', key: null }, { label: 'Chapa', key: 'chapa' }, { label: 'Funcionário', key: 'nome' },
+    { label: 'Peça', key: 'peca' }, { label: 'CC', key: 'cc' }, { label: 'Líder', key: 'lider' }, { label: 'Horário', key: 'horario' }, { label: 'Transporte', key: 'transporte' },
+  ];
+  const cols = colDefs.map((c) => c.label);
 
   const table = (list: typeof rows) => (
     <table className="w-full text-[10.5px] border-collapse self-start">
       <thead style={{ display: 'table-header-group' }}>
         <tr className="border-b-2 text-left" style={{ borderColor: BRAND.blue, color: BRAND.blue }}>
-          {cols.map((c) => (
-            <th key={c} className="py-0.5 pr-1.5">{c}</th>
-          ))}
+          {colDefs.map((c) => {
+            const lvIdx = c.key ? levels.findIndex((l) => l.col === c.key) : -1;
+            return (
+              <th
+                key={c.label}
+                className={`py-0.5 pr-1.5 select-none ${c.key && onSortHeader ? 'cursor-pointer hover:underline' : ''}`}
+                title={c.key && onSortHeader ? 'Clique para classificar · Shift+clique para somar outro critério' : undefined}
+                onClick={c.key && onSortHeader ? (e) => onSortHeader(c.key as ColKey, e.shiftKey) : undefined}
+              >
+                {c.label}
+                {lvIdx >= 0 && (
+                  <span style={{ color: BRAND.blue }}>
+                    {' '}{levels[lvIdx].dir === 'asc' ? '▲' : '▼'}
+                    {levels.filter((l) => l.col !== 'resp').length > 1 ? <sup>{levels.filter((l) => l.col !== 'resp').findIndex((l) => l.col === c.key) + 1}</sup> : null}
+                  </span>
+                )}
+              </th>
+            );
+          })}
         </tr>
       </thead>
       <tbody>
@@ -219,7 +248,7 @@ function Sheet({
         </Box>
       </div>
 
-      <Box title={`Lista nominal (${recs.length}) · ${SORT_LABELS[sort]}${group ? ' · agrupada' : ''}`}>
+      <Box title={`Lista nominal (${recs.length}) · classificada por ${levelsLabel(levels)}${group ? ' · agrupada' : ''}`}>
         <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
           {table(r1)}
           {table(r2)}
@@ -351,7 +380,8 @@ export default function PlanejamentoHoraExtra({
   const [picked, setPicked] = useState<string[]>([selectedDate]);
   const [layout, setLayout] = useState<Layout>('COMBINED');
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [sort, setSort] = useState<SortMode>('ALFA');
+  const [levels, setLevels] = useState<SortLevel[]>(presetLevels('ALFA'));
+  const [sortOpen, setSortOpen] = useState(false);
   const [group, setGroup] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -471,9 +501,26 @@ export default function PlanejamentoHoraExtra({
     const ro = new ResizeObserver(count);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [mode, days, filtered, sort, group]);
+  }, [mode, days, filtered, levels, group]);
 
   const setF = <K extends keyof Filters>(k: K, v: Filters[K]) => setFilters((f) => ({ ...f, [k]: v }));
+  // Clique no título da coluna: A→Z, depois Z→A, depois remove. Shift+clique soma critérios (como no Excel).
+  const onSortHeader = (col: ColKey, additive: boolean) => {
+    setLevels((cur) => {
+      const real = cur.filter((l) => l.col !== 'resp');
+      const idx = real.findIndex((l) => l.col === col);
+      const next = (arr: SortLevel[]) => (arr.length ? arr : presetLevels('ALFA'));
+      if (additive) {
+        if (idx < 0) return [...real, { col, dir: 'asc' }];
+        if (real[idx].dir === 'asc') return real.map((l, i) => (i === idx ? { ...l, dir: 'desc' } : l));
+        return next(real.filter((_, i) => i !== idx));
+      }
+      if (real.length === 1 && idx === 0) {
+        return real[0].dir === 'asc' ? [{ col, dir: 'desc' }] : presetLevels('ALFA');
+      }
+      return [{ col, dir: 'asc' }];
+    });
+  };
   const exportExcel = async () => {
     setBusy(true);
     try {
@@ -481,7 +528,7 @@ export default function PlanejamentoHoraExtra({
         recs: filtered,
         perDay: mode === 'EACH',
         title: mode === 'DAY' ? days[0] : mode === 'EACH' ? `Dias separados ${daysTitle(days)}` : `Resumo ${daysTitle(days)}`,
-        sort,
+        levels,
         group,
         filterNote,
       });
@@ -566,9 +613,48 @@ export default function PlanejamentoHoraExtra({
           <option value="COM">Com transporte</option>
           <option value="SEM">Sem transporte</option>
         </select>
-        <select className={sel} value={sort} onChange={(e) => setSort(e.target.value as SortMode)}>
+        <select
+          className={sel}
+          value={matchPreset(levels) ?? 'CUSTOM'}
+          onChange={(e) => e.target.value !== 'CUSTOM' && setLevels(presetLevels(e.target.value as SortMode))}
+        >
           {(Object.keys(SORT_LABELS) as SortMode[]).map((k) => <option key={k} value={k}>Ordem: {SORT_LABELS[k]}</option>)}
+          {!matchPreset(levels) && <option value="CUSTOM">Ordem: Personalizada</option>}
         </select>
+        <div className="relative min-w-0">
+          <button type="button" onClick={() => setSortOpen(!sortOpen)} className={`${sel} w-full text-left font-bold ${matchPreset(levels) ? '' : 'border-amber-400 text-amber-200'}`}>
+            ⇅ Classificar colunas
+          </button>
+          {sortOpen && (
+            <div className="absolute z-30 mt-1 w-[22rem] max-w-[90vw] rounded-xl border border-slate-600 bg-slate-900 p-3 shadow-xl space-y-2">
+              <p className="text-[11px] text-slate-400">Como no Excel: o 1º critério manda; os seguintes desempatam. Também dá para clicar no título da coluna na lista (Shift+clique soma critério).</p>
+              {levels.filter((l) => l.col !== 'resp').map((lv, i, arr) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <span className="w-20 shrink-0 text-[11px] text-slate-400">{i === 0 ? 'Classificar por' : 'Depois por'}</span>
+                  <select className={`${sel} flex-1`} value={lv.col} onChange={(e) => setLevels(arr.map((x, k) => (k === i ? { ...x, col: e.target.value as ColKey } : x)))}>
+                    {(Object.keys(COL_LABELS) as ColKey[]).filter((k) => k !== 'resp').map((k) => <option key={k} value={k}>{COL_LABELS[k]}</option>)}
+                  </select>
+                  <select className={sel} value={lv.dir} onChange={(e) => setLevels(arr.map((x, k) => (k === i ? { ...x, dir: e.target.value as 'asc' | 'desc' } : x)))}>
+                    <option value="asc">A → Z</option>
+                    <option value="desc">Z → A</option>
+                  </select>
+                  <button type="button" aria-label="Excluir nível" disabled={arr.length === 1} onClick={() => setLevels(arr.filter((_, k) => k !== i))} className="rounded-md bg-slate-800 px-2 py-1 text-xs disabled:opacity-30">✕</button>
+                </div>
+              ))}
+              <div className="flex justify-between pt-1">
+                <button type="button" className="text-xs text-amber-300 underline" onClick={() => {
+                  const used = new Set(levels.map((l) => l.col));
+                  const nextCol = (Object.keys(COL_LABELS) as ColKey[]).find((k) => k !== 'resp' && !used.has(k)) ?? 'nome';
+                  setLevels([...levels.filter((l) => l.col !== 'resp'), { col: nextCol, dir: 'asc' }]);
+                }}>+ Adicionar nível</button>
+                <span className="flex gap-3">
+                  <button type="button" className="text-xs text-slate-300 underline" onClick={() => setLevels(presetLevels('ALFA'))}>Restaurar padrão</button>
+                  <button type="button" className="text-xs font-bold text-emerald-300" onClick={() => setSortOpen(false)}>Fechar</button>
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
         <input className={sel} placeholder="Buscar nome / chapa" value={filters.busca} onChange={(e) => setF('busca', e.target.value)} />
         <label className="flex items-center gap-1.5 text-xs text-slate-300 px-1" title="Cria uma faixa com o subtotal para cada dia (ordem alfabética), peça, líder ou centro de custo (conforme a Ordem escolhida)">
           <input type="checkbox" checked={group} onChange={(e) => setGroup(e.target.checked)} />
@@ -577,7 +663,7 @@ export default function PlanejamentoHoraExtra({
         </label>
         <button
           type="button"
-          onClick={() => { setFilters(EMPTY_FILTERS); setSort('ALFA'); setGroup(true); }}
+          onClick={() => { setFilters(EMPTY_FILTERS); setLevels(presetLevels('ALFA')); setGroup(true); }}
           className="rounded-lg border border-red-400/60 bg-red-950/40 px-2 py-1.5 text-xs font-bold text-red-300 hover:bg-red-950/70"
         >
           Limpar todos os filtros
@@ -606,6 +692,7 @@ export default function PlanejamentoHoraExtra({
         className="w-full overflow-auto rounded-lg border border-slate-700 bg-slate-600/30 select-none"
         style={{ maxHeight: '78vh', cursor: zoom !== null ? 'grab' : 'default' }}
         onPointerDown={(e) => {
+          if ((e.target as HTMLElement).closest('th,button,input,select,label')) return;
           if (zoom === null && contentH * scale <= (wrapRef.current?.clientHeight ?? 0)) return;
           const el = wrapRef.current!;
           drag.current = { x: e.clientX, y: e.clientY, l: el.scrollLeft, t: el.scrollTop };
@@ -627,7 +714,7 @@ export default function PlanejamentoHoraExtra({
             ) : (
               sheets.map((x, i) => (
                 <div key={x.key} className={i < sheets.length - 1 ? 'he-sheet-break' : ''}>
-                  <Sheet title={x.title} recs={x.recs} showDate={x.showDate} sort={sort} group={group} filterNote={filterNote} />
+                  <Sheet title={x.title} recs={x.recs} showDate={x.showDate} levels={levels} onSortHeader={onSortHeader} group={group} filterNote={filterNote} />
                 </div>
               ))
             )}

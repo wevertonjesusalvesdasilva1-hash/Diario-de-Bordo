@@ -70,40 +70,81 @@ export const dayLabel = (r: OvertimeRecord) => {
   return wd ? `${wd} · ${r.data}` : r.data;
 };
 
-/** Faixa (grupo) de cada linha. Em ordem alfabética/chapa as faixas são os dias (com o dia da semana). */
-export const groupKeyOf = (mode: SortMode, r: OvertimeRecord): string | null =>
-  mode === 'PECA' ? r.motivoHe.trim() || '—' : mode === 'LIDER' ? r.lider || 'Não identificado' : mode === 'CC' ? r.cc || 'Sem CC' : dayLabel(r);
+// ---------- Classificação por colunas (estilo Excel: vários níveis, A→Z / Z→A) ----------
+export type ColKey = 'data' | 'chapa' | 'nome' | 'peca' | 'cc' | 'lider' | 'horario' | 'transporte' | 'resp';
+export interface SortLevel { col: ColKey; dir: 'asc' | 'desc' }
+export const COL_LABELS: Record<ColKey, string> = {
+  data: 'Data', chapa: 'Chapa', nome: 'Funcionário', peca: 'Peça', cc: 'CC', lider: 'Líder', horario: 'Horário', transporte: 'Transporte', resp: 'Responsáveis primeiro',
+};
 
-/**
- * Prioridade: (1) ordem "maior" escolhida (peça/líder/CC) -> (2) data -> (3) responsáveis primeiro -> (4) nome.
- * Em ordem alfabética/chapa a data vem primeiro: os dias ficam agrupados e, dentro de cada dia, ordenados.
- */
-export function sortRecords(recs: OvertimeRecord[], mode: SortMode) {
-  const byName = (a: OvertimeRecord, b: OvertimeRecord) => a.funcionario.localeCompare(b.funcionario, 'pt-BR');
-  const byDate = (a: OvertimeRecord, b: OvertimeRecord) => (a.dataSortKey || '').localeCompare(b.dataSortKey || '');
-  const lead = (a: OvertimeRecord, b: OvertimeRecord) => Number(isLeaderRow(b)) - Number(isLeaderRow(a));
-  const cmp: Record<SortMode, (a: OvertimeRecord, b: OvertimeRecord) => number> = {
-    ALFA: (a, b) => byDate(a, b) || byName(a, b),
-    CHAPA: (a, b) => byDate(a, b) || Number(a.chapa) - Number(b.chapa),
-    PECA: (a, b) => norm(a.motivoHe).localeCompare(norm(b.motivoHe)) || byDate(a, b) || byName(a, b),
-    LIDER: (a, b) => (a.lider || '').localeCompare(b.lider || '', 'pt-BR') || byDate(a, b) || lead(a, b) || byName(a, b),
-    CC: (a, b) => (a.cc || '').localeCompare(b.cc || '') || byDate(a, b) || lead(a, b) || norm(a.motivoHe).localeCompare(norm(b.motivoHe)) || byName(a, b),
-  };
-  return [...recs].sort(cmp[mode]);
+/** Ordens rápidas = combinações prontas de níveis. */
+export function presetLevels(mode: SortMode): SortLevel[] {
+  const up = (...c: ColKey[]): SortLevel[] => c.map((col) => ({ col, dir: 'asc' }));
+  switch (mode) {
+    case 'ALFA': return up('data', 'nome');
+    case 'CHAPA': return up('data', 'chapa');
+    case 'PECA': return up('peca', 'data', 'nome');
+    case 'LIDER': return up('lider', 'data', 'resp', 'nome');
+    case 'CC': return up('cc', 'data', 'resp', 'peca', 'nome');
+  }
+}
+export const levelsKey = (l: SortLevel[]) => l.map((x) => `${x.col}:${x.dir}`).join('|');
+export const matchPreset = (l: SortLevel[]): SortMode | null =>
+  (Object.keys(SORT_LABELS) as SortMode[]).find((m) => levelsKey(presetLevels(m)) === levelsKey(l)) ?? null;
+export const levelsLabel = (l: SortLevel[]) =>
+  l.filter((x) => x.col !== 'resp').map((x) => `${COL_LABELS[x.col]} ${x.dir === 'asc' ? '↑' : '↓'}`).join(' › ');
+
+const timeKey = (r: OvertimeRecord) => `${r.de || '99:99'}-${r.ate || '99:99'}`;
+const cmpText = (a: string, b: string) => a.localeCompare(b, 'pt-BR', { numeric: true });
+const COL_CMP: Record<ColKey, (a: OvertimeRecord, b: OvertimeRecord) => number> = {
+  data: (a, b) => (a.dataSortKey || '').localeCompare(b.dataSortKey || ''),
+  chapa: (a, b) => (Number(a.chapa) || 0) - (Number(b.chapa) || 0) || cmpText(String(a.chapa), String(b.chapa)),
+  nome: (a, b) => cmpText(a.funcionario, b.funcionario),
+  peca: (a, b) => cmpText(norm(a.motivoHe), norm(b.motivoHe)),
+  cc: (a, b) => cmpText(a.cc || '', b.cc || ''),
+  lider: (a, b) => cmpText(a.lider || '', b.lider || ''),
+  horario: (a, b) => timeKey(a).localeCompare(timeKey(b)),
+  transporte: (a, b) => cmpText(transpLabel(a), transpLabel(b)),
+  resp: (a, b) => Number(isLeaderRow(b)) - Number(isLeaderRow(a)),
+};
+
+/** Aplica os níveis na ordem; desempate final: dia, depois nome. */
+export function sortRecords(recs: OvertimeRecord[], levels: SortLevel[]) {
+  return [...recs].sort((a, b) => {
+    for (const lv of levels) {
+      const c = COL_CMP[lv.col](a, b);
+      if (c) return lv.dir === 'asc' ? c : -c;
+    }
+    return COL_CMP.data(a, b) || COL_CMP.nome(a, b);
+  });
+}
+
+/** Faixa (grupo) conforme a coluna do 1º nível. Nome/chapa não agrupam. */
+export function groupKeyOf(col: ColKey, r: OvertimeRecord): string | null {
+  switch (col) {
+    case 'data': return dayLabel(r);
+    case 'peca': return r.motivoHe.trim() || '—';
+    case 'lider': return r.lider || 'Não identificado';
+    case 'cc': return r.cc || 'Sem CC';
+    case 'horario': return turno(r);
+    case 'transporte': return transpLabel(r) || 'Sem transporte';
+    default: return null;
+  }
 }
 
 export type Row = { kind: 'group'; label: string; n: number } | { kind: 'rec'; r: OvertimeRecord; idx: number };
 
 /** Linhas da lista nominal, já com cabeçalhos de grupo quando pedido. */
-export function buildRows(recs: OvertimeRecord[], mode: SortMode, group: boolean): Row[] {
-  const sorted = sortRecords(recs, mode);
+export function buildRows(recs: OvertimeRecord[], levels: SortLevel[], group: boolean): Row[] {
+  const sorted = sortRecords(recs, levels);
+  const first = levels[0]?.col;
   const rows: Row[] = [];
   let last: string | null = null;
   let idx = 0;
   const counts = new Map<string, number>();
-  if (group) sorted.forEach((r) => { const k = groupKeyOf(mode, r); if (k) counts.set(k, (counts.get(k) ?? 0) + 1); });
+  if (group && first) sorted.forEach((r) => { const k = groupKeyOf(first, r); if (k) counts.set(k, (counts.get(k) ?? 0) + 1); });
   sorted.forEach((r) => {
-    const k = group ? groupKeyOf(mode, r) : null;
+    const k = group && first ? groupKeyOf(first, r) : null;
     if (k && k !== last) {
       rows.push({ kind: 'group', label: k, n: counts.get(k) ?? 0 });
       last = k;
