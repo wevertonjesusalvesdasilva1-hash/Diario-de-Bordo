@@ -82,7 +82,7 @@ function Sheet({
   const s = useMemo(() => buildSummary(recs), [recs]);
   const rows = useMemo(() => buildRows(recs, sort, group), [recs, sort, group]);
   const [r1, r2] = halves(rows);
-  const cols = [...(showDate ? ['Data'] : []), '#', 'Chapa', 'Funcionário', 'Peça', 'CC', 'Líder', 'Transporte'];
+  const cols = ['Data', '#', 'Chapa', 'Funcionário', 'Peça', 'CC', 'Líder', 'Transporte'];
 
   const table = (list: typeof rows) => (
     <table className="w-full text-[10.5px] border-collapse self-start">
@@ -103,7 +103,7 @@ function Sheet({
             </tr>
           ) : (
             <tr key={x.r.id} className={`border-b border-gray-300 ${isLeaderRow(x.r) ? 'font-bold' : ''}`} style={{ breakInside: 'avoid', background: isLeaderRow(x.r) ? BRAND.yellowSoft : undefined }}>
-              {showDate && <td className="py-0.5 pr-1.5 tabular-nums">{x.r.data.slice(0, 5)}</td>}
+              <td className="py-0.5 pr-1.5 tabular-nums">{x.r.data.slice(0, 5)}</td>
               <td className="py-0.5 pr-1.5 tabular-nums">{x.idx}</td>
               <td className="pr-1.5 tabular-nums">{x.r.chapa}</td>
               <td className="pr-1.5">{x.r.funcionario}</td>
@@ -218,7 +218,7 @@ function Sheet({
         </Box>
       </div>
 
-      <Box title={`Lista nominal (${recs.length}) · ${SORT_LABELS[sort]}${group && (sort !== 'ALFA' && sort !== 'CHAPA' || showDate) ? ' · agrupada' : ''}`}>
+      <Box title={`Lista nominal (${recs.length}) · ${SORT_LABELS[sort]}${group ? ' · agrupada' : ''}`}>
         <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
           {table(r1)}
           {table(r2)}

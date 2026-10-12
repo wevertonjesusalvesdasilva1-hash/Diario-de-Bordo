@@ -193,6 +193,10 @@ export async function parseOvertimeExcel(file: File): Promise<OvertimeRecord[]> 
   const idxDataApv = findCol(['DATA APV', 'DATA APROVACAO'], 13);
 
   const records: OvertimeRecord[] = [];
+  const seenRows = new Set<string>();
+  const idCount = new Map<string, number>();
+  const slug = (v: string) =>
+    normalizeHeaderKey(v).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
   for (let r = headerRowIndex + 1; r < rows.length; r++) {
     const row = rows[r];
@@ -211,10 +215,23 @@ export async function parseOvertimeExcel(file: File): Promise<OvertimeRecord[]> 
 
     const { display: dataDisplay, sortKey: dataSortKey } = formatExcelDate(row[idxData]);
 
+    // linha repetida na planilha (mesmo dia, chapa, peça e horário) -> conta uma vez só
+    const motivoTxt = String(row[idxMotivo] ?? '').trim() || 'Peça não informada';
+    const deTxt = formatExcelTime(row[idxDe]);
+    const ateTxt = formatExcelTime(row[idxAte]);
+    const rowKey = `${dataSortKey}|${rawChapa}|${slug(motivoTxt)}|${deTxt}|${ateTxt}`;
+    if (seenRows.has(rowKey)) continue;
+    seenRows.add(rowKey);
+    // id estável: NÃO depende do número da linha, então reimportar o mesmo dado não duplica
+    const baseId = `rec-${dataSortKey}-${rawChapa}-${slug(motivoTxt)}`;
+    const nth = (idCount.get(baseId) ?? 0) + 1;
+    idCount.set(baseId, nth);
+    const stableId = nth === 1 ? baseId : `${baseId}-${nth}`;
+
     records.push(
       normalizeOvertimeRecord(
         {
-          id: `rec-${r}-${rawChapa}-${dataSortKey}`,
+          id: stableId,
           data: dataDisplay,
           dataSortKey,
           chapa: rawChapa,

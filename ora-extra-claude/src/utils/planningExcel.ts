@@ -95,7 +95,7 @@ export async function exportPlanningExcel(opts: {
   // ---------- Lista nominal ----------
   const addList = (name: string, recs: OvertimeRecord[], showDate: boolean) => {
     const ws = wb.addWorksheet(name.slice(0, 31));
-    const heads = [...(showDate ? ['Data'] : []), '#', 'Chapa', 'Funcionário', 'Peça / Atividade', 'CC', 'Líder', 'Turno', 'Transporte', 'Refeição', 'Aprovação'];
+    const heads = ['Data', '#', 'Chapa', 'Funcionário', 'Peça / Atividade', 'CC', 'Líder', 'Turno', 'Transporte', 'Refeição', 'Aprovação'];
     ws.columns = heads.map((h) => ({ width: { Data: 12, '#': 5, Chapa: 9, Funcionário: 36, 'Peça / Atividade': 28, CC: 7, Líder: 22, Turno: 14, Transporte: 34, Refeição: 11, Aprovação: 11 }[h] ?? 12 }));
     ws.mergeCells(1, 1, 1, heads.length);
     ws.getCell(1, 1).alignment = { vertical: 'middle' };
@@ -122,7 +122,7 @@ export async function exportPlanningExcel(opts: {
         c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: argb(BRAND.blueSoft) } };
       } else {
         const r = x.r;
-        const vals = [...(showDate ? [r.data] : []), x.idx, Number(r.chapa) || r.chapa, r.funcionario, r.motivoHe, r.cc, r.lider, turno(r), transpLabel(r), fixText(r.refeicao), r.aprovacao];
+        const vals = [r.data, x.idx, Number(r.chapa) || r.chapa, r.funcionario, r.motivoHe, r.cc, r.lider, turno(r), transpLabel(r), fixText(r.refeicao), r.aprovacao];
         vals.forEach((v, i) => {
           const c = ws.getCell(row, i + 1);
           c.value = v as string | number;

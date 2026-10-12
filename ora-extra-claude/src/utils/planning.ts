@@ -62,9 +62,17 @@ export function applyFilters(recs: OvertimeRecord[], f: Filters) {
   );
 }
 
-/** Faixa (grupo) de cada linha. Com vários dias e ordem alfabética/chapa, as faixas são as datas. */
-export const groupKeyOf = (mode: SortMode, r: OvertimeRecord, multiDate = false): string | null =>
-  mode === 'PECA' ? r.motivoHe.trim() || '—' : mode === 'LIDER' ? r.lider || 'Não identificado' : mode === 'CC' ? r.cc || 'Sem CC' : multiDate ? r.data : null;
+const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+/** "Sábado · 03/10/2026" */
+export const dayLabel = (r: OvertimeRecord) => {
+  const m = (r.dataSortKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const wd = m ? DIAS[new Date(+m[1], +m[2] - 1, +m[3]).getDay()] : '';
+  return wd ? `${wd} · ${r.data}` : r.data;
+};
+
+/** Faixa (grupo) de cada linha. Em ordem alfabética/chapa as faixas são os dias (com o dia da semana). */
+export const groupKeyOf = (mode: SortMode, r: OvertimeRecord): string | null =>
+  mode === 'PECA' ? r.motivoHe.trim() || '—' : mode === 'LIDER' ? r.lider || 'Não identificado' : mode === 'CC' ? r.cc || 'Sem CC' : dayLabel(r);
 
 /**
  * Prioridade: (1) ordem "maior" escolhida (peça/líder/CC) -> (2) data -> (3) responsáveis primeiro -> (4) nome.
@@ -89,14 +97,13 @@ export type Row = { kind: 'group'; label: string; n: number } | { kind: 'rec'; r
 /** Linhas da lista nominal, já com cabeçalhos de grupo quando pedido. */
 export function buildRows(recs: OvertimeRecord[], mode: SortMode, group: boolean): Row[] {
   const sorted = sortRecords(recs, mode);
-  const multiDate = new Set(recs.map((r) => r.data)).size > 1;
   const rows: Row[] = [];
   let last: string | null = null;
   let idx = 0;
   const counts = new Map<string, number>();
-  if (group) sorted.forEach((r) => { const k = groupKeyOf(mode, r, multiDate); if (k) counts.set(k, (counts.get(k) ?? 0) + 1); });
+  if (group) sorted.forEach((r) => { const k = groupKeyOf(mode, r); if (k) counts.set(k, (counts.get(k) ?? 0) + 1); });
   sorted.forEach((r) => {
-    const k = group ? groupKeyOf(mode, r, multiDate) : null;
+    const k = group ? groupKeyOf(mode, r) : null;
     if (k && k !== last) {
       rows.push({ kind: 'group', label: k, n: counts.get(k) ?? 0 });
       last = k;

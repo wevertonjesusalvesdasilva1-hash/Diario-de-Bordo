@@ -958,6 +958,7 @@ export default function App() {
 
     try {
       const parsed = await parseOvertimeExcel(file);
+      cloud.markReplace();
       setRecords(parsed);
       const uniqueDates = Array.from(new Set(parsed.map((r) => r.data)));
       if (uniqueDates.length > 0) {

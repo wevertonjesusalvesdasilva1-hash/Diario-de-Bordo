@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 const OPEN_SESSION = {} as Session;
 import { OvertimeRecord } from '../types';
 import { cloudEnabled, supabase } from './supabase';
-import { fromRows, toRows } from './mapper';
+import { dedupeRecords, fromRows, toRows } from './mapper';
 
 export type SyncState = 'local' | 'signed-out' | 'syncing' | 'online' | 'offline' | 'error';
 
@@ -21,6 +21,18 @@ export function useCloudSync(
   const recordsRef = useRef(records);
   recordsRef.current = records;
 
+  // Importar um Excel SUBSTITUI os dados: apaga do banco o que não está na nova planilha.
+  const replaceRef = useRef(false);
+  const markReplace = useCallback(() => { replaceRef.current = true; }, []);
+  const removeStale = async () => {
+    if (!supabase || !replaceRef.current) return;
+    replaceRef.current = false;
+    const { data } = await supabase.from('he_assignments').select('id');
+    const keep = new Set(recordsRef.current.map((r) => r.id));
+    const extra = (data ?? []).map((x) => x.id as string).filter((id) => !keep.has(id));
+    for (let i = 0; i < extra.length; i += 100) await supabase.from('he_assignments').delete().in('id', extra.slice(i, i + 100));
+  };
+
   const pull = useCallback(async () => {
     if (!supabase) return;
     setState('syncing');
@@ -30,7 +42,11 @@ export function useCloudSync(
     ]);
     if (a.error || e.error) return setState('error');
     if (a.data && a.data.length > 0) {
-      const recs = a.data.map((row) => fromRows(row, e.data ?? []));
+      const { keep: recs, dropIds } = dedupeRecords(a.data.map((row) => ({ rec: fromRows(row, e.data ?? []), at: row.updated_at as string })));
+      // duplicatas antigas no banco (mesma pessoa/dia/peça com outro código): limpa
+      for (let i = 0; i < dropIds.length; i += 100) {
+        void supabase.from('he_assignments').delete().in('id', dropIds.slice(i, i + 100));
+      }
       snapshot.current = new Map(recs.map((r) => [r.id, JSON.stringify(r)]));
       setRecords(recs);
     }
@@ -41,8 +57,13 @@ export function useCloudSync(
   const push = useCallback(async () => {
     if (!supabase || !loaded.current) return;
     const changed = recordsRef.current.filter((r) => snapshot.current.get(r.id) !== JSON.stringify(r));
-    if (changed.length === 0) return;
+    const replacing = replaceRef.current;
+    if (changed.length === 0 && !replacing) return;
     setState('syncing');
+    if (changed.length === 0) {
+      await removeStale();
+      return setState('online');
+    }
     const rows = changed.map(toRows);
     const uniq = <T,>(xs: T[], k: (x: T) => string) => [...new Map(xs.map((x) => [k(x), x])).values()];
     const steps = [
@@ -58,6 +79,7 @@ export function useCloudSync(
       if (r.error) return setState('error');
     }
     changed.forEach((r) => snapshot.current.set(r.id, JSON.stringify(r)));
+    await removeStale();
     setState('online');
   }, []);
 
@@ -108,5 +130,5 @@ export function useCloudSync(
     };
   }, [session, push]);
 
-  return { session: null as Session | null, ready: true, state, needsLogin: false };
+  return { session: null as Session | null, ready: true, state, needsLogin: false, markReplace };
 }
