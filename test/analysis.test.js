@@ -133,3 +133,24 @@ test('troca de peça de 40 min sem comentário é apontada; com comentário tamb
   assert.equal(com.sev, 'media'); assert.match(com.headline, /quebrou gabarito/);
   assert.equal(analyze([{ ...mk(''), stops: [stop(1, '14/10/2026', '09:00', '09:20', 'TROCA DE PEÇA')] }]).cards.filter((x) => x.kind === 'parada longa').length, 0);
 });
+
+import { recordEdit, recordRemoval, collectEdits, describeEdit } from '../src/core/edits.js';
+test('alterações do usuário: guarda o valor lido, desfaz se voltar ao original e aparece na análise', () => {
+  const page = { id: 9, label: 'f9', machine: 'RAW05', date: '14/10/2026', prod: [prod(1, '14/10/2026', { chapa1: '7910', ini1: '07:50', fim1: '13:00' })], stops: [] };
+  const r = page.prod[0];
+  recordEdit(r, 'fim1', r.fim1, '05:40'); r.fim1 = '05:40';
+  recordEdit(r, 'fim1', r.fim1, '05:45'); r.fim1 = '05:45';
+  assert.equal(r.edits.fim1.from, '13:00'); assert.equal(r.edits.fim1.to, '05:45');
+  recordEdit(r, 'obs', r.obs, 'parcial'); r.obs = 'parcial';
+  assert.equal(r.edits.obs.from, '');
+  const list = collectEdits([page]);
+  assert.equal(list.length, 2);
+  assert.equal(list.find((e) => e.field === 'Fim (1º turno)').kind, 'alterado');
+  assert.equal(list.find((e) => e.field === 'Observações').kind, 'preenchido');
+  assert.match(describeEdit(list[0]), /a leitura tinha "13:00", você mudou para "05:45"/);
+  recordEdit(r, 'fim1', r.fim1, '13:00'); r.fim1 = '13:00';
+  assert.equal(r.edits.fim1, undefined);
+  assert.equal(analyze([page]).edits.length, 1);
+  recordRemoval(page, 'prod', r, 0);
+  assert.equal(collectEdits([page]).at(-1).kind, 'linha excluída');
+});

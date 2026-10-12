@@ -129,6 +129,12 @@ export function analysisSheet(a) {
   add('Gravidade', 'Máquina', 'Folha', 'Linha', 'Tipo', 'Descrição');
   for (const i of a.issues) add(i.sev === 'alta' ? 'ALTA' : i.sev === 'media' ? 'média' : 'info', i.machine, i.label, i.linha || '', i.kind, i.text);
 
+  if (a.edits?.length) {
+    blank();
+    add('ALTERAÇÕES FEITAS PELO USUÁRIO DEPOIS DA LEITURA');
+    add('Tipo', 'Máquina', 'Dia', 'Folha', 'Onde', 'Campo', 'Lido pelo app', 'Colocado por você', 'Ainda gera alerta?');
+    for (const e of a.edits) add(e.kind, e.machine, e.day, e.label, e.where, e.field, e.from, e.to, e.alert ? 'sim' : 'não');
+  }
   const ws = XLSX.utils.aoa_to_sheet(rows);
   const pct = (r0, r1, col) => { for (let r = r0; r < r1; r++) { const c = ws[XLSX.utils.encode_cell({ r, c: col })]; if (c && typeof c.v === 'number') c.z = '0%'; } };
   pct(pctRows, pctRows + a.machines.length, 4); pct(motivoStart, motivoEnd, 4); pct(stdStart, stdEnd, 6);

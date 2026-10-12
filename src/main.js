@@ -7,6 +7,7 @@ import { apiPost, checkLogin, login } from './api.js';
 import { usageText, nearLimit, getLimit, setLimit, quotaHit, clearQuota } from './usage.js';
 import { buildPage, reconcile, applyInkMotivo, alignRows, alignJson, collectAsk, applyThirdReading, normMachine } from './core/rows.js';
 import { decodeEntities } from './core/text.js';
+import { recordEdit, recordRemoval, describeEdit } from './core/edits.js';
 import { buildPanel } from './core/panel.js';
 import { allRows, toTSV, workbookBytes } from './core/export.js';
 import { getLists, saveGroupLists, learnAlias, resetLists, setActiveGroup, groupOf as listGroup } from './core/lists.js';
@@ -50,7 +51,7 @@ let saveTimer;
 function persist(delay = 400) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops }) => ({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops }));
+    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows }) => ({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows }));
     saveState({ pages: keep, nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig, ai: Array.isArray(state.ai) ? state.ai : null });
   }, delay);
 }
@@ -253,6 +254,8 @@ const maskDate = (v) => { const d = String(v).replace(/\D/g, '').slice(0, 8); re
 const withYear = (v) => (/^\d{2}\/\d{2}$/.test(v) ? `${v}/${$('year').value || new Date().getFullYear()}` : v);
 const dateAttrs = { inputmode: 'numeric', maxlength: 10, placeholder: 'DD/MM/AAAA', autocomplete: 'off' };
 
+const editTitle = (ed) => (String(ed.from ?? '').trim() ? `Alterado por você. A leitura tinha "${ed.from}"` : 'Preenchido por você. Estava em branco na leitura');
+
 function fieldCell(p, kind, ri, row, [key, , , cls]) {
   const flag = row.flags?.[key];
   const bad = flag && BAD.test(flag);
@@ -260,7 +263,9 @@ function fieldCell(p, kind, ri, row, [key, , , cls]) {
   const control = key === 'motivo'
     ? h('select', attrs, h('option', { value: '' }, '—'), [...MOTIVOS, ...(row.motivo && !MOTIVOS.includes(row.motivo) ? [row.motivo] : [])].map((m) => h('option', { value: m, selected: m === row.motivo }, m)))
     : h('input', { ...attrs, ...(key === 'data' ? dateAttrs : {}), type: 'text', value: row[key] ?? '', spellcheck: false });
-  return h('td', { class: `${cls ?? ''}${flag ? ' flag' : ''}${bad ? ' bad' : ''}` }, control);
+  const ed = row.edits?.[key];
+  if (ed) attrs.title = editTitle(ed);
+  return h('td', { class: `${cls ?? ''}${flag ? ' flag' : ''}${bad ? ' bad' : ''}${ed ? (String(ed.from ?? '').trim() ? ' edited' : ' edited fill') : ''}` }, control);
 }
 
 const hasDoubt = (row) => !!row.rowFlag || Object.keys(row.flags ?? {}).length > 0;
@@ -363,13 +368,25 @@ function updateSummary() {
 const pageOf = (id) => state.pages.find((p) => p.id === Number(id));
 const LEARN = { peca: 'peca', modelo: 'modelo', chapa: 'chapa', chapa1: 'chapa', chapa2: 'chapa', chapa3: 'chapa' };
 
+function markEdited(td, ed) {
+  if (!td) return;
+  td.classList.toggle('edited', !!ed && !!String(ed.from ?? '').trim());
+  td.classList.toggle('fill', !!ed && !String(ed.from ?? '').trim());
+  if (ed) td.classList.add('edited');
+  const ctl = td.querySelector('input,select');
+  if (ctl) ctl.title = ed ? editTitle(ed) : '';
+}
+
 document.addEventListener('input', (e) => {
   const d = e.target.dataset;
   if (!d?.f) return;
   const row = pageOf(d.p)?.[d.k]?.[Number(d.r)];
   if (!row) return;
   if (d.f === 'data') e.target.value = maskDate(e.target.value);
+  const before = row[d.f];
   row[d.f === 'desc' ? 'desc' : d.f] = e.target.value;
+  recordEdit(row, d.f, before, e.target.value);
+  markEdited(e.target.closest('td'), row.edits?.[d.f]);
   if (row.flags?.[d.f]) { delete row.flags[d.f]; e.target.closest('td').classList.remove('flag', 'bad'); }
   updateSummary(); persist();
 });
@@ -377,7 +394,7 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', (e) => {
   const d = e.target.dataset;
   if (d?.f === 'data') { const v = withYear(e.target.value); if (v !== e.target.value) { e.target.value = v; e.target.dispatchEvent(new Event('input', { bubbles: true })); } }
-  if (d?.act === 'machine') { const p = pageOf(d.p); p.machine = e.target.value; p.machineFlag = null; renderPage(p); updateSummary(); persist(); return; }
+  if (d?.act === 'machine') { const p = pageOf(d.p); const was = p.machine; p.machine = e.target.value; p.machineFlag = null; if (was !== p.machine) { const pe = p.edits?.machine; p.edits = { ...(p.edits ?? {}), machine: { from: pe ? pe.from : was, to: p.machine } }; if (p.edits.machine.from === p.machine) delete p.edits.machine; } renderPage(p); updateSummary(); persist(); return; }
   if (d?.act === 'include') { const p = pageOf(d.p); p.include = e.target.checked; renderPage(p); updateSummary(); persist(); return; }
   if (d?.f && e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true }));
   // teach the app: what the model read → what the person typed
@@ -417,8 +434,8 @@ document.addEventListener('click', (e) => {
   const { act, p: pid, k, r } = b.dataset;
   const p = pageOf(pid);
   if (act === 'goto') return goToRow(pid, k, r);
-  if (act === 'rm') { p[k].splice(Number(r), 1); renderPage(p); updateSummary(); persist(); }
-  if (act === 'add') { p[k].push({ linha: 0, flags: {}, raw: {}, learned: {} }); renderPage(p); updateSummary(); persist(); }
+  if (act === 'rm') { recordRemoval(p, k, p[k][Number(r)], Number(r)); p[k].splice(Number(r), 1); renderPage(p); updateSummary(); persist(); }
+  if (act === 'add') { p[k].push({ linha: 0, flags: {}, raw: {}, learned: {}, added: true }); renderPage(p); updateSummary(); persist(); }
   if (act === 'retry') readPage(p);
   if (act === 'goto') goToRow(pid, k, r);
   if (act === 'delpage') removePages([p], `Folha ${p.label} excluída.`);
@@ -573,7 +590,8 @@ function timeline(v) {
   const bars = v.segs.filter((g) => g.kind !== 'conflict').map((g) => h('i', { class: `seg ${g.kind}`, style: `left:${pct(g.start)};width:calc(${pct(g.end)} - ${pct(g.start)});background:${segColor(g)}`, title: `${g.label} ${hhmm(g.start)}–${hhmm(g.end)}` }));
   const over = v.segs.filter((g) => g.kind === 'conflict').map((g) => h('i', { class: 'seg conflict', style: `left:${pct(g.start)};width:calc(${pct(g.end)} - ${pct(g.start)})`, title: `Conflito ${hhmm(g.start)}–${hhmm(g.end)}` }));
   const ticks = [];
-  for (let t = Math.ceil(v.from / 60) * 60; t <= v.to; t += 60) if ((t - v.from) / span > 0.06 && (t - v.from) / span < 0.94) ticks.push(h('span', { class: 'tick', style: `left:${pct(t)}` }, hhmm(t)));
+  const step = 60 * Math.max(1, Math.ceil(span / 60 / 8));
+  for (let t = Math.ceil(v.from / step) * step; t <= v.to; t += step) if ((t - v.from) / span > 0.06 && (t - v.from) / span < 0.94) ticks.push(h('span', { class: 'tick', style: `left:${pct(t)}` }, hhmm(t)));
   const legend = v.segs.map((g) => h('span', { class: 'lg' }, h('i', { class: `dot ${g.kind}`, style: g.kind === 'gap' ? '' : `background:${segColor(g)}` }), `${g.label} ${hhmm(g.start)}–${hhmm(g.end)}`));
   return h('div', { class: 'tl' }, h('div', { class: 'tlbar' }, ...bars, ...over), h('div', { class: 'tlaxis' }, ...ticks), h('div', { class: 'tllegend' }, ...legend));
 }
@@ -643,7 +661,17 @@ function renderAnalysis() {
       c.chips?.length ? h('div', { class: 'chips' }, c.chips.map((x) => h('span', { class: 'chip static' }, x))) : null,
       h('p', { class: 'note' }, c.why),
       goBtn(c)))) : h('p', { class: 'note' }, 'Nenhum colaborador deixou colunas em branco com frequência e nenhuma folha ficou difícil de ler.'));
-  sections.splice(2, 0, qBlock, ...cardsBlock);
+  const E = a.edits ?? [];
+  const EKIND = { alterado: 'Alterado', preenchido: 'Preenchido', apagado: 'Apagado', 'linha nova': 'Linha nova', 'linha excluída': 'Linha excluída' };
+  const eBySheet = new Map();
+  for (const e of E) { const k = `${e.machine} · folha do dia ${e.day}`; if (!eBySheet.has(k)) eBySheet.set(k, []); eBySheet.get(k).push(e); }
+  const eBlock = h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Alterações feitas por você', h('span', { class: 'badge-ai' }, E.length ? `${E.length} alteraç${E.length === 1 ? 'ão' : 'ões'}` : 'nenhuma')),
+    E.length ? [h('p', { class: 'note' }, 'Tudo que você mudou, preencheu ou apagou depois da leitura do app. Informação que você colocou e que não estava na leitura merece uma segunda olhada na folha.'),
+      ...[...eBySheet].map(([title, list]) => h('div', { class: 'esheet' }, h('h3', {}, title),
+        list.map((e) => h('div', { class: `issue edit ${e.kind === 'preenchido' || e.kind === 'linha nova' ? 'fill' : ''}` }, h('span', { class: e.kind === 'preenchido' || e.kind === 'linha nova' ? 'tag bad' : 'tag' }, EKIND[e.kind]),
+          h('div', {}, `${e.where}: ${describeEdit(e)}`, e.alert ? h('small', { class: 'stillbad' }, 'Essa linha ainda aparece em um alerta da análise') : null), goBtn(e)))))]
+      : h('p', { class: 'note' }, 'Você não alterou nada depois da leitura: os dados estão como o app leu.'));
+  sections.splice(2, 0, qBlock, eBlock, ...cardsBlock);
   const others = a.issues.filter((i) => !a.cards.includes(i));
   if (others.length) sections.push(h('section', { class: 'card' }, h('h3', {}, `Outras conferências (${others.length})`),
     others.map((i) => h('div', { class: 'issue' }, h('span', { class: SEV[i.sev][1] }, SEV[i.sev][0]),
@@ -843,7 +871,9 @@ function qrConfirm() {
     const value = it.field === 'data' ? withYear((el?.value ?? '').trim()) : (el?.value ?? '').trim();
     const row = it.row, f = it.field;
     const kind = f === 'desc' ? 'desc' : f;
+    const before = row[kind];
     row[kind] = value;
+    recordEdit(row, kind, before, value);
     delete row.flags[f];
     if (f === 'motivo' && !value) row.flags.motivo = 'sem motivo';
     learnFromEdit(row, f, value);
