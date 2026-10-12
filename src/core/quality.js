@@ -86,10 +86,10 @@ export function buildQuality(pages) {
     if (blank.length - unsure.length >= 2) {
       const n = blank.length - unsure.length;
       mk(blank.filter((x) => x.r.turno), 'turno em branco', n / all.length >= 0.6 ? 'alta' : 'media',
-        `${machine}: a coluna de turno veio em branco em ${n} de ${all.length} linhas. O app preencheu pelo horário (turno 1: 07:30 às 17:30) e pela chapa. Os campos estão marcados como "auto".`,
+        `${machine}: a coluna de turno veio em branco em ${n} de ${all.length} linhas. O app preencheu pelo horário (turno 1: 07:30 às 17:30; turno 2: 20:40 às 05:40) e pela chapa. Os campos estão marcados como "auto".`,
         'Confira os marcados como "auto". Hora extra e chapa nova podem mudar o turno certo. O ideal é o operador preencher a coluna.');
     }
-    if (unsure.length) mk(unsure, 'turno incerto', 'media', `${machine}: em ${unsure.length} linha(s) o turno está em branco e o horário (entre 05:30 e 07:30) não permite saber. Preencha à mão.`, 'O horário cai entre os turnos e a chapa ainda não tem histórico para decidir.');
+    if (unsure.length) mk(unsure, 'turno incerto', 'media', `${machine}: em ${unsure.length} linha(s) o turno está em branco e o horário (entre 05:40 e 07:30) não permite saber. Preencha à mão.`, 'O horário cai entre os turnos e a chapa ainda não tem histórico para decidir.');
     if (clash.length) mk(clash, 'turno diferente do horário', 'media', `${machine}: em ${clash.length} linha(s) o turno anotado não bate com o horário. Exemplo: ${clash[0].r.flags.turno}.`, 'Pode ser hora extra, ou o turno ou o horário foram anotados errado.');
   }
 

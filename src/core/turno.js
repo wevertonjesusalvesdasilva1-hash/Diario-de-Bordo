@@ -1,13 +1,13 @@
 // Fills the TURNO columns the operator left blank, from the time of day and from the badge number (chapa).
 //   Turno 1 (day):   07:30 – 17:30. Overtime shows up as an early start (from ~05:30) or a late one (until ~18:30).
-//   Turno 2 (night): from 18:40 on, until the early morning. A night chapa may start earlier or end later.
+//   Turno 2 (night): 20:40 – 05:40. A night chapa may arrive earlier (from ~18:40) or leave later (until ~07:30).
 // Records that are clearly day or clearly night teach which shift each chapa works; the odd hours
-// (05:30–07:30 and 17:30–18:40) follow the chapa. Pure functions; rows get row.auto.turno (why) and
+// (05:40–07:30 and 17:30–20:40) follow the chapa. Pure functions; rows get row.auto.turno (why) and
 // row.flags.turno (when the cell was written but disagrees with the clock).
 import { aliasKey } from './lists.js';
 
 const toMin = (t) => { const m = /^(\d{2}):(\d{2})$/.exec(t ?? ''); return m ? +m[1] * 60 + +m[2] : null; };
-const DAY_FROM = 7 * 60 + 30, DAY_TO = 17 * 60 + 30, NIGHT_FROM = 18 * 60 + 40, EARLY_FROM = 5 * 60 + 30;
+const DAY_FROM = 7 * 60 + 30, DAY_TO = 17 * 60 + 30, NIGHT_FROM = 20 * 60 + 40, EARLY_FROM = 5 * 60 + 40, NIGHT_EARLY_ARRIVAL = 18 * 60 + 40;
 const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 // → { shift: '1'|'2', certain } or { shift: null, zone: 'early'|'evening' } for the in-between hours
@@ -49,12 +49,16 @@ export function chapaShifts(pages) {
 function decide(ini, chapa, col, shifts) {
   const m = toMin(ini), c = shiftOfTime(m);
   if (!c) return null;
-  if (c.certain) return { shift: c.shift, why: `horário ${ini} (${c.shift === '1' ? '07:30 às 17:30' : 'a partir das 18:40 ou madrugada'})`, certain: true };
+  if (c.certain) return { shift: c.shift, why: `horário ${ini} (${c.shift === '1' ? '07:30 às 17:30' : 'das 20:40 às 05:40'})`, certain: true };
   const byChapa = shifts.get(aliasKey(chapa));
   if (byChapa) return { shift: byChapa, why: `horário ${ini} fora do normal (hora extra) e a chapa ${chapa} trabalha no turno ${byChapa}`, certain: false };
-  if (c.zone === 'evening') return { shift: '1', why: `horário ${ini} logo depois das 17:30: hora extra do turno 1 (chapa sem histórico)`, certain: false };
+  if (c.zone === 'evening') {
+    return m < NIGHT_EARLY_ARRIVAL
+      ? { shift: '1', why: `horário ${ini} logo depois das 17:30: hora extra do turno 1 (chapa sem histórico)`, certain: false }
+      : { shift: '2', why: `horário ${ini} antes das 20:40: o turno 2 chegando mais cedo (chapa sem histórico)`, certain: false };
+  }
   if (col) return { shift: col === 1 ? '1' : '2', why: `horário ${ini} antes das 07:30, chapa sem histórico: seguiu a coluna da folha`, certain: false };
-  return { shift: null, why: `horário ${ini} entre 05:30 e 07:30 e a chapa não define o turno` };
+  return { shift: null, why: `horário ${ini} entre 05:40 e 07:30 e a chapa não define o turno` };
 }
 
 const writable = (row) => !row.edits?.turno && (!row.turno || row.turnoBlank || row.auto?.turno);

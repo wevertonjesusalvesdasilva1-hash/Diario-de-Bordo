@@ -59,7 +59,7 @@ Qualquer edição depois do OK desfaz o OK e exige novo OK.
 
 ## Regras de preenchimento automático
 
-- **Turno em branco:** o app preenche pelo horário e pela chapa. Turno 1 (dia): 07:30 às 17:30. Turno 2 (noite): a partir de 18:40 e madrugada. Nas horas de transição (05:30 às 07:30 e 17:30 às 18:40, hora extra) a **chapa decide**, aprendendo com os horários claros da mesma chapa. Na produção, o turno de finalização vem do último horário preenchido.
+- **Turno em branco:** o app preenche pelo horário e pela chapa. Turno 1 (dia): 07:30 às 17:30. Turno 2 (noite): 20:40 às 05:40. Nas horas de transição (05:40 às 07:30 e 17:30 às 20:40: hora extra do dia ou noite chegando mais cedo, a partir de 18:40) a **chapa decide**, aprendendo com os horários claros da mesma chapa. Na produção, o turno de finalização vem do último horário preenchido.
 - Tudo que o app preenche fica marcado "auto" e vira um card de qualidade ("coluna de turno em branco"). Turno escrito pelo operador nunca é trocado; se contradiz o horário, só é sinalizado.
 - **Tyorei** na descrição define o motivo TYOREI (reunião diária). Esse motivo não tem coluna impressa na folha.
 
