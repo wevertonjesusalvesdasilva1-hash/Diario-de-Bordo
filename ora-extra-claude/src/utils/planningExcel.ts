@@ -15,6 +15,7 @@ export async function exportPlanningExcel(opts: {
   group: boolean;
   filterNote: string;
   fileName: string;
+  paper?: 'A3' | 'A4';
 }) {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
@@ -28,7 +29,7 @@ export async function exportPlanningExcel(opts: {
 
   const setup = (ws: import('exceljs').Worksheet, repeat?: string) => {
     ws.pageSetup = {
-      paperSize: 8 as unknown as import('exceljs').PaperSize, // A3
+      paperSize: (opts.paper === 'A4' ? 9 : 8) as unknown as import('exceljs').PaperSize, // 8 = A3, 9 = A4
       orientation: 'landscape',
       fitToPage: true,
       fitToWidth: 1,

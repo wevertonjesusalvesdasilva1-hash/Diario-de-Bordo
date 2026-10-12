@@ -163,6 +163,8 @@ export default function PlanejamentoHoraExtra({
   const [group, setGroup] = useState(true);
   const [busy, setBusy] = useState(false);
   const [pdfJob, setPdfJob] = useState(false);
+  const [paper, setPaper] = useState<'A3' | 'A4'>('A3');
+  const A4_ZOOM = 792 / A3_H; // A4 = A3 reduzido (mesma proporção); 792px < 793,7px da folha A4 evita página em branco
   const exportRef = useRef<HTMLDivElement>(null);
 
   // dias escolhidos (ordem cronológica); se nada válido, usa o primeiro dia
@@ -301,7 +303,7 @@ export default function PlanejamentoHoraExtra({
       return [{ col, dir: 'asc' }];
     });
   };
-  const fileName = exportBaseName(days, mode === 'EACH', filterNote !== '');
+  const fileName = exportBaseName(days, mode === 'EACH', filterNote !== '') + (paper === 'A4' ? '_A4' : '');
   // Baixar PDF direto: monta as folhas fora da tela, gera o PDF A3 e dispara o download com nome padrão.
   useEffect(() => {
     if (!pdfJob) return;
@@ -310,7 +312,7 @@ export default function PlanejamentoHoraExtra({
       try {
         await (document as Document & { fonts?: { ready: Promise<unknown> } }).fonts?.ready;
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-        if (!cancelled && exportRef.current) await exportPlanningPdf(exportRef.current, `${fileName}.pdf`);
+        if (!cancelled && exportRef.current) await exportPlanningPdf(exportRef.current, `${fileName}.pdf`, paper === 'A4' ? 'a4' : 'a3');
       } finally {
         if (!cancelled) setPdfJob(false);
       }
@@ -328,6 +330,7 @@ export default function PlanejamentoHoraExtra({
         group,
         filterNote,
         fileName,
+        paper,
       });
     } finally {
       setBusy(false);
@@ -350,15 +353,15 @@ export default function PlanejamentoHoraExtra({
   return (
     <div className="p-3 space-y-3">
       <style>{`
-        @page { size: A3 landscape; margin: 0; }
+        @page { size: ${paper} landscape; margin: 0; }
         .he-print .he-page { margin-bottom: 16px; }
         @media print {
           html, body { background: #fff !important; }
           body * { visibility: hidden !important; }
           .he-print, .he-print * { visibility: visible !important; }
           .he-print, .he-print * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          .he-print { position: absolute; left: 0; top: 0; transform: none !important; width: ${A3_W}px !important; }
-          .he-print .he-page { break-after: page; margin: 0 !important; }
+          .he-print { position: absolute; left: 0; top: 0; transform: none !important; width: ${paper === 'A4' ? Math.round(A3_W * A4_ZOOM) : A3_W}px !important; }
+          .he-print .he-page { break-after: page; margin: 0 !important; ${paper === 'A4' ? `zoom: ${A4_ZOOM};` : ''} }
           .he-print > :last-child > .he-page:last-child { break-after: auto; }
           .he-print { display: block; }
         }
@@ -373,11 +376,18 @@ export default function PlanejamentoHoraExtra({
         <button disabled={busy || filtered.length === 0} onClick={exportExcel} className="rounded-xl border border-sky-500/50 bg-sky-950/40 px-3 py-2 text-sm font-bold text-sky-300 disabled:opacity-50">
           {busy ? 'Gerando…' : 'Baixar Excel formatado'}
         </button>
+        <span className="flex overflow-hidden rounded-xl border border-slate-600" role="group" aria-label="Tamanho do papel">
+          {(['A3', 'A4'] as const).map((pp) => (
+            <button key={pp} type="button" aria-pressed={paper === pp} onClick={() => setPaper(pp)} className={`px-3 py-2 text-sm font-bold ${paper === pp ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'}`}>
+              {pp}
+            </button>
+          ))}
+        </span>
         <button disabled={pdfJob || filtered.length === 0} onClick={() => setPdfJob(true)} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-50">
-          {pdfJob ? 'Gerando PDF…' : 'Baixar PDF (A3)'}
+          {pdfJob ? 'Gerando PDF…' : `Baixar PDF (${paper})`}
         </button>
         <button disabled={filtered.length === 0} onClick={() => window.print()} className="rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-bold text-slate-200 disabled:opacity-50">
-          Imprimir
+          Imprimir ({paper})
         </button>
       </div>
 
@@ -492,7 +502,7 @@ export default function PlanejamentoHoraExtra({
           {filterNote ? ` · ${filterNote}` : ''}
         </span>
         <span className="ml-auto flex items-center gap-1.5">
-          <span>Simulação A3 paisagem · {pages} página{pages > 1 ? 's' : ''}</span>
+          <span>Simulação {paper} paisagem · {pages} página{pages > 1 ? 's' : ''}</span>
           <button type="button" aria-label="Diminuir zoom" onClick={() => zoomBy(1 / 1.25)} className="rounded-md bg-slate-800 px-2 py-0.5 text-sm font-bold text-slate-200">−</button>
           <span className="w-12 text-center tabular-nums text-slate-200">{Math.round(scale * 100)}%</span>
           <button type="button" aria-label="Aumentar zoom" onClick={() => zoomBy(1.25)} className="rounded-md bg-slate-800 px-2 py-0.5 text-sm font-bold text-slate-200">+</button>
