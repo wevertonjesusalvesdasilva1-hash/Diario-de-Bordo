@@ -467,8 +467,11 @@ document.addEventListener('click', (e) => {
   const fk = e.target.closest('button[data-anakind]');
   if (fk) { anaKind = fk.dataset.anakind; renderAnalysis(); return; }
   const dis = e.target.closest('button[data-dismiss]');
-  if (dis) { state.dismissed.add(dis.dataset.dismiss); refreshAnalysis(); persist(0); toast('Marcado como anotação correta. Dá para desfazer no topo da análise.'); return; }
+  if (dis) { state.dismissed.add(dis.dataset.dismiss); closeCardModal(); refreshAnalysis(); persist(0); toast('Marcado como anotação correta. Dá para desfazer no topo da análise.'); return; }
   if (e.target.closest('button[data-undismiss]')) { state.dismissed.clear(); refreshAnalysis(); persist(0); return; }
+  if (e.target.closest('button[data-closecard]') || (e.target.id === 'cardmodal') || e.target.classList?.contains('cmstage')) { closeCardModal(); return; }
+  const tl = e.target.closest('.acard');
+  if (tl) { openCardModal(tl.dataset.open); return; }
   const sw = e.target.closest('.sheetwrap');
   if (sw) { openSheetViewer(sw); return; }
   const flip = e.target.closest('.flip');
@@ -635,22 +638,49 @@ function sheetView(c) {
   return wrap;
 }
 
+const storyEl = (txt) => h('p', { class: 'story' }, String(txt ?? '').split('*').map((t, i) => (i % 2 ? h('b', {}, t) : t)));
+const peopleEl = (c, big) => h('div', { class: `oper-id${big ? ' big' : ''}` }, h('span', { class: 'olabel' }, 'Operador'),
+  (c.people?.length ? c.people : [{ chapa: '', nome: '' }]).map((o) => h('div', { class: 'oname' },
+    h('b', {}, o.nome || (o.chapa ? 'Nome não cadastrado' : 'Chapa em branco')), o.chapa ? h('small', {}, `chapa ${o.chapa}`) : null)));
+
+// compact tile in the grid: click to open the card full screen
+function tile(c) {
+  return h('article', { class: 'acard', style: `--kc:${c.color}`, dataset: { open: c.key }, tabindex: '0', role: 'button', 'aria-label': `${c.machine}: ${c.title}. Clique para abrir.` },
+    h('div', { class: 'ftop' }, h('strong', { class: 'fmachine' }, c.machine), h('span', { class: 'kchip' }, h('i', {}), c.title)),
+    peopleEl(c, false),
+    c.big ? h('div', { class: 'fbig2' }, h('b', {}, c.big), h('small', {}, c.bigLabel)) : null,
+    h('p', { class: 'tbrief' }, c.brief),
+    h('div', { class: 'ffoot' }, h('span', {}, c.day ? `Folha do dia ${c.day}` : c.label), h('span', { class: 'fhint' }, 'Abrir ⤢')));
+}
+
+// full-screen card: front = what was written, back = the sheet with the row outlined
 function flipCard(c) {
   const front = h('div', { class: 'face front' },
     h('div', { class: 'ftop' }, h('strong', { class: 'fmachine' }, c.machine), h('span', { class: 'kchip' }, h('i', {}), c.title)),
-    c.big ? h('div', { class: 'fbig2' }, h('b', {}, c.big), h('small', {}, c.bigLabel)) : null,
-    h('p', { class: 'fbrief' }, c.brief),
-    h('div', { class: 'fread' },
-      h('strong', {}, 'O que o app leu'),
-      (c.lines ?? []).map((l) => h('div', { class: 'fline' }, l)),
-      c.fix ? h('div', { class: 'ffix' }, c.fix) : null),
+    peopleEl(c, true),
+    storyEl(c.story),
+    c.fix ? h('div', { class: 'ffix' }, c.fix) : null,
     c.caution ? h('p', { class: 'fcaution' }, '⚠ ', c.caution) : null,
-    c.who ? h('p', { class: 'fwho' }, h('span', {}, 'Operador'), c.who) : null,
+    (c.lines ?? []).length ? h('details', { class: 'fread' }, h('summary', {}, 'Ver os dados lidos'), (c.lines ?? []).map((l) => h('div', { class: 'fline' }, l))) : null,
     h('div', { class: 'ffoot' }, h('span', {}, c.day ? `Folha do dia ${c.day}` : c.label), h('span', { class: 'fhint' }, 'Ver folha ↻')));
   const back = h('div', { class: 'face back' },
     sheetView(c),
-    h('div', { class: 'fbtns' }, goBtn(c), h('button', { type: 'button', class: 'ghost ok', dataset: { dismiss: c.key }, title: 'A folha está certa: tira este aviso' }, 'Anotação correta ✓'), h('button', { type: 'button', class: 'ghost', dataset: { flip: '1' } }, 'Virar ↻')));
-  return h('article', { class: `flip ${c.sev}`, style: `--kc:${c.color}`, tabindex: '0', role: 'button', 'aria-pressed': 'false', 'aria-label': `${c.machine}: ${c.title}. Clique para ver a folha.` }, h('div', { class: 'flip-in' }, front, back));
+    h('div', { class: 'fbtns' }, goBtn(c), h('button', { type: 'button', class: 'ghost ok', dataset: { dismiss: c.key }, title: 'A folha está certa: tira este aviso' }, 'Anotação correta ✓'), h('button', { type: 'button', class: 'ghost', dataset: { flip: '1' } }, 'Voltar ↻')));
+  return h('article', { class: `flip ${c.sev}`, style: `--kc:${c.color}`, tabindex: '0', role: 'button', 'aria-pressed': 'false', 'aria-label': `${c.machine}: ${c.title}. Clique para virar.` }, h('div', { class: 'flip-in' }, front, back));
+}
+
+function closeCardModal() { const m = $('cardmodal'); if (m) { m.classList.add('out'); setTimeout(() => m.remove(), 180); } document.removeEventListener('keydown', onCardKey); }
+function onCardKey(e) { if (e.key === 'Escape' && !$('sheetviewer')) closeCardModal(); }
+function openCardModal(key) {
+  const c = (state.analysis?.report ?? []).find((x) => x.key === key);
+  if (!c) return;
+  $('cardmodal')?.remove();
+  const m = h('div', { id: 'cardmodal', role: 'dialog', 'aria-modal': 'true', 'aria-label': `${c.machine}: ${c.title}`, style: `--kc:${c.color}` },
+    h('div', { class: 'cmstage' }, flipCard(c)),
+    h('button', { type: 'button', class: 'svx cmx', 'aria-label': 'Fechar o card', title: 'Fechar (Esc)', dataset: { closecard: '1' } }, '✕'));
+  document.body.append(m);
+  document.addEventListener('keydown', onCardKey);
+  m.querySelector('.flip').focus({ preventScroll: true });
 }
 
 function renderAnalysis() {
@@ -676,7 +706,7 @@ function renderAnalysis() {
     h('div', { class: 'row backrow' },
       h('button', { type: 'button', class: 'ghost', dataset: { nav: 'read' } }, '← Voltar à conferência'),
       h('button', { type: 'button', class: 'ghost', dataset: { nav: 'undo' } }, 'Desfazer o OK e revisar de novo')),
-    h('p', { class: 'asum' }, shown.length ? h('span', {}, h('b', {}, `${shown.length} aviso${shown.length === 1 ? '' : 's'}`), graves ? ` · ${graves} grave${graves === 1 ? '' : 's'}` : '', ' · clique em um card para ver a folha') : 'Nenhum aviso para este filtro.',
+    h('p', { class: 'asum' }, shown.length ? h('span', {}, h('b', {}, `${shown.length} aviso${shown.length === 1 ? '' : 's'}`), graves ? ` · ${graves} grave${graves === 1 ? '' : 's'}` : '', ' · clique em um card para abrir') : 'Nenhum aviso para este filtro.',
       hidden ? h('span', { class: 'dism' }, ` · ${hidden} marcado${hidden === 1 ? '' : 's'} como correto${hidden === 1 ? '' : 's'} `, h('button', { type: 'button', class: 'linkbtn', dataset: { undismiss: '1' } }, 'desfazer')) : null),
     machineChips, kindChips);
 
@@ -684,7 +714,7 @@ function renderAnalysis() {
   for (const k of KINDS) {
     const list = shown.filter((c) => c.kind === k.id);
     if (!list.length) continue;
-    sections.push(h('section', { class: 'tier', style: `--kc:${k.color}` }, h('h3', {}, h('i', { class: 'kdot' }), k.name, h('span', { class: 'tcount' }, String(list.length))), h('p', { class: 'khint' }, k.hint), h('div', { class: 'flips' }, list.map(flipCard))));
+    sections.push(h('section', { class: 'tier', style: `--kc:${k.color}` }, h('h3', {}, h('i', { class: 'kdot' }), k.name, h('span', { class: 'tcount' }, String(list.length))), h('p', { class: 'khint' }, k.hint), h('div', { class: 'acards' }, list.map(tile))));
   }
 
   // what the person changed after the reading (kept as it was)
@@ -1123,7 +1153,7 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
 try { if (!localStorage.getItem('mt-help') && $('lock').hidden) setTimeout(() => { if ($('lock').hidden) openHelp(); }, 600); } catch { /* ignore */ }
 
 document.addEventListener('keydown', (e) => {
-  const f = e.target.closest?.('.flip');
+  const f = e.target.closest?.('.flip, .acard');
   if (f && e.target === f && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); f.click(); }
 });
 

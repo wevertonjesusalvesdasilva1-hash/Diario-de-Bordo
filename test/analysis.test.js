@@ -91,7 +91,8 @@ test('parada sem motivo, OUTROS sem descrição e linha sem data são sinalizado
   assert.equal(a.machines[0].name, 'SEM MÁQUINA');
   assert.ok(a.issues.some((i) => i.kind === 'sem motivo'));
   assert.ok(a.issues.some((i) => i.kind === 'sem descrição'));
-  assert.ok(a.issues.some((i) => i.kind === 'incompleto'));
+  // a row without date is still placed on the sheet's own timeline: the date plays no part in the cross-check
+  assert.equal(a.issues.some((i) => i.kind === 'incompleto'), false);
 });
 
 test('Excel ganha a aba ANÁLISE só quando há análise; PRODUÇÃO e PARADAS ficam iguais', async () => {

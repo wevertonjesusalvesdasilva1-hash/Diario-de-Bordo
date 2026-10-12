@@ -5,7 +5,8 @@ import { buildPanel } from '../src/core/panel.js';
 const stop = (linha, data, ini, fim, motivo) => ({ linha, data, chapa: '7910', ini, fim, turno: '1', motivo, desc: '', flags: {} });
 const pages = [
   { id: 1, label: 'f1', machine: 'RAW05', prod: [{ linha: 1, data: '02/10/2026', chapa1: '7910', ini1: '08:00', fim1: '12:00', flags: {} }],
-    stops: [stop(1, '02/10/2026', '07:30', '08:00', 'MECÂNICA'), stop(2, '02/10/2026', '12:00', '12:30', 'SET-UP'), stop(3, '03/10/2026', '09:30', '10:30', 'MECÂNICA')] },
+    stops: [stop(1, '02/10/2026', '07:30', '08:00', 'MECÂNICA'), stop(2, '02/10/2026', '12:00', '12:30', 'SET-UP')] },
+  { id: 3, label: 'f3', machine: 'RAW05', prod: [], stops: [stop(3, '03/10/2026', '09:30', '10:30', 'MECÂNICA')] },
   { id: 2, label: 'f2', machine: 'UMC 01', prod: [], stops: [stop(1, '02/10/2026', '10:00', '11:00', 'ELÉTRICA')] },
 ];
 

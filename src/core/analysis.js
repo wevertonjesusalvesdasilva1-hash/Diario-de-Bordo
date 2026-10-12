@@ -7,6 +7,8 @@ import { buildCards } from './cards.js';
 import { buildQuality } from './quality.js';
 import { collectEdits } from './edits.js';
 import { buildReport } from './report.js';
+import { opMinute, clockOf, PAGE_SPAN } from './optime.js';
+import { chapaShifts, shiftForRecord } from './turno.js';
 
 export const GAP_MIN = 10;        // minutes without any record that deserve a look
 export const GAP_MAX = 6 * 60;    // beyond this the machine is considered not scheduled (night, weekend…)
@@ -25,20 +27,20 @@ export function fmtDur(min) {
   if (m < 60) return `${m} min`;
   return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
 }
-const clock = (abs) => { const m = ((abs % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+const clock = clockOf;
 
 // ---- events ---------------------------------------------------------------
 
 export const MAX_HOURS = 16; // no record lasts longer: beyond this the times were misread or mistyped
 // Equal start and end is NOT a 24-hour record (it was producing phantom conflicts all over the sheet): it is incomplete.
-function segment(date, ini, fim) {
-  const d = dayNum(date), a = toMin(ini), b = toMin(fim);
-  if (d == null || a == null || b == null || a === b) return null;
-  const start = d * 1440 + a;
-  let end = d * 1440 + b;
-  if (end < start) end += 1440; // crosses midnight
-  if (end - start > MAX_HOURS * 60) return null;
-  return { start, end };
+// The record is placed on the sheet's own timeline (see optime.js), so the written date plays no part in it.
+function segment(ini, fim, shift, offset, nextDay = false) {
+  const a = toMin(ini), b = toMin(fim);
+  if (a == null || b == null || a === b) return null;
+  let dur = b - a; if (dur < 0) dur += 1440;
+  if (dur > MAX_HOURS * 60) return null;
+  const start = offset + opMinute(a, shift, nextDay);
+  return { start, end: start + dur };
 }
 // Time and date cells still marked as doubtful in the review. The analysis only judges what the person checked:
 // a record with a doubtful time is set aside and listed, instead of producing warnings about a possible misreading.
@@ -62,44 +64,48 @@ const offDay = (ref, data, startMin) => {
 
 export function buildEvents(pages) {
   const events = [], skipped = [], offDate = [], doubt = [];
-  for (const page of pages) {
+  const shifts = chapaShifts(pages);
+  pages.forEach((page, pi) => {
     const machine = page.machine || 'SEM MÁQUINA';
     const base = { machine, page: page.id, label: page.label };
+    const offset = pi * PAGE_SPAN;
     const rd = referenceDay(page), ref = rd.day;
     const refText = rd.text.slice(0, 5);
+    base.day = rd.text || page.date || '';
+    // a row carrying the NEXT calendar day, with a morning time, is the end of this sheet's day
+    const nextDay = (data, ini) => { const d = dayNum(data), c = toMin(ini); return ref != null && d != null && c != null && d - ref === 1 && c < 12 * 60; };
     page.prod.forEach((r, ri) => {
       const rowDoubt = doubtKeys(r, /^data$/);
-      // When the 2º or 3º turno finished the piece ("turno que finalizou"), the later columns come after the 1º turno
-      // in time: a segment whose clock time is earlier than the end of the previous one happened after midnight,
-      // on the next day. (When the 1º turno finished it, the other columns are earlier and keep the row's day.)
+      const anyChapa = r.chapa1 || r.chapa2 || r.chapa3;
+      // the segments of one row follow each other in time: 1º, 2º, 3º turno columns, except when the 1º turno
+      // finished the piece (then the other columns came first). A segment that would start before the previous
+      // one ended happened after midnight.
+      const order = String(r.turno) === '1' && (r.ini2 || r.ini3) ? [2, 3, 1] : [1, 2, 3];
       let prevEnd = null;
-      const laterColumns = ['2', '3'].includes(String(r.turno));
-      for (const n of [1, 2, 3]) {
+      for (const n of order) {
         if (!r[`ini${n}`] && !r[`fim${n}`]) continue;
         const dk = [...rowDoubt, ...doubtKeys(r, new RegExp(`^(ini|fim)${n}$`))];
         if (dk.length) { doubt.push({ ...base, table: 'prod', ri, linha: r.linha, data: r.data, ini: r[`ini${n}`], fim: r[`fim${n}`], fields: dk, chapa: r[`chapa${n}`], type: 'prod' }); continue; }
-        // a row on another day than the rest of the sheet is usually a mistyped or misread date: it is kept on the
-        // sheet's day (so it does not invent gaps) and reported on its own as a date to check
-        const off = segment(r.data, r[`ini${n}`], r[`fim${n}`]) && offDay(ref, r.data, toMin(r[`ini${n}`]));
-        if (off && !offDate.some((o) => o.page === page.id && o.table === 'prod' && o.ri === ri)) offDate.push({ ...base, table: 'prod', ri, linha: r.linha, data: r.data, refText, chapa: r[`chapa${n}`] });
-        const seg = segment(off ? rd.text : r.data, r[`ini${n}`], r[`fim${n}`]);
-        if (seg && laterColumns && prevEnd != null) { let k = 0; while (seg.start + k * 1440 < prevEnd && k < 2) k++; if (k) { seg.start += k * 1440; seg.end += k * 1440; } }
-        if (seg) prevEnd = seg.end;
+        if (offDay(ref, r.data, toMin(r[`ini${n}`])) && !offDate.some((o) => o.page === page.id && o.table === 'prod' && o.ri === ri)) offDate.push({ ...base, table: 'prod', ri, linha: r.linha, data: r.data, refText, chapa: r[`chapa${n}`] });
+        const shift = shiftForRecord(r[`chapa${n}`] || anyChapa, r[`ini${n}`], n, shifts);
+        const seg = segment(r[`ini${n}`], r[`fim${n}`], shift, offset, nextDay(r.data, r[`ini${n}`]));
         if (!seg) { skipped.push({ ...base, table: 'prod', ri, linha: r.linha, text: `Produção da linha ${r.linha || ri + 1}: ${badWhy(r[`ini${n}`], r[`fim${n}`])}, ficou fora do cruzamento` }); continue; }
-        events.push({ ...base, type: 'prod', table: 'prod', ri, linha: r.linha, turno: n, data: r.data, ...seg, chapa: r[`chapa${n}`], peca: r.peca, modelo: r.modelo });
+        if (prevEnd != null && seg.start < prevEnd && seg.start + 1440 - prevEnd < 12 * 60) { seg.start += 1440; seg.end += 1440; }
+        prevEnd = seg.end;
+        events.push({ ...base, type: 'prod', table: 'prod', ri, linha: r.linha, turno: n, shift, data: r.data, ...seg, chapa: r[`chapa${n}`], peca: r.peca, modelo: r.modelo });
       }
     });
     page.stops.forEach((r, ri) => {
       if (!r.ini && !r.fim) return;
       const dk = doubtKeys(r, /^(data|ini|fim)$/);
       if (dk.length) { doubt.push({ ...base, table: 'stops', ri, linha: r.linha, data: r.data, ini: r.ini, fim: r.fim, fields: dk, chapa: r.chapa, motivo: r.motivo, type: 'stop' }); return; }
-      const off = segment(r.data, r.ini, r.fim) && offDay(ref, r.data, toMin(r.ini));
-      if (off) offDate.push({ ...base, table: 'stops', ri, linha: r.linha, data: r.data, refText, chapa: r.chapa });
-      const seg = segment(off ? rd.text : r.data, r.ini, r.fim);
+      if (offDay(ref, r.data, toMin(r.ini))) offDate.push({ ...base, table: 'stops', ri, linha: r.linha, data: r.data, refText, chapa: r.chapa });
+      const shift = shiftForRecord(r.chapa, r.ini, 0, shifts);
+      const seg = segment(r.ini, r.fim, shift, offset, nextDay(r.data, r.ini));
       if (!seg) { skipped.push({ ...base, table: 'stops', ri, linha: r.linha, text: `Parada da linha ${r.linha || ri + 1}: ${badWhy(r.ini, r.fim)}, ficou fora do cruzamento` }); return; }
-      events.push({ ...base, type: 'stop', table: 'stops', ri, linha: r.linha, data: r.data, ...seg, chapa: r.chapa, turno: r.turno, motivo: r.motivo, desc: r.desc });
+      events.push({ ...base, type: 'stop', table: 'stops', ri, linha: r.linha, data: r.data, shift, ...seg, chapa: r.chapa, turno: r.turno, motivo: r.motivo, desc: r.desc });
     });
-  }
+  });
   return { events, skipped, offDate, doubt };
 }
 
@@ -173,7 +179,7 @@ function summarise(machine, events, pages) {
   for (const page of pages) {
     page.prod.forEach((r, ri) => {
       let realMin = 0;
-      for (const n of [1, 2, 3]) { const seg = segment(r.data, r[`ini${n}`], r[`fim${n}`]); if (seg) realMin += seg.end - seg.start; }
+      for (const n of [1, 2, 3]) { const seg = segment(r[`ini${n}`], r[`fim${n}`], null, 0); if (seg) realMin += seg.end - seg.start; }
       if (!realMin || !r.peca) return;
       const std = standardHours(machine, r.peca, r.modelo);
       const key = `${r.peca}|${r.modelo}`;

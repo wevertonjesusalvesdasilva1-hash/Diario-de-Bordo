@@ -40,3 +40,10 @@ export function whoText(chapas, max = 2) {
   const multi = chapas.length > 1;
   return top.map(([k, n]) => `${operatorName(k) ? `${operatorName(k)} (${k})` : `chapa ${k}`}${multi && n > 1 ? ` · ${n}×` : ''}`).join(' · ');
 }
+
+// [{ chapa, nome }] for the chapas that show up most (nome is '' when the chapa is not in the table)
+export function peopleOf(chapas, max = 2) {
+  const count = new Map();
+  for (const c of chapas) { const k = String(c ?? '').replace(/\D/g, ''); if (k) count.set(k, (count.get(k) ?? 0) + 1); }
+  return [...count].sort((a, b) => b[1] - a[1]).slice(0, max).map(([chapa]) => ({ chapa, nome: operatorName(chapa) }));
+}

@@ -93,3 +93,9 @@ export function inferTurnos(pages) {
   }
   return filled;
 }
+
+// The shift ('1' | '2') of one record, from its clock time and chapa (null when the time is unreadable)
+export function shiftForRecord(chapa, ini, col, shifts) {
+  const d = decide(ini, chapa, col, shifts);
+  return d?.shift ?? null;
+}

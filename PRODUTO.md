@@ -112,3 +112,10 @@ Validado com folhas reais (UMC 01, UMC 02, HMC 16, NCBZ, RAW05) e com a planilha
 
 - `CLAUDE.md`: guia técnico para quem mexe no código.
 - `docs/PRIVACIDADE.md`: dados pessoais e LGPD.
+
+
+## Cards da análise (v3)
+
+- Na grade, cada aviso é um cartão pequeno: máquina, tipo, **nome do operador** (com a chapa) e o número principal.
+- Ao clicar, o cartão abre grande na tela (✕ no canto, Esc ou clique fora fecham). Ele traz uma frase simples com horas e linha, por exemplo "O operador anotou produção das 12:00 às 15:00 (linha 1) e parada das 13:00 às 14:00". Dá para virar e ver a folha, ou marcar "Anotação correta ✓".
+- A análise usa uma linha do tempo por folha (cada folha é um dia de trabalho): folhas nunca são comparadas entre si e a data escrita não muda o cruzamento.

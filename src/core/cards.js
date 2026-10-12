@@ -4,8 +4,9 @@
 //
 // Precision matters more than volume: every card says exactly what was read (dates and times) so the person can
 // judge it against the sheet, and crossings of a few minutes are treated as rounding, not as a wrong note.
-import { whoText, operatorName } from './operators.js';
+import { whoText, peopleOf, operatorName } from './operators.js';
 import { shiftOfTime } from './turno.js';
+import { clockOf, clockMin } from './optime.js';
 
 // How long each reason normally takes, in minutes: about the 90th percentile of the ~2,200 stops in the
 // real control spreadsheet (the waiting reasons use a lower point, because long waits are common).
@@ -20,7 +21,7 @@ const CONTAINED_MIN = 5;          // a stop that lies fully inside a production 
 const MEAL = /almo[cç]o|jant[ae]|jantar|refei[cç]|lanche/i; // a meal break of up to 1h30 is normal, not a long stop
 const GAP_MIN = 20, GAP_MAX = 6 * 60;
 
-const clock = (abs) => { const m = ((abs % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+const clock = clockOf;
 const dur = (min) => { const m = Math.round(min); return m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`; };
 const range = (e) => `${clock(e.start)}–${clock(e.end)}`;
 const dayOf = (page) => (page?.date || '').slice(0, 5) || 'sem data';
@@ -37,7 +38,10 @@ const overlap = (a, b) => Math.min(a.end, b.end) - Math.max(a.start, b.start);
 
 // "Produção linha 1 · 05/10/2026 · 12:00–15:00 · chapa 7910": exactly what the reading holds
 const evLine = (e) => `${e.type === 'prod' ? 'Produção' : 'Parada'} linha ${e.linha || e.ri + 1} · ${e.data || 'sem data'} · ${range(e)}${e.type === 'stop' ? ` · ${nome(e.motivo)}` : ''}${e.chapa ? ` · chapa ${e.chapa}${operatorName(e.chapa) ? ` (${operatorName(e.chapa)})` : ''}` : ''}`;
-const ref = (e) => ({ table: e.table, linha: e.linha || e.ri + 1 });
+const whoOf = (chapas) => ({ who: whoText(chapas), people: peopleOf(chapas) });
+const ln = (e) => e.linha || e.ri + 1;
+const B = (t) => `*${t}*`; // *x* = bold in the story
+const ref = (e) =>  ({ table: e.table, linha: e.linha || e.ri + 1 });
 
 // the parts of [a, b] left after taking the cuts out
 function subtract(a, b, cuts) {
@@ -79,11 +83,11 @@ export function buildCards(events, pages, offDate = [], doubt = []) {
       const what = inside.length === 1 ? `uma parada (${range(inside[0])}, ${nome(inside[0].motivo)})` : `${inside.length} paradas (${andList(inside.map(range))})`;
       add('alta', 'produzindo parado', P,
         `${sheet(P)}: a produção da linha ${P.linha || P.ri + 1} foi anotada das ${range(P)} (${dur(P.end - P.start)}), mas há ${what} dentro desse horário. Máquina parada não produz: nesses ${dur(cut)} ela não estava produzindo.`,
-        { suspects: inside.map(suspect), brief: inside.length === 1 ? `Produção ${range(P)} cobre a parada ${range(inside[0])} (${nome(inside[0].motivo)})` : `Produção ${range(P)} cobre ${inside.length} paradas`,
+        { story: `O operador anotou ${B(`produção das ${clock(P.start)} às ${clock(P.end)}`)} (linha ${ln(P)}) e ${inside.map((x) => `${B(`parada das ${clock(x.start)} às ${clock(x.end)}`)} (linha ${ln(x)}, ${nome(x.motivo)})`).reduce((acc, t, i, a) => (i ? (i === a.length - 1 ? `${acc} e ${t}` : `${acc}, ${t}`) : t), '')}. Com a máquina parada ela não produz, então esse tempo não é de produção.`, suspects: inside.map(suspect), brief: inside.length === 1 ? `Produção ${range(P)} cobre a parada ${range(inside[0])} (${nome(inside[0].motivo)})` : `Produção ${range(P)} cobre ${inside.length} paradas`,
           big: dur(cut), bigLabel: 'parado dentro da produção',
           fix: pieces.length ? `Deveria ser ${andList(pieces.map(([x, y]) => `${clock(x)}–${clock(y)}`))}, que dá ${dur(net)} de produção.` : 'A produção inteira está coberta por paradas: um dos registros está errado.',
           why: 'Ou a produção foi anotada sem descontar a parada, ou o horário de um dos registros está errado. Confira na folha.',
-          who: whoText([P.chapa, ...inside.map((s) => s.chapa)]), lines: [evLine(P), ...inside.map(evLine)], refs: [ref(P), ...inside.map(ref)] });
+          ...whoOf([P.chapa, ...inside.map((s) => s.chapa)]), lines: [evLine(P), ...inside.map(evLine)], refs: [ref(P), ...inside.map(ref)] });
     }
 
     // 2. YELLOW: two records of the same kind on the same time (two productions, or two stops)
@@ -97,12 +101,12 @@ export function buildCards(events, pages, offDate = [], doubt = []) {
           if (a.start === b.start && a.end === b.end) {
             // exactly the same time twice: almost always a repeated reading, not a wrong note by the operator
             add('media', 'turnos repetidos', b, `${sheet(b)}: o horário ${range(b)} aparece duas vezes (${a.table === b.table && a.ri === b.ri ? `linha ${b.linha || b.ri + 1}, em dois turnos` : `linhas ${a.linha || a.ri + 1} e ${b.linha || b.ri + 1}`}). Parece leitura repetida: confira na folha.`,
-              { brief: `Horário ${range(b)} repetido ${a.table === b.table && a.ri === b.ri ? `na linha ${b.linha || b.ri + 1}` : `nas linhas ${a.linha || a.ri + 1} e ${b.linha || b.ri + 1}`}`, big: dur(ov), bigLabel: 'repetido', why: 'Provavelmente o horário foi lido duas vezes. Se estiver assim na folha, é anotação errada.', who: whoText([a.chapa, b.chapa]), lines: [evLine(a), evLine(b)], refs: [ref(a), ref(b)] });
+              { story: `O operador anotou o horário ${B(`${clock(b.start)} às ${clock(b.end)}`)} duas vezes (${a.table === b.table && a.ri === b.ri ? `linha ${ln(b)}, em dois turnos` : `linhas ${ln(a)} e ${ln(b)}`}). Parece a mesma leitura repetida.`, brief: `Horário ${range(b)} repetido ${a.table === b.table && a.ri === b.ri ? `na linha ${b.linha || b.ri + 1}` : `nas linhas ${a.linha || a.ri + 1} e ${b.linha || b.ri + 1}`}`, big: dur(ov), bigLabel: 'repetido', why: 'Provavelmente o horário foi lido duas vezes. Se estiver assim na folha, é anotação errada.', ...whoOf([a.chapa, b.chapa]), lines: [evLine(a), evLine(b)], refs: [ref(a), ref(b)] });
             continue;
           }
           add('alta', 'registros sobrepostos', b,
             `${sheet(b)}: a folha tem duas ${t} no mesmo horário: ${evLine(a).split(' · ').slice(0, 1)[0].toLowerCase()} das ${range(a)} e ${evLine(b).split(' · ').slice(0, 1)[0].toLowerCase()} das ${range(b)}. Elas dividem ${dur(ov)}, e a máquina não faz duas coisas ao mesmo tempo.`,
-            { suspects: [suspect(a), suspect(b)], brief: `Duas ${t}: ${range(a)} e ${range(b)}`, big: dur(ov), bigLabel: 'no mesmo horário', why: 'Um dos dois horários está errado. Confira na folha.', who: whoText([a.chapa, b.chapa]), lines: [evLine(a), evLine(b)], refs: [ref(a), ref(b)] });
+            { story: `O operador anotou duas ${t}: ${B(`das ${clock(a.start)} às ${clock(a.end)}`)} (linha ${ln(a)}) e ${B(`das ${clock(b.start)} às ${clock(b.end)}`)} (linha ${ln(b)}). Dois registros no mesmo horário: a máquina não faz duas coisas ao mesmo tempo.`, suspects: [suspect(a), suspect(b)], brief: `Duas ${t}: ${range(a)} e ${range(b)}`, big: dur(ov), bigLabel: 'no mesmo horário', why: 'Um dos dois horários está errado. Confira na folha.', ...whoOf([a.chapa, b.chapa]), lines: [evLine(a), evLine(b)], refs: [ref(a), ref(b)] });
         }
       }
     }
@@ -117,8 +121,8 @@ export function buildCards(events, pages, offDate = [], doubt = []) {
       const sev = (quickKind && !desc) || d >= lim * 2 ? 'alta' : 'media';
       add(sev, 'parada longa', s,
         `${sheet(s)}: ${nome(s.motivo)} de ${dur(d)} (${range(s)}); o normal é até ${dur(lim)}. ${desc ? `Ele comentou: "${desc}", mas vale validar se explica todo esse tempo.` : 'Não há comentário explicando.'}`,
-        { brief: `${nome(s.motivo)} ${range(s)} · normal até ${dur(lim)} · ${desc ? 'com comentário' : 'sem comentário'}`, big: dur(d), bigLabel: `normal: ${dur(lim)}`,
-          who: whoText([s.chapa]), lines: [evLine(s)], refs: [ref(s)] });
+        { story: `O operador anotou ${B(`${nome(s.motivo)} das ${clock(s.start)} às ${clock(s.end)}`)} (linha ${ln(s)}): ${B(dur(d))}. O normal é até ${dur(lim)}. ${desc ? `Ele comentou "${desc}".` : 'Não há comentário explicando.'}`, brief: `${nome(s.motivo)} ${range(s)} · normal até ${dur(lim)} · ${desc ? 'com comentário' : 'sem comentário'}`, big: dur(d), bigLabel: `normal: ${dur(lim)}`,
+          ...whoOf([s.chapa]), lines: [evLine(s)], refs: [ref(s)] });
     }
 
     // 4. BLUE: nothing written between a production and a stop (one of the two times may be wrong)
@@ -126,11 +130,11 @@ export function buildCards(events, pages, offDate = [], doubt = []) {
     for (const e of sorted) {
       if (cover) {
         const gap = e.start - cover.end;
-        const z = (m) => { const c = shiftOfTime(((m % 1440) + 1440) % 1440); return c?.certain ? c.shift : 'x'; };
+        const z = (m) => { const c = shiftOfTime(clockMin(m)); return c?.certain ? c.shift : 'x'; };
         // a gap across the change of shift is normal: only gaps inside one shift are worth a card
         if (gap >= GAP_MIN && gap <= GAP_MAX && cover.type !== e.type && z(cover.end) === z(e.start) && z(e.start) !== 'x') {
           add('media', 'sem registro', e, `${sheet(e)}: nada foi anotado entre ${clock(cover.end)} e ${clock(e.start)} (${dur(gap)}). Não sabemos se a máquina estava produzindo ou parada; um dos dois horários pode estar errado.`,
-            { brief: `Nada anotado das ${clock(cover.end)} às ${clock(e.start)}`, big: dur(gap), bigLabel: 'sem registro', who: whoText([cover.chapa, e.chapa]), lines: [evLine(cover), evLine(e)], refs: [ref(cover), ref(e)] });
+            { story: `O operador anotou ${cover.type === 'prod' ? 'produção' : 'parada'} até ${B(clock(cover.end))} (linha ${ln(cover)}) e só voltou a anotar ${e.type === 'prod' ? 'produção' : 'parada'} às ${B(clock(e.start))} (linha ${ln(e)}). Ficaram ${B(dur(gap))} sem registro.`, brief: `Nada anotado das ${clock(cover.end)} às ${clock(e.start)}`, big: dur(gap), bigLabel: 'sem registro', ...whoOf([cover.chapa, e.chapa]), lines: [evLine(cover), evLine(e)], refs: [ref(cover), ref(e)] });
         }
       }
       if (!cover || e.end > cover.end) cover = e;
@@ -143,8 +147,8 @@ export function buildCards(events, pages, offDate = [], doubt = []) {
     const first = list[0];
     const dline = (d) => `${d.type === 'prod' ? 'Produção' : 'Parada'} linha ${d.linha || d.ri + 1} · ${d.data || 'sem data'} · ${d.ini || '??:??'}–${d.fim || '??:??'} · em dúvida: ${andList(d.fields.map((f) => ({ ini: 'início', fim: 'fim', data: 'data' }[f.replace(/\d$/, '')] ?? f)))}`;
     add('alta', 'em dúvida', first, `${first.machine} · folha do dia ${dayOf(pageById.get(page))}: ${list.length} registro(s) estão com o horário ou a data ainda marcados como dúvida na conferência. A análise só julga dado conferido, então eles não foram analisados. Volte à conferência, confirme ou corrija esses horários e dê o OK de novo.`,
-      { brief: `${list.length} registro${list.length === 1 ? '' : 's'} com horário ainda em dúvida: não analisado${list.length === 1 ? '' : 's'}`, big: String(list.length), bigLabel: 'não analisado' + (list.length === 1 ? '' : 's'),
-        why: 'Confirme o horário na conferência (revisão rápida) para o registro entrar na análise.', who: whoText(list.map((d) => d.chapa)), lines: list.map(dline), refs: list.map((d) => ({ table: d.table, linha: d.linha || d.ri + 1 })) });
+      { story: `${list.length} registro${list.length === 1 ? '' : 's'} desta folha ainda ${list.length === 1 ? 'está' : 'estão'} com horário ou data em dúvida. Confirme na conferência para entrar na análise.`, brief: `${list.length} registro${list.length === 1 ? '' : 's'} com horário ainda em dúvida: não analisado${list.length === 1 ? '' : 's'}`, big: String(list.length), bigLabel: 'não analisado' + (list.length === 1 ? '' : 's'),
+        why: 'Confirme o horário na conferência (revisão rápida) para o registro entrar na análise.', ...whoOf(list.map((d) => d.chapa)), lines: list.map(dline), refs: list.map((d) => ({ table: d.table, linha: d.linha || d.ri + 1 })) });
   }
 
   // a row dated on another day than the rest of its sheet
@@ -152,7 +156,7 @@ export function buildCards(events, pages, offDate = [], doubt = []) {
     const pg = pageById.get(o.page);
     const what = o.table === 'prod' ? 'produção' : 'parada';
     add('media', 'data diferente', o, `${o.machine} · folha do dia ${dayOf(pg)}: a ${what} da linha ${o.linha || o.ri + 1} está com a data ${(o.data || '').slice(0, 5)}, mas as outras linhas da folha são do dia ${o.refText}. Para o cruzamento de horários o app usou o dia ${o.refText}. Confira a data na folha (pode ser leitura).`,
-      { brief: `Linha ${o.linha || o.ri + 1} de ${what} com data ${(o.data || '').slice(0, 5)}; a folha é do dia ${o.refText}`, big: (o.data || '').slice(0, 5), bigLabel: `folha: ${o.refText}`, why: 'Ou a data foi anotada errada, ou a data foi lida errada. Confira na folha.', who: whoText([o.chapa]), lines: [`${what === 'produção' ? 'Produção' : 'Parada'} linha ${o.linha || o.ri + 1} · ${o.data}`], refs: [{ table: o.table, linha: o.linha || o.ri + 1 }] });
+      { story: `O operador anotou a ${what} da linha ${ln(o)} com a data ${B((o.data || '').slice(0, 5))}, mas a folha é do dia ${B(o.refText)}.`, brief: `Linha ${o.linha || o.ri + 1} de ${what} com data ${(o.data || '').slice(0, 5)}; a folha é do dia ${o.refText}`, big: (o.data || '').slice(0, 5), bigLabel: `folha: ${o.refText}`, why: 'Ou a data foi anotada errada, ou a data foi lida errada. Confira na folha.', ...whoOf([o.chapa]), lines: [`${what === 'produção' ? 'Produção' : 'Parada'} linha ${o.linha || o.ri + 1} · ${o.data}`], refs: [{ table: o.table, linha: o.linha || o.ri + 1 }] });
   }
   const RANK = { alta: 0, media: 1, info: 2 };
   return cards.sort((a, b) => RANK[a.sev] - RANK[b.sev]);

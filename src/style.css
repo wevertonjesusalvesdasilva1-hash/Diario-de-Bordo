@@ -642,3 +642,37 @@ td.auto.edited::after { content: "editado"; }
 .fcaution { margin: 0; font-size: .74rem; line-height: 1.35; color: var(--warn); border: 1px dashed var(--warn); border-radius: 8px; padding: 5px 8px; }
 .opn { display: block; margin-top: 2px; font-size: .62rem; line-height: 1.15; color: var(--muted); text-align: center; max-width: 100%; white-space: normal; word-break: break-word; }
 .opn:empty { display: none; }
+
+/* ===== cards v3: pequenos na grade, grandes ao clicar ===== */
+.acards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.acard { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 16px; cursor: pointer; border: 1px solid var(--line2); border-left: 5px solid var(--kc);
+  background: linear-gradient(160deg, rgb(255 255 255 / .06), rgb(255 255 255 / .02)), var(--panel2); transition: transform .25s var(--ease), box-shadow .25s var(--ease); }
+:root[data-theme="light"] .acard { background: #fff; box-shadow: 0 6px 20px rgb(0 0 0 / .08); }
+.acard:hover, .acard:focus-visible { transform: translateY(-3px); box-shadow: 0 16px 40px rgb(0 0 0 / .3); }
+.tbrief { margin: 0; font-size: .95rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.acard .ffoot { margin-top: auto; }
+.oper-id { display: flex; flex-direction: column; gap: 2px; }
+.olabel { font: 600 .62rem var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.oname { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.oname b { font: 700 1.05rem var(--f-head); }
+.oname small { color: var(--muted); font-size: .78rem; }
+.oper-id.big .oname b { font-size: 1.7rem; letter-spacing: -.01em; }
+.oper-id.big .oname small { font-size: .95rem; }
+.story { margin: 4px 0; font-size: 1.3rem; line-height: 1.5; }
+.story b { color: var(--kc); font-weight: 700; white-space: nowrap; }
+.flip .ffix { font-size: 1.05rem; padding: 10px 12px; }
+.flip .fcaution { font-size: .92rem; padding: 8px 10px; }
+.flip .fread { font-size: .85rem; flex: none; max-height: none; }
+.flip .fread summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+.flip .fline { font-size: .8rem; margin-top: 4px; }
+.flip .fmachine { font-size: 1.5rem; }
+#cardmodal { position: fixed; inset: 0; z-index: 55; display: grid; place-items: center; padding: 20px; background: rgb(0 0 0 / .72); backdrop-filter: blur(6px); animation: cmin .28s var(--ease) both; }
+#cardmodal.out { animation: cmout .18s ease both; }
+.cmstage { width: min(760px, 100%); display: grid; }
+#cardmodal .flip { height: min(86vh, 720px); cursor: default; }
+#cardmodal .face { padding: 24px; overflow: auto; }
+#cardmodal .back { padding: 12px; }
+.cmx { position: absolute; top: 14px; right: 14px; }
+@keyframes cmin { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: none; } }
+@keyframes cmout { to { opacity: 0; transform: scale(.94); } }
+@media (max-width: 640px) { #cardmodal { padding: 8px; } .story { font-size: 1.12rem; } .acards { grid-template-columns: 1fr; } .oper-id.big .oname b { font-size: 1.4rem; } }
