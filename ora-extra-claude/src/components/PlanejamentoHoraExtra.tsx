@@ -199,54 +199,26 @@ function Sheet({
         </Box>
       </div>
 
-      <div className="grid gap-3 mb-3 items-start" style={{ gridTemplateColumns: '1fr 2.2fr' }}>
-        <div className="space-y-3">
-          <Box title={`Líderes / responsáveis em destaque (${s.leaders.length})`}>
-            {s.leaders.length === 0 ? (
-              <p className="text-[11px]">Nenhum responsável indicado.</p>
-            ) : (
-              <ul className="text-[12px] space-y-0.5">
-                {s.leaders.map((r) => (
-                  <li key={r.id} className="flex justify-between gap-2 border-b border-gray-300">
-                    <span className="font-bold">{r.funcionario}</span>
-                    <span className="tabular-nums whitespace-nowrap">
-                      {showDate ? r.data.slice(0, 5) + ' · ' : ''}
-                      {r.chapa} · {r.cc}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Box>
-          <Box title="Transporte por rota">
-            <MiniTable head={['Rota', 'Qtd']} rows={s.byRota.map(([k, v]) => [k, v])} />
-          </Box>
-        </div>
-        <Box title={`Quantidade por peça / atividade (${s.pieces.length})`}>
-          <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            {halves(s.pieces).map((half, i) => (
-              <table key={i} className="w-full text-[11px] border-collapse self-start">
-                <thead>
-                  <tr className="border-b text-left" style={{ borderColor: BRAND.blue, color: BRAND.blue }}>
-                    <th>Peça</th>
-                    <th>CC</th>
-                    <th>Soldadores</th>
-                    <th className="text-right">Qtd</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {half.map((pc) => (
-                    <tr key={pc.nome} className="border-b border-gray-300 align-top">
-                      <td className="font-bold pr-2">{pc.nome}</td>
-                      <td className="pr-2">{[...pc.cc].join('/')}</td>
-                      <td className="pr-2 text-[10px]">{pc.people.join(', ')}</td>
-                      <td className="text-right font-bold tabular-nums">{pc.people.length}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ))}
-          </div>
+      <div className="grid gap-3 mb-3 items-start" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <Box title={`Líderes / responsáveis em destaque (${s.leaders.length})`}>
+          {s.leaders.length === 0 ? (
+            <p className="text-[11px]">Nenhum responsável indicado.</p>
+          ) : (
+            <ul className="text-[12px] space-y-0.5">
+              {s.leaders.map((r) => (
+                <li key={r.id} className="flex justify-between gap-2 border-b border-gray-300">
+                  <span className="font-bold">{r.funcionario}</span>
+                  <span className="tabular-nums whitespace-nowrap">
+                    {showDate ? r.data.slice(0, 5) + ' · ' : ''}
+                    {r.chapa} · {r.cc}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Box>
+        <Box title="Transporte por rota">
+          <MiniTable head={['Rota', 'Qtd']} rows={s.byRota.map(([k, v]) => [k, v])} />
         </Box>
       </div>
 

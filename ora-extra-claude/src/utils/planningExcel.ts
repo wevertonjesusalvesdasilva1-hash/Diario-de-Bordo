@@ -82,7 +82,7 @@ export async function exportPlanningExcel(opts: {
     });
     return top + rows.length + 2;
   };
-  let r1 = 5, r2 = 5, r3 = 5;
+  let r1 = 5, r2 = 5;
   if (sum.byDia.length > 1) r1 = block(1, r1, 'POR DIA', sum.byDia.map(([k, v]) => [k, v]));
   r1 = block(1, r1, 'POR TURNO', sum.byTurno.map(([k, v]) => [k, v]));
   r1 = block(1, r1, 'POR CENTRO DE CUSTO', sum.byCc.map(([k, v]) => [k, v]));
@@ -91,7 +91,6 @@ export async function exportPlanningExcel(opts: {
   r2 = block(4, r2, 'POR LÍDER / CONTRAMESTRE', sum.byLider.map(([k, v]) => [k, v]));
   r2 = block(4, r2, 'LÍDERES / RESPONSÁVEIS', sum.leaders.map((r) => [`${r.funcionario} (${r.chapa})`, r.cc]));
   r2 = block(4, r2, 'TRANSPORTE POR ROTA', sum.byRota.map(([k, v]) => [k, v]));
-  r3 = block(7, r3, 'QUANTIDADE POR PEÇA', sum.pieces.map((p) => [`${p.nome} (${[...p.cc].join('/')})`, p.people.length]));
 
   // ---------- Lista nominal ----------
   const addList = (name: string, recs: OvertimeRecord[], showDate: boolean) => {
