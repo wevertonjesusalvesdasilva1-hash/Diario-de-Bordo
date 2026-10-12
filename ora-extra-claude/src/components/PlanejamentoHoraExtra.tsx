@@ -320,7 +320,7 @@ function LeaderConflicts({ records, onSetLeader }: { records: OvertimeRecord[]; 
   );
 }
 
-const sel = 'rounded-lg bg-slate-800 border border-slate-700 px-2 py-1.5 text-xs text-slate-200 min-w-0';
+const sel = 'h-9 rounded-lg bg-slate-800 border border-slate-700 px-2 text-xs text-slate-200 min-w-0';
 
 function MultiSelect({ label, all, options, value, onChange }: { label: string; all: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) {
   const [open, setOpen] = useState(false);
@@ -626,19 +626,27 @@ export default function PlanejamentoHoraExtra({
         )}
       </div>
 
-      {/* Filtros e ordenação */}
-      <div className="grid gap-1.5 grid-cols-2 sm:grid-cols-4 lg:grid-cols-8">
+      {/* Filtros, ordem e opções (cartão organizado em 3 linhas) */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3 space-y-2.5">
+        <div>
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Filtrar</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <MultiSelect label="Líder" all="todos" options={opts.lider} value={filters.lider} onChange={(v) => setF('lider', v)} />
         <MultiSelect label="Peça" all="todas" options={opts.peca} value={filters.peca} onChange={(v) => setF('peca', v)} />
         <MultiSelect label="CC" all="todos" options={opts.cc} value={filters.cc} onChange={(v) => setF('cc', v)} />
         <MultiSelect label="Turno" all="todos" options={opts.turno} value={filters.turno} onChange={(v) => setF('turno', v)} />
-        <select className={sel} value={filters.transporte} onChange={(e) => setF('transporte', e.target.value)}>
+        <select className={`${sel} w-full`} value={filters.transporte} onChange={(e) => setF('transporte', e.target.value)}>
           <option value="ALL">Transporte: todos</option>
           <option value="COM">Com transporte</option>
           <option value="SEM">Sem transporte</option>
         </select>
+          </div>
+        </div>
+        <div>
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">Ordenar e buscar</p>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <select
-          className={sel}
+          className={`${sel} w-full`}
           value={matchPreset(levels) ?? 'CUSTOM'}
           onChange={(e) => e.target.value !== 'CUSTOM' && setLevels(presetLevels(e.target.value as SortMode))}
         >
@@ -679,19 +687,24 @@ export default function PlanejamentoHoraExtra({
             </div>
           )}
         </div>
-        <input className={sel} placeholder="Buscar nome / chapa" value={filters.busca} onChange={(e) => setF('busca', e.target.value)} />
-        <label className="flex items-center gap-1.5 text-xs text-slate-300 px-1" title="Cria uma faixa com o subtotal para cada dia (ordem alfabética), peça, líder ou centro de custo (conforme a Ordem escolhida)">
-          <input type="checkbox" checked={group} onChange={(e) => setGroup(e.target.checked)} />
-          Separar em faixas
-          <span className="text-[10px] text-slate-500">(dia/peça/líder/CC)</span>
-        </label>
-        <button
-          type="button"
-          onClick={() => { setFilters(EMPTY_FILTERS); setLevels(presetLevels('ALFA')); setGroup(true); }}
-          className="rounded-lg border border-red-400/60 bg-red-950/40 px-2 py-1.5 text-xs font-bold text-red-300 hover:bg-red-950/70"
-        >
-          Limpar todos os filtros
-        </button>
+            <div className="col-span-2">
+              <input className={`${sel} w-full`} placeholder="Buscar nome / chapa" value={filters.busca} onChange={(e) => setF('busca', e.target.value)} />
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-slate-800 pt-2.5">
+          <label className="flex items-center gap-2 whitespace-nowrap text-xs text-slate-300" title="Cria uma faixa com o subtotal para cada dia (ordem alfabética), peça, líder ou centro de custo, conforme a ordem escolhida">
+            <input type="checkbox" checked={group} onChange={(e) => setGroup(e.target.checked)} />
+            Separar em faixas com subtotal
+          </label>
+          <button
+            type="button"
+            onClick={() => { setFilters(EMPTY_FILTERS); setLevels(presetLevels('ALFA')); setGroup(true); }}
+            className="whitespace-nowrap rounded-lg border border-red-400/60 bg-red-950/40 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-950/70"
+          >
+            ✕ Limpar todos os filtros
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
