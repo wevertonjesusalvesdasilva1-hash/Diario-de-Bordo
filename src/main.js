@@ -544,7 +544,8 @@ async function fetchAI(a) {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Erro ${res.status}`);
     if (state.analysis !== a) return; // the OK was withdrawn meanwhile
-    a.ai = body.pontos; state.ai = body.pontos;
+    const clean = (t) => { const ta = document.createElement('textarea'); ta.innerHTML = String(t); return ta.value; }; // safety net for HTML entities
+    a.ai = body.pontos.map(clean); state.ai = a.ai;
   } catch (e) {
     if (state.analysis !== a) return;
     state.ai = { error: e.message };
