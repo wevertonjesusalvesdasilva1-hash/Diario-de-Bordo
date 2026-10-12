@@ -9,7 +9,7 @@ import { applyKeywords, mentionsTyorei } from './core/rows.js';
 import { inferTurnos } from './core/turno.js';
 import { buildPage, reconcile, applyInkMotivo, alignRows, alignJson, collectAsk, applyThirdReading, normMachine } from './core/rows.js';
 import { decodeEntities } from './core/text.js';
-import { TIERS } from './core/report.js';
+import { KINDS } from './core/report.js';
 import { parseOperatorRows, getOperators, setOperators, clearOperators } from './core/operators.js';
 import * as XLSX from 'xlsx';
 import { recordEdit, recordRemoval, describeEdit } from './core/edits.js';
@@ -25,7 +25,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
 
-const state = { pages: [], nextId: 1, batch: 0, busy: false, undo: null, reviewed: false, okAt: null, okSig: '', analysis: null, ai: null, tab: 'read' };
+const state = { dismissed: new Set(), pages: [], nextId: 1, batch: 0, busy: false, undo: null, reviewed: false, okAt: null, okSig: '', analysis: null, ai: null, tab: 'read' };
 const secrets = new Map(); // page id → { images } kept only in memory, for "tentar de novo"
 
 function h(tag, attrs = {}, ...kids) {
@@ -57,7 +57,7 @@ function persist(delay = 400) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo }) => ({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo }));
-    saveState({ pages: keep, nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig, ai: Array.isArray(state.ai) ? state.ai : null });
+    saveState({ dismissed: [...state.dismissed], pages: keep, nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig, ai: Array.isArray(state.ai) ? state.ai : null });
   }, delay);
 }
 
@@ -66,6 +66,7 @@ async function restore() {
   if (!saved?.pages?.length) return;
   state.nextId = saved.nextId ?? saved.pages.length + 1;
   state.batch = saved.batch ?? 0;
+  state.dismissed = new Set(saved.dismissed ?? []);
   for (const p of saved.pages) {
     if (p.status === 'erro') p.error = `${p.error || 'Erro'} (envie o arquivo de novo para repetir)`;
     p.file ??= String(p.label).split(' · pág.')[0];
@@ -76,7 +77,7 @@ async function restore() {
   }
   if (saved.reviewed && sig() === saved.okSig) {
     state.reviewed = true; state.okAt = saved.okAt; state.okSig = saved.okSig;
-    state.analysis = analyseSheets(includedPages());
+    state.analysis = analyseSheets(includedPages(), { dismissed: state.dismissed });
     state.analysis.ai = Array.isArray(saved.ai) ? saved.ai : null; state.ai = state.analysis.ai;
   }
   updateSummary();
@@ -212,7 +213,7 @@ async function processFiles(files, { append = false } = {}) {
   state.quotaHit = false;
   if (state.pages.length && !append) {
     for (const p of state.pages) secrets.delete(p.id);
-    state.pages = []; $('pages').replaceChildren();
+    state.pages = []; state.dismissed.clear(); $('pages').replaceChildren();
     toast('Leitura anterior removida. A análise vale só para o arquivo que você enviou agora.');
   }
   discardUndo(); resetReview();
@@ -459,10 +460,15 @@ function learnFromEdit(row, field, value) {
 }
 
 document.addEventListener('click', (e) => {
-  const filt = e.target.closest('button[data-anafilter]');
-  if (filt) { anaFilter = filt.dataset.anafilter; renderAnalysis(); return; }
+  const fm = e.target.closest('button[data-anamachine]');
+  if (fm) { anaMachine = fm.dataset.anamachine; renderAnalysis(); return; }
+  const fk = e.target.closest('button[data-anakind]');
+  if (fk) { anaKind = fk.dataset.anakind; renderAnalysis(); return; }
+  const dis = e.target.closest('button[data-dismiss]');
+  if (dis) { state.dismissed.add(dis.dataset.dismiss); refreshAnalysis(); persist(0); toast('Marcado como anotação correta. Dá para desfazer no topo da análise.'); return; }
+  if (e.target.closest('button[data-undismiss]')) { state.dismissed.clear(); refreshAnalysis(); persist(0); return; }
   const sw = e.target.closest('.sheetwrap');
-  if (sw && !e.target.closest('#lightbox')) { const lb = $('lightbox'); const big = sw.cloneNode(true); big.classList.add('zoomed'); lb.replaceChildren(big); lb.hidden = false; return; }
+  if (sw) { openSheetViewer(sw); return; }
   const flip = e.target.closest('.flip');
   if (flip && !e.target.closest('button, a')) { const on = flip.classList.toggle('flipped'); flip.setAttribute('aria-pressed', String(on)); return; }
   if (e.target.closest('button[data-flip]')) { const f = e.target.closest('.flip'); f.classList.remove('flipped'); f.setAttribute('aria-pressed', 'false'); return; }
@@ -505,7 +511,7 @@ function analysisFor(pages) {
   const inc = includedPages();
   if (!state.reviewed || !state.analysis || !pages.length || !pages.every((p) => inc.includes(p))) return null;
   if (pages.length === inc.length) return state.analysis;       // exactly what was approved, with the AI points
-  return analyseSheets(pages);                                    // a group of the approved sheets
+  return analyseSheets(pages, { dismissed: state.dismissed });    // a group of the approved sheets
 }
 function downloadExcel(pages, tag = '') {
   const blob = new Blob([workbookBytes(pages, analysisFor(pages))], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -596,7 +602,7 @@ function giveOk() {
   }
   btn.dataset.sure = '';
   state.reviewed = true; state.okAt = new Date().toISOString(); state.okSig = sig();
-  state.analysis = analyseSheets(inc); state.ai = null;
+  state.analysis = analyseSheets(inc, { dismissed: state.dismissed }); state.ai = null;
   updateReviewUi(); showTab('analysis'); persist(0);
 }
 
@@ -612,13 +618,13 @@ function goToRow(pid, table, ri) {
 
 const SEV = { alta: ['Alta', 'tag bad'], media: ['Média', 'tag'], info: ['Info', 'tag'] };
 const goBtn = (i) => h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: i.page, k: i.table, r: i.ri } }, 'Ir para a linha');
-let anaFilter = 'all';
+let anaMachine = 'all', anaKind = 'all', showDismissed = false;
 
-// Back of a card: the whole sheet, with the rows that matter outlined. Click it to zoom.
+// Back of a card: the whole sheet, with the rows that matter outlined. Click it to open the viewer (zoom).
 function sheetView(c) {
   const p = pageOf(c.page);
   if (!p?.sheet) return h('p', { class: 'note nosheet' }, 'A imagem desta folha não foi guardada. Envie o arquivo de novo para vê-la aqui.');
-  const wrap = h('div', { class: 'sheetwrap', title: 'Clique para ampliar' }, h('img', { src: p.sheet, alt: `Folha ${p.label}` }));
+  const wrap = h('div', { class: 'sheetwrap', title: 'Clique para abrir a folha e dar zoom' }, h('img', { src: p.sheet, alt: `Folha ${p.label}` }), h('span', { class: 'lupa', 'aria-hidden': 'true' }, '🔍'));
   for (const r of c.refs ?? []) {
     const g = p.sheetGeo?.[r.table]; const n = (r.linha || 0) - 1;
     if (!g || n < 0 || n + 1 >= g.y.length) continue;
@@ -628,47 +634,55 @@ function sheetView(c) {
 }
 
 function flipCard(c) {
-  const where = (c.refs ?? []).map((r) => `${r.table === 'prod' ? 'produção' : 'parada'} linha ${r.linha}`).join(' e ');
   const front = h('div', { class: 'face front' },
-    h('div', { class: 'ftop' }, h('strong', { class: 'fmachine' }, c.machine), h('span', { class: SEV[c.sev][1] }, SEV[c.sev][0])),
-    h('div', { class: 'ftitle' }, c.title),
+    h('div', { class: 'ftop' }, h('strong', { class: 'fmachine' }, c.machine), h('span', { class: 'kchip' }, h('i', {}), c.title)),
     c.big ? h('div', { class: 'fbig2' }, h('b', {}, c.big), h('small', {}, c.bigLabel)) : null,
     h('p', { class: 'fbrief' }, c.brief),
+    h('div', { class: 'fread' },
+      h('strong', {}, 'O que o app leu'),
+      (c.lines ?? []).map((l) => h('div', { class: 'fline' }, l)),
+      c.fix ? h('div', { class: 'ffix' }, c.fix) : null),
+    c.caution ? h('p', { class: 'fcaution' }, '⚠ ', c.caution) : null,
     c.who ? h('p', { class: 'fwho' }, h('span', {}, 'Operador'), c.who) : null,
     h('div', { class: 'ffoot' }, h('span', {}, c.day ? `Folha do dia ${c.day}` : c.label), h('span', { class: 'fhint' }, 'Ver folha ↻')));
   const back = h('div', { class: 'face back' },
     sheetView(c),
-    h('p', { class: 'fcap' }, where ? `Veja: ${where}. ` : '', c.text),
-    h('div', { class: 'fbtns' }, goBtn(c), h('button', { type: 'button', class: 'ghost', dataset: { flip: '1' } }, 'Virar ↻')));
-  const el = h('article', { class: `flip ${c.sev}`, tabindex: '0', role: 'button', 'aria-pressed': 'false', 'aria-label': `${c.machine}: ${c.title}. Clique para ver a folha.` }, h('div', { class: 'flip-in' }, front, back));
-  return el;
+    h('div', { class: 'fbtns' }, goBtn(c), h('button', { type: 'button', class: 'ghost ok', dataset: { dismiss: c.key }, title: 'A folha está certa: tira este aviso' }, 'Anotação correta ✓'), h('button', { type: 'button', class: 'ghost', dataset: { flip: '1' } }, 'Virar ↻')));
+  return h('article', { class: `flip ${c.sev}`, style: `--kc:${c.color}`, tabindex: '0', role: 'button', 'aria-pressed': 'false', 'aria-label': `${c.machine}: ${c.title}. Clique para ver a folha.` }, h('div', { class: 'flip-in' }, front, back));
 }
 
 function renderAnalysis() {
   const root = $('view-analysis');
   const a = state.analysis;
   if (!a) { root.replaceChildren(h('p', { class: 'note' }, 'Dê o OK na aba de conferência para gerar a análise.')); return; }
-  const at = new Date(state.okAt).toLocaleString('pt-BR');
   const report = a.report ?? [];
   const machines = [...new Set(report.map((c) => c.machine))].sort((x, y) => String(x).localeCompare(String(y), 'pt-BR'));
-  if (anaFilter !== 'all' && !machines.includes(anaFilter)) anaFilter = 'all';
-  const shown = report.filter((c) => anaFilter === 'all' || c.machine === anaFilter);
+  if (anaMachine !== 'all' && !machines.includes(anaMachine)) anaMachine = 'all';
+  const kindsPresent = KINDS.filter((k) => report.some((c) => c.kind === k.id));
+  if (anaKind !== 'all' && !kindsPresent.some((k) => k.id === anaKind)) anaKind = 'all';
+  const byMachine = report.filter((c) => anaMachine === 'all' || c.machine === anaMachine);
+  const shown = byMachine.filter((c) => anaKind === 'all' || c.kind === anaKind);
   const graves = shown.filter((c) => c.sev === 'alta').length;
+  const hidden = report.hidden ?? 0;
 
-  const chips = machines.length > 1 ? h('div', { class: 'fchips' }, ['all', ...machines].map((m) => h('button', { type: 'button', class: `fchip${anaFilter === m ? ' on' : ''}`, dataset: { anafilter: m } }, m === 'all' ? 'Todas as máquinas' : m))) : null;
+  const chipRow = (label, items) => h('div', { class: 'fchips' }, h('span', { class: 'flabel' }, label), items);
+  const machineChips = machines.length > 1 ? chipRow('Máquina', ['all', ...machines].map((m) => h('button', { type: 'button', class: `fchip${anaMachine === m ? ' on' : ''}`, dataset: { anamachine: m } }, m === 'all' ? 'Todas' : m))) : null;
+  const kindChips = kindsPresent.length > 1 ? chipRow('Tipo', [h('button', { type: 'button', class: `fchip${anaKind === 'all' ? ' on' : ''}`, dataset: { anakind: 'all' } }, 'Todos'),
+    ...kindsPresent.map((k) => h('button', { type: 'button', class: `fchip kind${anaKind === k.id ? ' on' : ''}`, style: `--kc:${k.color}`, dataset: { anakind: k.id } }, h('i', {}), k.name, h('em', {}, String(byMachine.filter((c) => c.kind === k.id).length))))]) : null;
   const head = h('section', { class: 'card' },
     h('h2', { class: 'ptitle' }, 'Análise', h('span', { class: 'badge-ai' }, `${a.sheets} folha(s) · OK às ${new Date(state.okAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`)),
     h('div', { class: 'row backrow' },
       h('button', { type: 'button', class: 'ghost', dataset: { nav: 'read' } }, '← Voltar à conferência'),
       h('button', { type: 'button', class: 'ghost', dataset: { nav: 'undo' } }, 'Desfazer o OK e revisar de novo')),
-    h('p', { class: 'asum' }, shown.length ? h('span', {}, h('b', {}, `${shown.length} aviso${shown.length === 1 ? '' : 's'}`), graves ? ` · ${graves} grave${graves === 1 ? '' : 's'}` : '', ' · clique em um card para ver a folha') : 'Nenhum aviso: a folha não se contradiz, não há tempos grandes e o preenchimento está em dia.'),
-    chips);
+    h('p', { class: 'asum' }, shown.length ? h('span', {}, h('b', {}, `${shown.length} aviso${shown.length === 1 ? '' : 's'}`), graves ? ` · ${graves} grave${graves === 1 ? '' : 's'}` : '', ' · clique em um card para ver a folha') : 'Nenhum aviso para este filtro.',
+      hidden ? h('span', { class: 'dism' }, ` · ${hidden} marcado${hidden === 1 ? '' : 's'} como correto${hidden === 1 ? '' : 's'} `, h('button', { type: 'button', class: 'linkbtn', dataset: { undismiss: '1' } }, 'desfazer')) : null),
+    machineChips, kindChips);
 
   const sections = [head];
-  for (const t of TIERS) {
-    const list = shown.filter((c) => c.tier === t.id);
+  for (const k of KINDS) {
+    const list = shown.filter((c) => c.kind === k.id);
     if (!list.length) continue;
-    sections.push(h('section', { class: `tier t${t.id}` }, h('h3', {}, t.name, h('span', { class: 'tcount' }, String(list.length)), h('small', {}, t.hint)), h('div', { class: 'flips' }, list.map(flipCard))));
+    sections.push(h('section', { class: 'tier', style: `--kc:${k.color}` }, h('h3', {}, h('i', { class: 'kdot' }), k.name, h('span', { class: 'tcount' }, String(list.length))), h('p', { class: 'khint' }, k.hint), h('div', { class: 'flips' }, list.map(flipCard))));
   }
 
   // what the person changed after the reading (kept as it was)
@@ -683,6 +697,54 @@ function renderAnalysis() {
           h('div', {}, `${e.where}: ${describeEdit(e)}`, e.alert ? h('small', { class: 'stillbad' }, 'Essa linha ainda aparece em um alerta da análise') : null), goBtn(e)))))]
       : h('p', { class: 'note' }, 'Você não alterou nada depois da leitura: os dados estão como o app leu.')));
   root.replaceChildren(...sections);
+}
+
+// ---------------------------------------------------------------- visualizador da folha (zoom, arrastar, X)
+function openSheetViewer(wrap) {
+  const old = $('sheetviewer'); if (old) old.remove();
+  const canvas = h('div', { class: 'svcanvas' }, [...wrap.querySelectorAll('img, .hl')].map((n) => n.cloneNode(true)));
+  const stage = h('div', { class: 'svstage' }, canvas);
+  const close = () => { viewer.remove(); document.removeEventListener('keydown', onKey); };
+  const viewer = h('div', { id: 'sheetviewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Folha ampliada' }, stage,
+    h('button', { type: 'button', class: 'svx', 'aria-label': 'Fechar a folha', title: 'Fechar (Esc)', onclick: close }, '✕'),
+    h('div', { class: 'svtools' }, h('button', { type: 'button', 'data-z': 'out', title: 'Diminuir' }, '−'), h('button', { type: 'button', 'data-z': 'fit', title: 'Ajustar à tela' }, 'Ajustar'), h('button', { type: 'button', 'data-z': 'in', title: 'Aumentar' }, '+')),
+    h('div', { class: 'svhint' }, 'Dois cliques: aproxima ou afasta · Arraste para mover · Roda do mouse: zoom'));
+  document.body.append(viewer);
+  const img = canvas.querySelector('img');
+  let s = 1, tx = 0, ty = 0, fitW = 0, fitH = 0;
+  const apply = () => { canvas.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`; };
+  const limit = () => { // keep part of the sheet on screen
+    const W = stage.clientWidth, H = stage.clientHeight, w = fitW * s, hh = fitH * s;
+    tx = w <= W ? (W - w) / 2 : Math.min(0, Math.max(W - w, tx));
+    ty = hh <= H ? (H - hh) / 2 : Math.min(0, Math.max(H - hh, ty));
+  };
+  const fit = () => {
+    const W = stage.clientWidth, H = stage.clientHeight, ar = (img.naturalWidth || 1400) / (img.naturalHeight || 1000);
+    fitW = Math.min(W, H * ar); fitH = fitW / ar;
+    canvas.style.width = `${fitW}px`; canvas.style.height = `${fitH}px`;
+    s = 1; tx = 0; ty = 0; limit(); apply();
+  };
+  const zoomAt = (px, py, ns) => { // keep the point under the pointer fixed
+    ns = Math.min(8, Math.max(1, ns));
+    tx = px - ((px - tx) / s) * ns; ty = py - ((py - ty) / s) * ns; s = ns; limit(); apply();
+  };
+  const centre = () => ({ x: stage.clientWidth / 2, y: stage.clientHeight / 2 });
+  if (img.complete) fit(); else img.addEventListener('load', fit);
+  window.addEventListener('resize', fit, { once: true });
+  stage.addEventListener('wheel', (e) => { e.preventDefault(); const r = stage.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, s * (e.deltaY < 0 ? 1.25 : 0.8)); }, { passive: false });
+  stage.addEventListener('dblclick', (e) => { const r = stage.getBoundingClientRect(); if (s > 1.05) { s = 1; limit(); apply(); } else zoomAt(e.clientX - r.left, e.clientY - r.top, 3); });
+  let drag = null;
+  stage.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, tx, ty }; stage.setPointerCapture(e.pointerId); stage.classList.add('grab'); });
+  stage.addEventListener('pointermove', (e) => { if (!drag) return; tx = drag.tx + e.clientX - drag.x; ty = drag.ty + e.clientY - drag.y; limit(); apply(); });
+  const end = () => { drag = null; stage.classList.remove('grab'); };
+  stage.addEventListener('pointerup', end); stage.addEventListener('pointercancel', end);
+  viewer.querySelector('.svtools').addEventListener('click', (e) => {
+    const z = e.target.closest('button')?.dataset.z; if (!z) return;
+    const c = centre(); if (z === 'fit') { s = 1; limit(); apply(); } else zoomAt(c.x, c.y, s * (z === 'in' ? 1.5 : 1 / 1.5));
+  });
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  viewer.querySelector('.svx').focus();
 }
 
 // ---------------------------------------------------------------- painel
@@ -1068,7 +1130,7 @@ function showOperators() {
   const n = Object.keys(getOperators()).length;
   $('opinfo').textContent = n ? `${n} operador(es) carregado(s) neste navegador.` : 'Nenhum nome carregado.';
 }
-function refreshAnalysis() { if (state.reviewed) { state.analysis = analyseSheets(includedPages()); if (state.tab === 'analysis') renderAnalysis(); } }
+function refreshAnalysis() { if (state.reviewed) { state.analysis = analyseSheets(includedPages(), { dismissed: state.dismissed }); if (state.tab === 'analysis') renderAnalysis(); } }
 $('opfile').addEventListener('change', async (e) => {
   const file = e.target.files[0]; e.target.value = '';
   if (!file) return;

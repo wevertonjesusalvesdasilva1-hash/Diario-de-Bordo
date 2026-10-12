@@ -29,36 +29,63 @@ const clock = (abs) => { const m = ((abs % 1440) + 1440) % 1440; return `${Strin
 
 // ---- events ---------------------------------------------------------------
 
+export const MAX_HOURS = 16; // no record lasts longer: beyond this the times were misread or mistyped
+// Equal start and end is NOT a 24-hour record (it was producing phantom conflicts all over the sheet): it is incomplete.
 function segment(date, ini, fim) {
   const d = dayNum(date), a = toMin(ini), b = toMin(fim);
-  if (d == null || a == null || b == null) return null;
+  if (d == null || a == null || b == null || a === b) return null;
   const start = d * 1440 + a;
   let end = d * 1440 + b;
-  if (end <= start) end += 1440; // crosses midnight
+  if (end < start) end += 1440; // crosses midnight
+  if (end - start > MAX_HOURS * 60) return null;
   return { start, end };
 }
+const badWhy = (ini, fim) => (toMin(ini) != null && toMin(ini) === toMin(fim) ? 'início e fim iguais' : toMin(ini) != null && toMin(fim) != null ? `duração acima de ${MAX_HOURS} horas` : 'data ou horário incompleto');
+
+// The day most rows of the sheet carry. A row on another day cannot be placed on this sheet's timeline
+// (it would invent conflicts and gaps), so it is set aside and reported on its own.
+function referenceDay(page) {
+  const count = new Map(), text = new Map();
+  for (const r of [...page.prod, ...page.stops]) { const d = dayNum(r.data); if (d != null) { count.set(d, (count.get(d) ?? 0) + 1); if (!text.has(d)) text.set(d, r.data); } }
+  const best = [...count].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0] ?? null;
+  return { day: best, text: best == null ? '' : text.get(best) };
+}
+const offDay = (ref, data, startMin) => {
+  const d = dayNum(data);
+  if (ref == null || d == null) return false;
+  const diff = d - ref;
+  return !(diff === 0 || (diff === 1 && startMin < 12 * 60) || (diff === -1 && startMin >= 12 * 60)); // after-midnight rows may carry the next calendar day
+};
 
 export function buildEvents(pages) {
-  const events = [], skipped = [];
+  const events = [], skipped = [], offDate = [];
   for (const page of pages) {
     const machine = page.machine || 'SEM MÁQUINA';
     const base = { machine, page: page.id, label: page.label };
+    const rd = referenceDay(page), ref = rd.day;
+    const refText = rd.text.slice(0, 5);
     page.prod.forEach((r, ri) => {
       for (const n of [1, 2, 3]) {
         if (!r[`ini${n}`] && !r[`fim${n}`]) continue;
-        const seg = segment(r.data, r[`ini${n}`], r[`fim${n}`]);
-        if (!seg) { skipped.push({ ...base, table: 'prod', ri, linha: r.linha, text: `Produção da linha ${r.linha || ri + 1}: data ou horário incompleto, ficou fora do cruzamento` }); continue; }
-        events.push({ ...base, type: 'prod', table: 'prod', ri, linha: r.linha, turno: n, ...seg, chapa: r[`chapa${n}`], peca: r.peca, modelo: r.modelo });
+        // a row on another day than the rest of the sheet is usually a mistyped or misread date: it is kept on the
+        // sheet's day (so it does not invent gaps) and reported on its own as a date to check
+        const off = segment(r.data, r[`ini${n}`], r[`fim${n}`]) && offDay(ref, r.data, toMin(r[`ini${n}`]));
+        if (off && !offDate.some((o) => o.page === page.id && o.table === 'prod' && o.ri === ri)) offDate.push({ ...base, table: 'prod', ri, linha: r.linha, data: r.data, refText, chapa: r[`chapa${n}`] });
+        const seg = segment(off ? rd.text : r.data, r[`ini${n}`], r[`fim${n}`]);
+        if (!seg) { skipped.push({ ...base, table: 'prod', ri, linha: r.linha, text: `Produção da linha ${r.linha || ri + 1}: ${badWhy(r[`ini${n}`], r[`fim${n}`])}, ficou fora do cruzamento` }); continue; }
+        events.push({ ...base, type: 'prod', table: 'prod', ri, linha: r.linha, turno: n, data: r.data, ...seg, chapa: r[`chapa${n}`], peca: r.peca, modelo: r.modelo });
       }
     });
     page.stops.forEach((r, ri) => {
       if (!r.ini && !r.fim) return;
-      const seg = segment(r.data, r.ini, r.fim);
-      if (!seg) { skipped.push({ ...base, table: 'stops', ri, linha: r.linha, text: `Parada da linha ${r.linha || ri + 1}: data ou horário incompleto, ficou fora do cruzamento` }); return; }
-      events.push({ ...base, type: 'stop', table: 'stops', ri, linha: r.linha, ...seg, chapa: r.chapa, turno: r.turno, motivo: r.motivo, desc: r.desc });
+      const off = segment(r.data, r.ini, r.fim) && offDay(ref, r.data, toMin(r.ini));
+      if (off) offDate.push({ ...base, table: 'stops', ri, linha: r.linha, data: r.data, refText, chapa: r.chapa });
+      const seg = segment(off ? rd.text : r.data, r.ini, r.fim);
+      if (!seg) { skipped.push({ ...base, table: 'stops', ri, linha: r.linha, text: `Parada da linha ${r.linha || ri + 1}: ${badWhy(r.ini, r.fim)}, ficou fora do cruzamento` }); return; }
+      events.push({ ...base, type: 'stop', table: 'stops', ri, linha: r.linha, data: r.data, ...seg, chapa: r.chapa, turno: r.turno, motivo: r.motivo, desc: r.desc });
     });
   }
-  return { events, skipped };
+  return { events, skipped, offDate };
 }
 
 // ---- cross-check on one machine -------------------------------------------
@@ -176,12 +203,12 @@ function summarise(machine, events, pages) {
 
 const RANK = { alta: 0, media: 1, info: 2 };
 
-export function analyze(pages) {
-  const { events, skipped } = buildEvents(pages);
+export function analyze(pages, { dismissed = new Set() } = {}) {
+  const { events, skipped, offDate } = buildEvents(pages);
   const byMachine = new Map();
   for (const p of pages) { const k = p.machine || 'SEM MÁQUINA'; if (!byMachine.has(k)) byMachine.set(k, []); byMachine.get(k).push(p); }
   const machines = [...byMachine.entries()].map(([name, ps]) => summarise(name, events.filter((e) => e.machine === name), ps));
-  const cards = buildCards(events, pages);
+  const cards = buildCards(events, pages, offDate);
   // overlaps, gaps and stop durations are now cards; the other checks (standard time, missing reason) stay as issues
   const keep = (i) => !['sobreposição', 'lacuna'].includes(i.kind);
   for (const m of machines) m.issues = m.issues.filter(keep);
@@ -200,7 +227,7 @@ export function analyze(pages) {
       fecham: tr.total ? Math.round((tr.ok / tr.total) * 100) : null,
     },
   };
-  result.report = buildReport(result);
+  result.report = buildReport(result, dismissed);
   return result;
 }
 

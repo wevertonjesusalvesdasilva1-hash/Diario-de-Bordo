@@ -44,11 +44,23 @@ Qualquer edição depois do OK desfaz o OK e exige novo OK.
 - Tudo que o usuário altera ou preenche é destacado na célula e vai para o relatório.
 
 **Análise (aba 2, após o OK)**
-- Só **cards de aviso**, sem texto corrido nem tabelas. Cada card **vira**: a frente mostra máquina, problema, dia, tempo e um resumo curto; o verso mostra a **folha inteira** com a linha do problema marcada em vermelho (clique para ampliar).
-- Ordem de prioridade: 1) anotação errada (produzindo e parado ao mesmo tempo, dois registros no mesmo horário); 2) tempo grande (parada acima do normal, produção acima do tempo padrão); 3) preenchimento (chapa, motivo, horário, data e turno em branco ou fora do horário); 4) outros (tempo sem registro, etc.); 5) caligrafia, por último.
-- Filtro por máquina (UMC 01, UMC 02…) quando há mais de uma.
+- Só **cards de aviso**, sem texto corrido nem tabelas. Cada **tipo de aviso é uma seção com cor própria** (nada misturado), em ordem de prioridade: 1) **Produção inclui parada** (vermelho): a produção foi anotada cobrindo uma parada, por exemplo 12:00–15:00 com parada 13:00–14:00; o card diz "deveria ser 12:00–13:00 e 14:00–15:00"; 2) dois registros no mesmo horário; 3) tempos grandes (parada longa, produção acima do padrão); 4) preenchimento (chapa, turno, motivo, horário, data); 5) outros (tempo sem registro, horário repetido, data diferente, registro incompleto); 6) caligrafia por último.
+- **Filtros** por máquina e por tipo.
+- Cada card **vira**: a frente mostra máquina, tipo, tempo, resumo, **o que o app leu** (linha, data, horários) e quem é o operador; o verso mostra a **folha inteira** com a linha marcada em vermelho. Clique na folha abre o visualizador: dois cliques aproximam e afastam, arrastar move, roda do mouse dá zoom, X fecha.
+- **Anotação correta ✓**: se a folha está certa, o card sai da análise (dá para desfazer).
 - *Alterações feitas pelo usuário* depois da leitura, em lista, no fim.
 - A IA não escreve mais o resumo da análise (economiza uma chamada por OK).
+
+### Como o app evita acusar o operador à toa
+Validado com folhas reais (UMC 01, UMC 02, HMC 16, NCBZ, RAW05) e com a planilha de controle:
+- Cruzamento de até 14 min é arredondamento, não erro. Parada curta (5 min ou mais) **totalmente dentro** da produção é erro.
+- Início igual ao fim **não** é um registro de 24 horas (era a maior fonte de avisos falsos): vira "registro incompleto".
+- Linha com data diferente do resto da folha usa o dia da folha no cruzamento e vira um aviso próprio ("confira a data": costuma ser leitura).
+- Horário idêntico em duas linhas é "leitura repetida", não acusação.
+- Lacuna só vale **dentro do mesmo turno** (a troca de turno não conta) e a partir de 20 min.
+- Almoço e janta de até 1h30 não são "parada longa".
+- Parada implausível para o motivo (por exemplo Tyorei de 2h) leva o aviso "confira se o horário foi lido certo".
+- Folha com aviso de linhas na leitura leva o aviso "confirme na folha antes de julgar".
 
 **Painel (aba 3)**
 - Tempo parado por motivo (com % acumulado, estilo Pareto), por turno, por máquina, por hora do dia e maiores paradas, com filtro por grupo e dia. Inspirado nas páginas Diária e Paradas do Power BI.

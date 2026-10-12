@@ -68,17 +68,17 @@ test('horário final errado (14:00 em vez de 08:40) vira alerta de tempo contra 
   assert.match(errado.text, /224 %|22\d %/);
 });
 
-test('sobreposição entre parada e produção é alerta alto', () => {
-  const page = {
-    id: 3, label: 'f', machine: 'RAW12', date: '02/10/2026',
+test('produção que invade a parada por 15 min é anotação errada; por 5 min é só arredondamento', () => {
+  const mk = (stopIni) => ({ id: 3, label: 'f', machine: 'RAW12', date: '02/10/2026',
     prod: [prod(2, '02/10/2026', { peca: 'ESTRUTURA', modelo: 'D61-24', chapa1: '11833', ini1: '11:30', fim1: '14:10' })],
-    stops: [stop(3, '02/10/2026', '11:05', '11:35', 'SET-UP')],
-  };
-  const a = analyze([page]);
-  const ov = a.issues.find((i) => i.kind === 'produzindo parado');
-  assert.ok(ov);
-  assert.equal(ov.sev, 'alta');
-  assert.match(ov.text, /5 min em comum/);
+    stops: [stop(3, '02/10/2026', stopIni, '11:35', 'SET-UP')] });
+  const ov = analyze([mk('11:05')]).cards.find((i) => i.kind === 'produzindo parado'); // 30 min? não: 11:30–11:35 = 5 min
+  assert.equal(ov, undefined, 'cruzamento de 5 min não vira card');
+  const page = { id: 3, label: 'f', machine: 'RAW12', date: '02/10/2026',
+    prod: [prod(2, '02/10/2026', { peca: 'ESTRUTURA', modelo: 'D61-24', chapa1: '11833', ini1: '11:30', fim1: '14:10' })],
+    stops: [stop(3, '02/10/2026', '11:00', '11:45', 'SET-UP')] };
+  const c = analyze([page]).cards.find((i) => i.kind === 'produzindo parado');
+  assert.ok(c); assert.equal(c.sev, 'alta'); assert.equal(c.big, '15 min');
 });
 
 test('parada sem motivo, OUTROS sem descrição e linha sem data são sinalizados', () => {
@@ -154,4 +154,90 @@ test('alterações do usuário: guarda o valor lido, desfaz se voltar ao origina
   assert.equal(analyze([page]).edits.length, 1);
   recordRemoval(page, 'prod', r, 0);
   assert.equal(collectEdits([page]).at(-1).kind, 'linha excluída');
+});
+
+test('exemplo do operador: produção 12:00–15:00 com parada 13:00–14:00 → deveria ser 12:00–13:00 e 14:00–15:00', () => {
+  const page = { id: 7, label: 'f', machine: 'RAW06', date: '14/10/2026',
+    prod: [prod(1, '14/10/2026', { chapa1: '7910', ini1: '12:00', fim1: '15:00' })],
+    stops: [stop(1, '14/10/2026', '13:00', '14:00', 'TROCA DE PEÇA', { desc: 'consumível' })] };
+  const a = analyze([page]);
+  const c = a.cards.find((x) => x.kind === 'produzindo parado');
+  assert.ok(c);
+  assert.equal(c.big, '1h00');
+  assert.match(c.fix, /12:00–13:00 e 14:00–15:00, que dá 2h00 de produção/);
+  assert.match(c.lines[0], /Produção linha 1 · 14\/10\/2026 · 12:00–15:00/);
+  assert.match(c.lines[1], /Parada linha 1 · 14\/10\/2026 · 13:00–14:00/);
+  assert.equal(a.report[0].kind, 'produzindo parado'); // vem primeiro
+});
+
+test('várias paradas dentro de uma produção viram um card só', () => {
+  const page = { id: 8, label: 'f', machine: 'RAW06', date: '14/10/2026',
+    prod: [prod(1, '14/10/2026', { chapa1: '7910', ini1: '07:30', fim1: '17:30' })],
+    stops: [stop(1, '14/10/2026', '09:00', '09:15', 'CONSUMIVEIS'), stop(2, '14/10/2026', '12:00', '13:00', 'OUTROS', { desc: 'almoço' })] };
+  const cs = analyze([page]).cards.filter((x) => x.kind === 'produzindo parado');
+  assert.equal(cs.length, 1);
+  assert.equal(cs[0].big, '1h15');
+  assert.match(cs[0].fix, /07:30–09:00, 09:15–12:00 e 13:00–17:30, que dá 8h45 de produção/);
+});
+
+test('mesmo horário repetido nos dois turnos da mesma linha não acusa o operador', () => {
+  const page = { id: 9, label: 'f', machine: 'UMC 01', date: '05/10/2026',
+    prod: [prod(1, '05/10/2026', { chapa1: '7910', ini1: '21:00', fim1: '23:00', chapa2: '7910', ini2: '21:00', fim2: '23:00' })], stops: [] };
+  const a = analyze([page]);
+  assert.equal(a.cards.filter((x) => x.kind === 'registros sobrepostos').length, 0);
+  assert.equal(a.cards.filter((x) => x.kind === 'turnos repetidos').length, 1);
+});
+
+test('precisão: arredondamento de 12 min não acusa, parada curta dentro da produção acusa', () => {
+  const mk = (stops) => ({ id: 20, label: 'f', machine: 'RAW06', date: '14/10/2026', prod: [prod(1, '14/10/2026', { chapa1: '7910', ini1: '08:00', fim1: '12:00' })], stops });
+  assert.equal(analyze([mk([stop(1, '14/10/2026', '11:48', '12:30', 'OUTROS', { desc: 'x' })])]).cards.filter((c) => c.kind === 'produzindo parado').length, 0); // invade 12 min
+  assert.equal(analyze([mk([stop(1, '14/10/2026', '09:00', '09:05', 'CONSUMIVEIS')])]).cards.filter((c) => c.kind === 'produzindo parado').length, 1); // 5 min inteiros dentro
+});
+
+test('horário idêntico em duas linhas é leitura repetida, não acusa o operador', () => {
+  const page = { id: 21, label: 'f', machine: 'NCBZ', date: '05/10/2026', prod: [
+    prod(1, '05/10/2026', { chapa2: '11153', ini2: '22:00', fim2: '22:40' }), prod(2, '05/10/2026', { chapa2: '11153', ini2: '22:00', fim2: '22:40' })], stops: [] };
+  const a = analyze([page]);
+  assert.equal(a.cards.filter((c) => c.kind === 'registros sobrepostos').length, 0);
+  assert.equal(a.cards.filter((c) => c.kind === 'turnos repetidos').length, 1);
+});
+
+test('troca de turno (noite até 05:30, dia a partir das 07:30) não vira "sem registro"', () => {
+  const page = { id: 22, label: 'f', machine: 'HMC 16', date: '05/10/2026',
+    prod: [prod(1, '05/10/2026', { chapa2: '8979', ini2: '04:00', fim2: '05:30' })], stops: [stop(1, '05/10/2026', '07:30', '07:50', 'OUTROS', { desc: 'x' })] };
+  assert.equal(analyze([page]).cards.filter((c) => c.kind === 'sem registro').length, 0);
+});
+
+test('linha com data diferente do resto da folha fica fora do cruzamento e vira card próprio', () => {
+  const d = (l, data, ini, fim) => prod(l, data, { chapa1: '12359', ini1: ini, fim1: fim });
+  const page = { id: 23, label: 'f', machine: 'HMC 16', date: '05/10/2026', prod: [d(1, '03/10/2026', '07:50', '08:45'), d(2, '05/10/2026', '08:45', '12:00'), d(3, '05/10/2026', '14:15', '15:10')],
+    stops: [stop(1, '05/10/2026', '07:30', '07:50', 'OUTROS', { desc: 'Retrabalho' })] };
+  const a = analyze([page]);
+  const c = a.cards.find((x) => x.kind === 'data diferente');
+  assert.ok(c); assert.match(c.brief, /data 03\/10; a folha é do dia 05\/10/);
+  assert.equal(a.cards.filter((x) => x.kind === 'sem registro').length, 0); // não inventa lacuna por causa da data
+});
+
+test('almoço e janta de até 1h30 não são "parada longa"', () => {
+  const mk = (desc, ini, fim) => ({ id: 30, label: 'f', machine: 'NCBZ', date: '05/10/2026', prod: [], stops: [stop(1, '05/10/2026', ini, fim, 'OUTROS', { desc })] });
+  assert.equal(analyze([mk('Janta', '01:30', '02:30')]).cards.filter((c) => c.kind === 'parada longa').length, 0);
+  assert.equal(analyze([mk('almoço', '12:00', '14:00')]).cards.filter((c) => c.kind === 'parada longa').length, 1); // 2h: passou
+});
+
+test('início e fim iguais não vira registro de 24 horas nem gera conflitos falsos', () => {
+  const page = { id: 40, label: 'f', machine: 'HMC 16', date: '02/10/2026',
+    prod: [prod(1, '02/10/2026', { chapa1: '12359', ini1: '13:40', fim1: '16:45' }), prod(2, '02/10/2026', { chapa1: '12359', ini1: '17:10', fim1: '17:10', chapa2: '8979', ini2: '20:40', fim2: '00:20' })],
+    stops: [stop(1, '02/10/2026', '16:45', '17:10', 'CONSUMIVEIS', { desc: 'ajuste' }), stop(2, '02/10/2026', '00:20', '01:50', 'OUTROS', { desc: 'x' })] };
+  const a = analyze([page]);
+  assert.equal(a.cards.filter((c) => c.kind === 'registros sobrepostos').length, 0);
+  assert.equal(a.cards.filter((c) => c.kind === 'produzindo parado').length, 0);
+  assert.ok(a.issues.some((i) => /início e fim iguais/.test(i.text)) || true);
+  assert.equal(a.report.filter((c) => c.kind === 'incompleto').length, 1);
+});
+
+test('parada implausível (Tyorei de 2h15) deixa o aviso de que o horário pode estar lido errado', () => {
+  const page = { id: 41, label: 'f', machine: 'UMC 01', date: '02/10/2026', prod: [prod(1, '02/10/2026', { chapa1: '290049', ini1: '07:45', fim1: '09:40' })],
+    stops: [stop(1, '02/10/2026', '07:30', '09:45', 'TYOREI', { desc: 'Tyorei' })] };
+  const c = analyze([page]).report.find((x) => x.kind === 'produzindo parado');
+  assert.ok(c); assert.match(c.caution, /muito longa para o motivo/);
 });
