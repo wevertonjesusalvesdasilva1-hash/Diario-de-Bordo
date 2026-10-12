@@ -261,3 +261,12 @@ test('mesmo conferido, fim antes do início que passaria de 16 h vira registro i
   assert.equal(a.cards.filter((c) => c.kind === 'produzindo parado').length, 0);
   assert.match(a.report.find((c) => c.kind === 'incompleto').lines[0], /o fim \(08:30\) vem antes do início \(08:45\)/);
 });
+
+test('turno da noite depois do dia na mesma linha acontece no dia seguinte (não conflita com a noite anterior)', () => {
+  // folha de 02/10: noite 21:38 até 03:00 (já em 03/10)
+  const noite = { id: 60, label: 'f1', machine: 'RAW05', date: '02/10/2026', prod: [prod(3, '02/10/2026', { chapa2: '11678', ini2: '21:38', fim2: '03:00' })], stops: [] };
+  // folha de 03/10: dia 09:00–12:00 e, na mesma linha, 2º turno 00:10–01:45 = madrugada de 04/10
+  const dia = { id: 61, label: 'f2', machine: 'RAW05', date: '03/10/2026', prod: [prod(1, '03/10/2026', { chapa1: '12273', ini1: '09:00', fim1: '12:00', chapa2: '10785', ini2: '00:10', fim2: '01:45', turno: '2' })], stops: [] };
+  const a = analyze([noite, dia]);
+  assert.equal(a.cards.filter((c) => c.kind === 'registros sobrepostos').length, 0);
+});

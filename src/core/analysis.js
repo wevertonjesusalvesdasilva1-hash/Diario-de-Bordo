@@ -69,6 +69,11 @@ export function buildEvents(pages) {
     const refText = rd.text.slice(0, 5);
     page.prod.forEach((r, ri) => {
       const rowDoubt = doubtKeys(r, /^data$/);
+      // When the 2º or 3º turno finished the piece ("turno que finalizou"), the later columns come after the 1º turno
+      // in time: a segment whose clock time is earlier than the end of the previous one happened after midnight,
+      // on the next day. (When the 1º turno finished it, the other columns are earlier and keep the row's day.)
+      let prevEnd = null;
+      const laterColumns = ['2', '3'].includes(String(r.turno));
       for (const n of [1, 2, 3]) {
         if (!r[`ini${n}`] && !r[`fim${n}`]) continue;
         const dk = [...rowDoubt, ...doubtKeys(r, new RegExp(`^(ini|fim)${n}$`))];
@@ -78,6 +83,8 @@ export function buildEvents(pages) {
         const off = segment(r.data, r[`ini${n}`], r[`fim${n}`]) && offDay(ref, r.data, toMin(r[`ini${n}`]));
         if (off && !offDate.some((o) => o.page === page.id && o.table === 'prod' && o.ri === ri)) offDate.push({ ...base, table: 'prod', ri, linha: r.linha, data: r.data, refText, chapa: r[`chapa${n}`] });
         const seg = segment(off ? rd.text : r.data, r[`ini${n}`], r[`fim${n}`]);
+        if (seg && laterColumns && prevEnd != null) { let k = 0; while (seg.start + k * 1440 < prevEnd && k < 2) k++; if (k) { seg.start += k * 1440; seg.end += k * 1440; } }
+        if (seg) prevEnd = seg.end;
         if (!seg) { skipped.push({ ...base, table: 'prod', ri, linha: r.linha, text: `Produção da linha ${r.linha || ri + 1}: ${badWhy(r[`ini${n}`], r[`fim${n}`])}, ficou fora do cruzamento` }); continue; }
         events.push({ ...base, type: 'prod', table: 'prod', ri, linha: r.linha, turno: n, data: r.data, ...seg, chapa: r[`chapa${n}`], peca: r.peca, modelo: r.modelo });
       }
