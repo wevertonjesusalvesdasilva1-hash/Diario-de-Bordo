@@ -352,3 +352,5 @@ small.stillbad { color: var(--bad); }
    (as opções herdavam o fundo translúcido rosa/amarelo do campo marcado) */
 select option, select optgroup { background-color: var(--panel2); color: var(--ink); font-family: var(--f-mono); letter-spacing: 0; text-transform: none; }
 select option:checked { background-color: var(--accent); color: var(--accent-ink); }
+.okbtns { gap: 10px; }
+.backrow { margin: 4px 0 12px; gap: 10px; }

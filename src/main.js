@@ -428,6 +428,8 @@ function learnFromEdit(row, field, value) {
 }
 
 document.addEventListener('click', (e) => {
+  const nav = e.target.closest('button[data-nav]');
+  if (nav) { if (nav.dataset.nav === 'undo') $('undook').click(); else showTab('read'); return; }
   const img = e.target.closest('img[data-zoom]');
   if (img) { $('lightbox').querySelector('img').src = img.src; $('lightbox').hidden = false; return; }
   if (e.target.closest('#lightbox')) { $('lightbox').hidden = true; return; }
@@ -521,7 +523,10 @@ function updateReviewUi() {
   $('okstate').textContent = state.reviewed
     ? `Aprovado às ${at}. Se você mudar qualquer dado, o OK é desfeito e a análise precisa ser refeita.`
     : 'Confira cada linha com o recorte da folha. A análise só é feita depois do seu OK.';
-  if (!$('ok').dataset.sure) $('ok').textContent = state.reviewed ? 'OK dado · refazer análise' : 'Revisei tudo · dar OK e gerar análise';
+  if (!$('ok').dataset.sure) $('ok').textContent = 'Revisei tudo · dar OK e gerar análise';
+  $('ok').hidden = state.reviewed;
+  $('viewanalysis').hidden = !state.reviewed;
+  $('undook').hidden = !state.reviewed;
 }
 
 function showTab(name) {
@@ -613,6 +618,9 @@ function renderAnalysis() {
 
   const sections = [
     h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, `Análise · ${a.sheets} folha(s) · aprovada em ${at}`),
+      h('div', { class: 'row backrow' },
+        h('button', { type: 'button', class: 'ghost', dataset: { nav: 'read' } }, '← Voltar à conferência'),
+        h('button', { type: 'button', class: 'ghost', dataset: { nav: 'undo' } }, 'Desfazer o OK e revisar de novo')),
       h('div', { class: 'astats' },
         tile('Produzindo', fmtDur(a.totals.prodMin), 'tempo registrado'),
         tile('Parado', fmtDur(a.totals.stopMin), `${a.totals.pctStop} % do tempo`),
@@ -737,6 +745,8 @@ function renderPanel() {
 $('tab-panel').addEventListener('click', () => showTab('panel'));
 
 $('ok').addEventListener('click', giveOk);
+$('viewanalysis').addEventListener('click', () => showTab('analysis'));
+$('undook').addEventListener('click', () => { resetReview(false); showTab('read'); toast('OK desfeito. Revise de novo e dê o OK quando terminar.'); persist(0); });
 $('tab-read').addEventListener('click', () => showTab('read'));
 $('tab-analysis').addEventListener('click', () => { if (state.reviewed) showTab('analysis'); });
 
