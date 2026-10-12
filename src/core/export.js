@@ -109,7 +109,7 @@ export function analysisSheet(a) {
   for (const [o, t] of points) add(o === 'IA' ? 'Resumo da IA' : o, t);
   blank();
   add('RESUMO POR MÁQUINA');
-  add('Máquina', 'Datas', 'Produzindo', 'Parado', '% parado', 'Paradas', 'Horários que fecham', 'Sobreposições', 'Intervalos sem registro');
+  add('Máquina', 'Datas', 'Produzindo', 'Parado', '% parado', 'Paradas', 'Horários que fecham', 'Conflitos de horário', 'Intervalos sem registro');
   for (const m of a.machines) add(m.name, m.dates.map((d) => d.slice(0, 5)).join(', '), fmtDur(m.prodMin), fmtDur(m.stopMin), m.pctStop / 100, m.stops, m.transitions.total ? `${m.transitions.ok} de ${m.transitions.total}` : '', m.transitions.overlaps, m.transitions.gaps);
   const pctRows = rows.length - a.machines.length;
   blank();

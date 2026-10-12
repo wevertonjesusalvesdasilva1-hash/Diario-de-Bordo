@@ -50,16 +50,16 @@ export function buildCards(events, pages) {
         if (stop && prod) {
           const why = stop.desc ? ` (${stop.desc})` : '';
           add('alta', 'produzindo parado', stop,
-            `${sheet(stop)}: a folha mostra produção das ${range(prod)}, mas também uma parada das ${range(stop)} por ${nome(stop.motivo)}${why}. Nos ${dur(ov)} em comum a máquina aparece produzindo e parada ao mesmo tempo.`,
+            `${sheet(stop)}: a folha mostra produção das ${range(prod)}, mas também uma parada das ${range(stop)} por ${nome(stop.motivo)}${why}. Nos ${dur(ov)} em comum a máquina aparece produzindo e parada ao mesmo tempo, o que não pode acontecer.`,
             [`Produção linha ${prod.linha || prod.ri + 1}: ${range(prod)}`, `Parada linha ${stop.linha || stop.ri + 1}: ${range(stop)}`, `${dur(ov)} em conflito`],
             { why: 'Ou o operador não parou a produção no horário, ou a parada/produção foi anotada com o horário errado. Vale conferir com ele.',
               viz: viz([S('prod', prod), S('stop', stop), { kind: 'conflict', start: Math.max(a.start, b.start), end: Math.min(a.end, b.end), label: 'Conflito' }], 30, dur(ov), 'em conflito') });
         } else {
           const t = a.type === 'prod' ? 'produções' : 'paradas';
           add('alta', 'registros sobrepostos', b,
-            `${sheet(b)}: duas ${t} se sobrepõem por ${dur(ov)} (${range(a)} e ${range(b)}).`,
+            `${sheet(b)}: a folha tem duas ${t} no mesmo horário: uma das ${range(a)} (linha ${a.linha || a.ri + 1}) e outra das ${range(b)} (linha ${b.linha || b.ri + 1}). Elas dividem ${dur(ov)}, e a máquina não faz duas coisas ao mesmo tempo, então um dos horários está errado.`,
             [`Linha ${a.linha || a.ri + 1}: ${range(a)}`, `Linha ${b.linha || b.ri + 1}: ${range(b)}`],
-            { viz: viz([S(a.type, a), S(b.type, b), { kind: 'conflict', start: b.start, end: Math.min(a.end, b.end), label: 'Conflito' }], 30, dur(ov), 'sobrepostos') });
+            { viz: viz([S(a.type, a), S(b.type, b), { kind: 'conflict', start: b.start, end: Math.min(a.end, b.end), label: 'Conflito' }], 30, dur(ov), 'no mesmo horário') });
         }
       }
     }

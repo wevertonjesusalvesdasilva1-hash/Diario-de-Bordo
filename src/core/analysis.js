@@ -77,7 +77,7 @@ function crossCheck(events, machine) {
       const ov = Math.min(a.end, b.end) - b.start;
       if (ov <= OVERLAP_TOL) continue;
       overlaps++;
-      const what = a.type === b.type ? `duas ${KIND[a.type]}s se sobrepõem` : 'parada e produção ao mesmo tempo';
+      const what = a.type === b.type ? `duas ${KIND[a.type]}s no mesmo horário` : 'parada e produção ao mesmo tempo';
       issues.push(mk('alta', 'sobreposição', `${what}: ${describe(a)} e ${describe(b)} dividem ${fmtDur(ov)}`, b));
     }
   }
@@ -159,7 +159,7 @@ function summarise(machine, events, pages) {
   bullets.push(`Produzindo ${fmtDur(prodMin)} e parado ${fmtDur(stopMin)} (${pctStop} % do tempo registrado), em ${stops.length} parada${stops.length === 1 ? '' : 's'}.`);
   if (motivos[0] && stopMin) bullets.push(`Motivo que mais parou: ${motivos[0].motivo}, ${fmtDur(motivos[0].min)} (${Math.round((motivos[0].min / stopMin) * 100)} % das paradas).`);
   if (longest[0]) bullets.push(`Maior parada: ${fmtDur(longest[0].min)} das ${longest[0].from} às ${longest[0].to}, ${longest[0].motivo}${longest[0].desc ? ` (${longest[0].desc})` : ''}.`);
-  if (cc.transitions) bullets.push(`Horários que fecham entre registros: ${cc.ok} de ${cc.transitions}.${cc.overlaps ? ` ${cc.overlaps} sobreposição(ões).` : ''}${cc.gaps ? ` ${cc.gaps} intervalo(s) sem registro.` : ''}`);
+  if (cc.transitions) bullets.push(`Horários que fecham entre registros: ${cc.ok} de ${cc.transitions}.${cc.overlaps ? ` ${cc.overlaps} conflito(s) de horário (dois registros no mesmo horário).` : ''}${cc.gaps ? ` ${cc.gaps} intervalo(s) sem registro.` : ''}`);
   const withRatio = standards.filter((g) => g.ratio != null);
   if (withRatio.length) {
     const worst = [...withRatio].sort((a, b) => Math.abs(b.ratio - 1) - Math.abs(a.ratio - 1))[0];

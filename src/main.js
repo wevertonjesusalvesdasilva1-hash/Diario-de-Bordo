@@ -616,7 +616,7 @@ function renderAnalysis() {
   }
 
   const ICON = { 'produzindo parado': '⚠', 'registros sobrepostos': '⇄', 'parada longa': '⏱', 'sem registro': '?' };
-  const KIND = { 'produzindo parado': 'Produzindo e parado ao mesmo tempo', 'registros sobrepostos': 'Registros sobrepostos', 'parada longa': 'Parada mais longa que o normal', 'sem registro': 'Tempo sem registro' };
+  const KIND = { 'produzindo parado': 'Produzindo e parado ao mesmo tempo', 'registros sobrepostos': 'Dois registros no mesmo horário', 'parada longa': 'Parada mais longa que o normal', 'sem registro': 'Tempo sem registro' };
   const goBtn = (i) => h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: i.page, k: i.table, r: i.ri } }, 'Ir para a linha');
   const bySheet = new Map();
   for (const c of a.cards) { const k = `${c.machine} · folha do dia ${c.day}`; if (!bySheet.has(k)) bySheet.set(k, []); bySheet.get(k).push(c); }
