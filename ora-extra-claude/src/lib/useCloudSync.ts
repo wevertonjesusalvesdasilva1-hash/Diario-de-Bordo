@@ -45,7 +45,7 @@ export function useCloudSync(
       const { keep: recs, dropIds } = dedupeRecords(a.data.map((row) => ({ rec: fromRows(row, e.data ?? []), at: row.updated_at as string })));
       // duplicatas antigas no banco (mesma pessoa/dia/peça com outro código): limpa
       for (let i = 0; i < dropIds.length; i += 100) {
-        void supabase.from('he_assignments').delete().in('id', dropIds.slice(i, i + 100));
+        await supabase.from('he_assignments').delete().in('id', dropIds.slice(i, i + 100)); // precisa de await: a chamada só executa quando aguardada
       }
       snapshot.current = new Map(recs.map((r) => [r.id, JSON.stringify(r)]));
       setRecords(recs);
