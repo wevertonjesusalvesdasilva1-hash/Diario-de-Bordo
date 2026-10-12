@@ -28,9 +28,7 @@ import { BRAND } from '../utils/brand';
 import { exportPlanningExcel } from '../utils/planningExcel';
 import { exportPlanningPdf } from '../utils/planningPdf';
 
-// A3 paisagem: 420 x 297 mm a 96 dpi
-const A3_W = 1587;
-const A3_H = 1123;
+import { PagedSheet, A3_W, A3_H } from './PlanningPages';
 
 type Mode = 'DAY' | 'EACH' | 'COMBINED';
 type Layout = 'EACH' | 'COMBINED';
@@ -38,200 +36,6 @@ type Layout = 'EACH' | 'COMBINED';
 /** "02/10/2026" + "03/10/2026" -> "02/10 + 03/10/2026" */
 const daysTitle = (ds: string[]) =>
   ds.length === 1 ? ds[0] : ds.slice(0, -1).map((d) => d.slice(0, 5)).join(' + ') + ' + ' + ds[ds.length - 1];
-
-const Box = ({ title, children, className = '', listMark = false }: { title: string; children: React.ReactNode; className?: string; listMark?: boolean }) => (
-  <section data-list={listMark ? '' : undefined} className={`border ${className}`} style={{ breakInside: 'avoid', borderColor: BRAND.blue }}>
-    <h3 className="text-white text-[11px] font-bold uppercase tracking-wide px-2 py-1" style={{ background: BRAND.blue, borderBottom: `3px solid ${BRAND.yellow}` }}>{title}</h3>
-    <div className="p-2">{children}</div>
-  </section>
-);
-
-function MiniTable({ rows, head }: { rows: (string | number)[][]; head: string[] }) {
-  return (
-    <table className="w-full text-[11px] border-collapse">
-      <thead>
-        <tr>
-          {head.map((h, i) => (
-            <th key={h} className={`border-b pb-0.5 font-bold ${i === head.length - 1 ? 'text-right' : 'text-left'}`} style={{ borderColor: BRAND.blue, color: BRAND.blue }}>
-              {h}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r, i) => (
-          <tr key={i} className="border-b border-gray-300">
-            {r.map((c, j) => (
-              <td key={j} className={`py-0.5 ${j === r.length - 1 ? 'text-right font-bold tabular-nums' : ''}`}>
-                {c}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function Sheet({
-  title,
-  recs,
-  showDate,
-  levels,
-  onSortHeader,
-  group,
-  filterNote,
-}: {
-  title: string;
-  recs: OvertimeRecord[];
-  showDate: boolean;
-  levels: SortLevel[];
-  onSortHeader?: (col: ColKey, additive: boolean) => void;
-  group: boolean;
-  filterNote: string;
-}) {
-  const s = useMemo(() => buildSummary(recs), [recs]);
-  const rows = useMemo(() => buildRows(recs, levels, group), [recs, levels, group]);
-  const [r1, r2] = halves(rows);
-  const colDefs: { label: string; key: ColKey | null }[] = [
-    { label: 'Data', key: 'data' }, { label: '#', key: null }, { label: 'Chapa', key: 'chapa' }, { label: 'Funcionário', key: 'nome' },
-    { label: 'Peça', key: 'peca' }, { label: 'CC', key: 'cc' }, { label: 'Líder', key: 'lider' }, { label: 'Horário', key: 'horario' }, { label: 'Transporte', key: 'transporte' },
-  ];
-  const cols = colDefs.map((c) => c.label);
-
-  const table = (list: typeof rows) => (
-    <table className="w-full text-[10px] leading-[1.15] border-collapse self-start">
-      <thead style={{ display: 'table-header-group' }}>
-        <tr className="border-b-2 text-left" style={{ borderColor: BRAND.blue, color: BRAND.blue }}>
-          {colDefs.map((c) => {
-            const lvIdx = c.key ? levels.findIndex((l) => l.col === c.key) : -1;
-            return (
-              <th
-                key={c.label}
-                className={`py-px pr-1 select-none ${c.key && onSortHeader ? 'cursor-pointer hover:underline' : ''}`}
-                title={c.key && onSortHeader ? 'Clique para classificar · Shift+clique para somar outro critério' : undefined}
-                onClick={c.key && onSortHeader ? (e) => onSortHeader(c.key as ColKey, e.shiftKey) : undefined}
-              >
-                {c.label}
-                {lvIdx >= 0 && (
-                  <span style={{ color: BRAND.blue }}>
-                    {' '}{levels[lvIdx].dir === 'asc' ? '▲' : '▼'}
-                    {levels.filter((l) => l.col !== 'resp').length > 1 ? <sup>{levels.filter((l) => l.col !== 'resp').findIndex((l) => l.col === c.key) + 1}</sup> : null}
-                  </span>
-                )}
-              </th>
-            );
-          })}
-        </tr>
-      </thead>
-      <tbody>
-        {list.map((x, i) =>
-          x.kind === 'group' ? (
-            <tr key={`g${i}`} className="font-bold" style={{ breakInside: 'avoid', background: BRAND.blueSoft, color: BRAND.blue }}>
-              <td colSpan={cols.length} className="px-1 py-0.5">
-                {x.label} — {x.n}
-              </td>
-            </tr>
-          ) : (
-            <tr key={x.r.id} className={`border-b border-gray-300 ${isLeaderRow(x.r) ? 'font-bold' : ''}`} style={{ breakInside: 'avoid', background: isLeaderRow(x.r) ? BRAND.yellowSoft : undefined }}>
-              <td className="py-px pr-1 tabular-nums whitespace-nowrap">{x.r.data.slice(0, 5)}</td>
-              <td className="py-px pr-1 tabular-nums">{x.idx}</td>
-              <td className="pr-1 tabular-nums whitespace-nowrap">{x.r.chapa}</td>
-              <td className="pr-1">{x.r.funcionario}</td>
-              <td className="pr-1">{x.r.motivoHe}</td>
-              <td className="pr-1 whitespace-nowrap">{x.r.cc}</td>
-              <td className="pr-1 whitespace-nowrap">{x.r.lider}</td>
-              <td className="pr-1 whitespace-nowrap tabular-nums font-semibold">{x.r.de && x.r.ate ? `${x.r.de}–${x.r.ate}` : '—'}</td>
-              <td className="pr-1">{transpLabel(x.r)}</td>
-            </tr>
-          ),
-        )}
-      </tbody>
-    </table>
-  );
-
-  return (
-    <div className="bg-white text-black p-5 font-sans" style={{ width: A3_W, minHeight: A3_H, boxSizing: 'border-box' }}>
-      <div className="flex items-center justify-between gap-4 px-4 py-3 mb-3 text-white" style={{ background: BRAND.blue, borderBottom: `8px solid ${BRAND.yellow}` }}>
-        <img src="/komatsu-logo-white.png" alt="Komatsu" style={{ height: 48 }} />
-        <div className="mr-auto">
-          <h1 className="text-3xl font-black tracking-tight">PLANEJAMENTO DE HORA EXTRA</h1>
-          <p className="text-sm font-semibold" style={{ color: BRAND.yellow }}>
-            {s.locais.join(' / ') || '—'} · Gestor: {s.gestores.join(' / ') || '—'}
-          </p>
-          {filterNote && <p className="text-xs">Filtros: {filterNote}</p>}
-        </div>
-        <div className="text-right">
-          <p className="text-4xl font-black tabular-nums" style={{ color: BRAND.yellow }}>{title}</p>
-          <p className="text-xs">
-            {s.aprovados}/{s.total} aprovados
-          </p>
-        </div>
-      </div>
-
-      <div className="grid gap-3 mb-3 items-start" style={{ gridTemplateColumns: 'repeat(6, 1fr)' }}>
-        <div className="border-2 p-2 text-center self-stretch flex flex-col justify-center" style={{ borderColor: BRAND.blue, background: BRAND.yellow, color: BRAND.blue }}>
-          <p className="text-[10px] font-bold uppercase">Total</p>
-          <p className="text-5xl font-black tabular-nums leading-none">{s.total}</p>
-          <p className="text-[10px]">colaboradores</p>
-        </div>
-        {showDate ? (
-          <Box title="Por dia">
-            <MiniTable head={['Dia', 'Qtd']} rows={s.byDia.map(([k, v]) => [k, v])} />
-          </Box>
-        ) : null}
-        <Box title="Por turno">
-          <MiniTable head={['Horário', 'Qtd']} rows={s.byTurno.map(([k, v]) => [k, v])} />
-        </Box>
-        <Box title="Por centro de custo">
-          <MiniTable head={['CC', 'Qtd']} rows={s.byCc.map(([k, v]) => [k, v])} />
-        </Box>
-        <Box title="Transporte">
-          <MiniTable head={['Tipo', 'Qtd']} rows={[['Com transporte', s.comTransp], ['Sem (outros meios)', s.semTransp]]} />
-        </Box>
-        {!showDate && (
-          <Box title="Refeição">
-            <MiniTable head={['Tipo', 'Qtd']} rows={s.byRef.map(([k, v]) => [k, v])} />
-          </Box>
-        )}
-        <Box title="Por líder / contramestre">
-          <MiniTable head={['Líder', 'Qtd']} rows={s.byLider.map(([k, v]) => [k, v])} />
-        </Box>
-      </div>
-
-      <div className="grid gap-3 mb-3 items-start" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        <Box title={`Líderes / responsáveis em destaque (${s.leaders.length})`}>
-          {s.leaders.length === 0 ? (
-            <p className="text-[11px]">Nenhum responsável indicado.</p>
-          ) : (
-            <ul className="text-[12px] space-y-0.5">
-              {s.leaders.map((r) => (
-                <li key={r.id} className="flex justify-between gap-2 border-b border-gray-300">
-                  <span className="font-bold">{r.funcionario}</span>
-                  <span className="tabular-nums whitespace-nowrap">
-                    {showDate ? r.data.slice(0, 5) + ' · ' : ''}
-                    {r.chapa} · {r.cc}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Box>
-        <Box title="Transporte por rota">
-          <MiniTable head={['Rota', 'Qtd']} rows={s.byRota.map(([k, v]) => [k, v])} />
-        </Box>
-      </div>
-
-      <Box listMark title={`Lista nominal (${recs.length}) · classificada por ${levelsLabel(levels)}${group ? ' · agrupada' : ''}`}>
-        <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          {table(r1)}
-          {table(r2)}
-        </div>
-      </Box>
-    </div>
-  );
-}
-
 
 /** Colaboradores com mais de um líder na base (ou sem líder): o usuário escolhe o líder certo. */
 function LeaderConflicts({ records, onSetLeader }: { records: OvertimeRecord[]; onSetLeader: (chapa: string, nome: string, lider: string) => void }) {
@@ -425,7 +229,7 @@ export default function PlanejamentoHoraExtra({
   const drag = useRef<{ x: number; y: number; l: number; t: number } | null>(null);
   const clampZoom = (z: number) => Math.min(2.5, Math.max(0.2, z));
   const [contentH, setContentH] = useState(A3_H);
-  const pages = Math.max(1, Math.ceil(contentH / A3_H - 0.02));
+  const [pages, setPages] = useState(1);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -472,7 +276,7 @@ export default function PlanejamentoHoraExtra({
   useEffect(() => {
     const el = sheetsRef.current;
     if (!el) return;
-    const count = () => setContentH(el.scrollHeight);
+    const count = () => { setContentH(el.scrollHeight); setPages(Math.max(1, el.querySelectorAll('.he-page').length)); };
     count();
     const ro = new ResizeObserver(count);
     ro.observe(el);
@@ -547,13 +351,16 @@ export default function PlanejamentoHoraExtra({
     <div className="p-3 space-y-3">
       <style>{`
         @page { size: A3 landscape; margin: 0; }
+        .he-print .he-page { margin-bottom: 16px; }
         @media print {
           html, body { background: #fff !important; }
           body * { visibility: hidden !important; }
           .he-print, .he-print * { visibility: visible !important; }
           .he-print, .he-print * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .he-print { position: absolute; left: 0; top: 0; transform: none !important; width: ${A3_W}px !important; }
-          .he-sheet-break { break-after: page; }
+          .he-print .he-page { break-after: page; margin: 0 !important; }
+          .he-print > :last-child > .he-page:last-child { break-after: auto; }
+          .he-print { display: block; }
         }
       `}</style>
 
@@ -722,8 +529,8 @@ export default function PlanejamentoHoraExtra({
               <div className="bg-white text-black p-10 text-xl" style={{ width: A3_W }}>Nenhum colaborador com esses filtros.</div>
             ) : (
               sheets.map((x, i) => (
-                <div key={x.key} className={i < sheets.length - 1 ? 'he-sheet-break' : ''}>
-                  <Sheet title={x.title} recs={x.recs} showDate={x.showDate} levels={levels} onSortHeader={onSortHeader} group={group} filterNote={filterNote} />
+                <div key={x.key}>
+                  <PagedSheet title={x.title} recs={x.recs} showDate={x.showDate} levels={levels} onSortHeader={onSortHeader} group={group} filterNote={filterNote} />
                 </div>
               ))
             )}
@@ -735,7 +542,7 @@ export default function PlanejamentoHoraExtra({
         <div ref={exportRef} aria-hidden style={{ position: 'fixed', left: 0, top: 0, width: A3_W, zIndex: -9999, pointerEvents: 'none' }}>
           {sheets.map((x) => (
             <div key={x.key} data-export-sheet>
-              <Sheet title={x.title} recs={x.recs} showDate={x.showDate} levels={levels} group={group} filterNote={filterNote} />
+              <PagedSheet title={x.title} recs={x.recs} showDate={x.showDate} levels={levels} group={group} filterNote={filterNote} />
             </div>
           ))}
         </div>
