@@ -51,7 +51,7 @@ Qualquer edição depois do OK desfaz o OK e exige novo OK.
 - A IA não escreve mais o resumo da análise (economiza uma chamada por OK).
 
 **Painel (aba 3)**
-- Tempo parado por motivo, por máquina, por hora do dia e maiores paradas, com filtro por grupo e dia.
+- Tempo parado por motivo (com % acumulado, estilo Pareto), por turno, por máquina, por hora do dia e maiores paradas, com filtro por grupo e dia. Inspirado nas páginas Diária e Paradas do Power BI.
 
 **Operação**
 - Código de acesso, limite de tentativas, contador de leituras do dia com "retomar leitura" quando a cota do Gemini acaba.
@@ -77,12 +77,11 @@ Qualquer edição depois do OK desfaz o OK e exige novo OK.
 - Folhas com letra muito ruim exigem mais conferência (o app avisa quais).
 - A cota diária do plano gratuito do Gemini limita o volume; o app mostra o consumo estimado.
 - Os limites de "parada normal" por motivo vêm do percentil 90 das ~2.200 paradas da planilha de controle (troca de peça 30 min, set-up 40, consumíveis 40, ponte rolante 30, Tyorei 60, mecânica e elétrica 120, outros 90, aguardando peça 150, falta de peça 360, preventiva 180). Ficam em `src/core/cards.js` e podem ser ajustados.
-- Chapas aparecem, nomes de funcionários não (não há tabela chapa → nome).
+- Nomes de operadores só aparecem se a pessoa importar a aba REFERENCIAS da planilha de controle; ficam só no navegador dela (ver `docs/PRIVACIDADE.md`).
 
 ## Próximos passos (candidatos, não prometidos)
 
 - Histórico em banco de dados — **recusado por enquanto** ("por hora não precisa").
-- Nome do operador por chapa (precisa da tabela de chapas).
 - Ler duas folhas em paralelo; detectar folha já lançada.
 - Trocar o código único de acesso por usuários.
 - Preparar para mais de uma fábrica (listas e modelos de folha por cliente), caso vire SaaS.

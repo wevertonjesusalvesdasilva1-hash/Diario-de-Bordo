@@ -26,3 +26,10 @@ test('painel filtra por grupo e dia, e reparte a parada por hora', () => {
   assert.equal(d.stopMin, 60);
   assert.equal(d.byHour[9], 30); assert.equal(d.byHour[10], 30);
 });
+
+test('painel: pareto acumulado e tempo parado por turno', () => {
+  const P = buildPanel(pages);
+  assert.equal(P.byMotivo.at(-1).acc, 100);
+  assert.ok(P.byMotivo[0].acc < 100 && P.byMotivo[0].acc >= P.byMotivo[0].min / P.stopMin * 100 - 1);
+  assert.equal(P.byTurno.reduce((s, t) => s + t.min, 0), P.stopMin);
+});

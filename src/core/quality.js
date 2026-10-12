@@ -1,6 +1,8 @@
 // Quality of the filling-in of the sheets: who leaves columns empty and which sheets are hard to read.
 // Pure functions on the reviewed pages; the results are cards for the analysis tab.
 
+import { whoText } from './operators.js';
+
 const READ = /ilegível|inválid|leitura|diferent|fora da lista|desconhecid|só uma|sem motivo/i;
 const NOT_READ = /duração|parada de|turno 3|iguais|data da folha/i;
 const MIN_ROWS = 3;      // fewer records than this say nothing about a person's habit
@@ -67,7 +69,7 @@ export function buildQuality(pages) {
         headline: `${machine}: o colaborador ${pr.verb} ${pr.what} em ${bad.length} de ${pool.length} registros (${pct(bad.length, pool.length)} %)${ps.length > 1 ? `, em ${sheets} de ${ps.length} folhas` : ''}.`,
         text: `${machine}: ${pr.kind} em ${bad.length} de ${pool.length} registros`,
         chips: [`Folhas: ${days.join(', ')}`, ...(pr.kind === 'sem chapa' ? [`Chapas que aparecem: ${uniq(pool.map((r) => r.chapa).filter(Boolean)).slice(0, 4).join(', ') || 'nenhuma'}`] : [])],
-        why: pr.why, meter: { part: bad.length, total: pool.length, label: pr.kind },
+        why: pr.why, meter: { part: bad.length, total: pool.length, label: pr.kind }, who: pr.kind === 'sem chapa' ? '' : whoText(bad.map((r) => r.chapa)),
         brief: `${pr.kind === 'sem chapa' ? 'Chapa em branco' : pr.kind === 'sem motivo' ? 'Parada sem motivo' : pr.kind === 'horário incompleto' ? 'Horário incompleto' : 'Data em branco'} em ${bad.length} de ${pool.length} registros`,
         refs: bad.filter((r) => r.p.id === first.p.id).slice(0, 8).map((r) => ({ table: r.table, linha: r.linha })),
       });
@@ -83,7 +85,7 @@ export function buildQuality(pages) {
     const mk = (list, problem, sev, headline, why) => {
       const first = list[0];
       cards.push({ sev, kind: 'preenchimento', problem, machine, page: first.p.id, label: first.p.label, day: day(first.p), table: first.table, ri: first.ri, linha: first.r.linha,
-        headline, text: headline, brief: problem === 'turno em branco' ? `Turno em branco em ${list.length} de ${all.length} linhas (preenchido pelo app)` : problem === 'turno incerto' ? `Turno incerto em ${list.length} linha(s)` : `Turno não bate com o horário em ${list.length} linha(s)`,
+        headline, text: headline, who: whoText(list.map((x) => x.r.chapa ?? x.r.chapa3 ?? x.r.chapa2 ?? x.r.chapa1)), brief: problem === 'turno em branco' ? `Turno em branco em ${list.length} de ${all.length} linhas (preenchido pelo app)` : problem === 'turno incerto' ? `Turno incerto em ${list.length} linha(s)` : `Turno não bate com o horário em ${list.length} linha(s)`,
         refs: list.filter((x) => x.p.id === first.p.id).slice(0, 8).map((x) => ({ table: x.table, linha: x.r.linha })), chips: [`Folhas: ${uniq(list.map((x) => day(x.p))).join(', ')}`], why, meter: { part: list.length, total: all.length, label: problem } });
     };
     if (blank.length - unsure.length >= 2) {
@@ -106,7 +108,7 @@ export function buildQuality(pages) {
       headline: `${p.machine || 'Folha'} · folha do dia ${day(p)}: letra difícil de ler. ${bad} de ${filled} células preenchidas (${pct(bad, filled)} %) ficaram ilegíveis, com leituras diferentes ou fora do esperado.`,
       text: `Folha do dia ${day(p)}: ${bad} de ${filled} células de leitura difícil`,
       chips: [`Folha ${p.label}`], why: 'Essas folhas dão mais trabalho na extração. Vale conferir célula a célula e pedir letra mais legível ao colaborador.',
-      meter: { part: bad, total: filled, label: 'células difíceis' }, brief: `${bad} de ${filled} células difíceis de ler`, refs: [],
+      meter: { part: bad, total: filled, label: 'células difíceis' }, who: whoText([...p.prod.flatMap((r) => [r.chapa1, r.chapa2, r.chapa3]), ...p.stops.map((r) => r.chapa)]), brief: `${bad} de ${filled} células difíceis de ler`, refs: [],
     });
   }
   const RANK = { alta: 0, media: 1 };

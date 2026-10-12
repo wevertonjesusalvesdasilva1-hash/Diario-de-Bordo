@@ -55,7 +55,7 @@ export function buildEvents(pages) {
       if (!r.ini && !r.fim) return;
       const seg = segment(r.data, r.ini, r.fim);
       if (!seg) { skipped.push({ ...base, table: 'stops', ri, linha: r.linha, text: `Parada da linha ${r.linha || ri + 1}: data ou horário incompleto, ficou fora do cruzamento` }); return; }
-      events.push({ ...base, type: 'stop', table: 'stops', ri, linha: r.linha, ...seg, chapa: r.chapa, motivo: r.motivo, desc: r.desc });
+      events.push({ ...base, type: 'stop', table: 'stops', ri, linha: r.linha, ...seg, chapa: r.chapa, turno: r.turno, motivo: r.motivo, desc: r.desc });
     });
   }
   return { events, skipped };

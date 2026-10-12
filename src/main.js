@@ -10,6 +10,8 @@ import { inferTurnos } from './core/turno.js';
 import { buildPage, reconcile, applyInkMotivo, alignRows, alignJson, collectAsk, applyThirdReading, normMachine } from './core/rows.js';
 import { decodeEntities } from './core/text.js';
 import { TIERS } from './core/report.js';
+import { parseOperatorRows, getOperators, setOperators, clearOperators } from './core/operators.js';
+import * as XLSX from 'xlsx';
 import { recordEdit, recordRemoval, describeEdit } from './core/edits.js';
 import { buildPanel } from './core/panel.js';
 import { allRows, toTSV, workbookBytes } from './core/export.js';
@@ -632,6 +634,7 @@ function flipCard(c) {
     h('div', { class: 'ftitle' }, c.title),
     c.big ? h('div', { class: 'fbig2' }, h('b', {}, c.big), h('small', {}, c.bigLabel)) : null,
     h('p', { class: 'fbrief' }, c.brief),
+    c.who ? h('p', { class: 'fwho' }, h('span', {}, 'Operador'), c.who) : null,
     h('div', { class: 'ffoot' }, h('span', {}, c.day ? `Folha do dia ${c.day}` : c.label), h('span', { class: 'fhint' }, 'Ver folha ↻')));
   const back = h('div', { class: 'face back' },
     sheetView(c),
@@ -719,8 +722,11 @@ function renderPanel() {
         tile('Maior parada', P.longest ? fmtDur(P.longest.min) : '—', P.longest ? `${P.longest.machine} · ${P.longest.motivo}` : ''))),
     h('section', { class: 'card' }, h('h3', {}, 'Tempo parado por motivo'),
       P.byMotivo.length ? P.byMotivo.map((x) => h('div', { class: 'brow' }, h('span', {}, x.motivo),
-        h('div', { class: 'track' }, h('i', { style: `width:${Math.round((x.min / maxMot) * 100)}%;background:${motColor(x.motivo)}` })), h('b', {}, `${fmtDur(x.min)} · ${x.count}×`)))
+        h('div', { class: 'track' }, h('i', { style: `width:${Math.round((x.min / maxMot) * 100)}%;background:${motColor(x.motivo)}` })), h('b', {}, `${fmtDur(x.min)} · ${x.count}× · ${x.acc}% acum.`)))
         : h('p', { class: 'note' }, 'Nenhuma parada registrada.')),
+    h('section', { class: 'card' }, h('h3', {}, 'Tempo parado por turno'),
+      P.byTurno.map((x) => h('div', { class: 'brow' }, h('span', {}, x.turno === '?' ? 'Sem turno' : `Turno ${x.turno}`),
+        h('div', { class: 'track' }, h('i', { style: `width:${Math.round((x.min / Math.max(1, ...P.byTurno.map((y) => y.min))) * 100)}%` })), h('b', {}, fmtDur(x.min))))),
     h('section', { class: 'card' }, h('h3', {}, 'Tempo parado por máquina'), legend,
       P.byMachine.map((m) => h('div', { class: 'brow' }, h('span', {}, m.name, h('small', {}, ` ${m.pct} % parada`)),
         h('div', { class: 'track plain' }, stack(m)), h('b', {}, fmtDur(m.stopMin))))),
@@ -1056,3 +1062,24 @@ document.addEventListener('keydown', (e) => {
   const f = e.target.closest?.('.flip');
   if (f && e.target === f && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); f.click(); }
 });
+
+// ---------------------------------------------------------------- operadores (nomes só neste navegador)
+function showOperators() {
+  const n = Object.keys(getOperators()).length;
+  $('opinfo').textContent = n ? `${n} operador(es) carregado(s) neste navegador.` : 'Nenhum nome carregado.';
+}
+function refreshAnalysis() { if (state.reviewed) { state.analysis = analyseSheets(includedPages()); if (state.tab === 'analysis') renderAnalysis(); } }
+$('opfile').addEventListener('change', async (e) => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  try {
+    const wb = XLSX.read(await file.arrayBuffer());
+    const name = wb.SheetNames.find((n) => /referenc/i.test(n));
+    const ops = name ? parseOperatorRows(XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' })) : {};
+    if (!Object.keys(ops).length) return toast('Não achei a aba REFERENCIAS com as colunas Chapa e Nome nesse arquivo.');
+    setOperators(ops); showOperators(); refreshAnalysis();
+    toast(`${Object.keys(ops).length} operadores carregados. Os nomes ficam só neste navegador.`);
+  } catch (err) { toast(`Não consegui abrir a planilha: ${err.message}`); }
+});
+$('opclear').addEventListener('click', () => { clearOperators(); showOperators(); refreshAnalysis(); toast('Nomes apagados deste navegador.'); });
+showOperators();

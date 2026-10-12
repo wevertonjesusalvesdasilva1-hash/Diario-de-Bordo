@@ -30,7 +30,7 @@ export function buildReport(a) {
     if (!tier) return;
     out.push({
       tier, kind, title: TITLE[kind] ?? kind, sev: c.sev === 'info' ? 'media' : c.sev, machine: c.machine, day: c.day ?? '', page: c.page, label: c.label,
-      table: c.table, ri: c.ri, linha: c.linha, refs: c.refs ?? [], brief: c.brief ?? c.text, text: c.headline ?? c.text, why: c.why ?? '',
+      table: c.table, ri: c.ri, linha: c.linha, refs: c.refs ?? [], brief: c.brief ?? c.text, who: c.who ?? '', text: c.headline ?? c.text, why: c.why ?? '',
       big: c.viz?.big ?? (c.meter ? `${Math.round((c.meter.part / c.meter.total) * 100)} %` : ''),
       bigLabel: c.viz?.bigLabel ?? (c.meter ? `${c.meter.part} de ${c.meter.total}` : ''), viz: c.viz ?? null, ...extra,
     });

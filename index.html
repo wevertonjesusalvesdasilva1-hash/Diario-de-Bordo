@@ -138,6 +138,15 @@
           <button id="resetlists" type="button" class="ghost">Restaurar padrão</button>
           <span class="note" id="learned"></span>
         </div>
+        <div class="oper">
+          <h4>Operadores (nomes ficam só neste navegador)</h4>
+          <p class="note">Importe a aba REFERENCIAS da planilha de controle (chapa, nome e turno). Os nomes aparecem nos cards da análise e nunca são enviados a nenhum servidor.</p>
+          <div class="row">
+            <label class="camera">Importar planilha (.xlsx)<input id="opfile" type="file" accept=".xlsx,.xls" hidden></label>
+            <button id="opclear" type="button" class="ghost">Apagar nomes</button>
+            <span class="note" id="opinfo"></span>
+          </div>
+        </div>
         <div class="row">
           <label>Limite diário de chamadas do Gemini <input id="limit" type="number" min="0" step="10" style="width:7rem" placeholder="250"></label>
           <span class="note">Padrão 250 (um palpite). Serve só para estimar quantas folhas ainda cabem no dia; o valor real da sua conta está em aistudio.google.com/usage.</span>

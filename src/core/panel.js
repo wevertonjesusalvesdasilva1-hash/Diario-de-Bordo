@@ -14,6 +14,7 @@ export function buildPanel(pages, { group = 'all', day = 'all' } = {}) {
   const machines = new Map();
   const motivos = new Map();
   const byHour = new Array(24).fill(0);
+  const turnos = new Map();
   const stops = [];
   for (const e of ev) {
     const m = machines.get(e.machine) ?? { name: e.machine, prodMin: 0, stopMin: 0, count: 0, motivos: new Map() };
@@ -25,6 +26,7 @@ export function buildPanel(pages, { group = 'all', day = 'all' } = {}) {
     m.motivos.set(mot, (m.motivos.get(mot) ?? 0) + dur);
     const o = motivos.get(mot) ?? { motivo: mot, min: 0, count: 0 };
     o.min += dur; o.count++; motivos.set(mot, o);
+    const tk = e.turno || '?'; turnos.set(tk, (turnos.get(tk) ?? 0) + dur);
     // spread the stop over the hours it covers
     for (let t = e.start; t < e.end;) {
       const next = Math.min(e.end, (Math.floor(t / 60) + 1) * 60);
@@ -41,7 +43,8 @@ export function buildPanel(pages, { group = 'all', day = 'all' } = {}) {
     days, prodMin, stopMin, count: stops.length,
     pct: prodMin + stopMin ? Math.round((stopMin / (prodMin + stopMin)) * 100) : 0,
     longest: stops[0] ?? null,
-    byMotivo: [...motivos.values()].sort((a, b) => b.min - a.min),
+    byMotivo: (() => { let acc = 0; const list = [...motivos.values()].sort((a, b) => b.min - a.min); return list.map((x) => { acc += x.min; return { ...x, acc: stopMin ? Math.round((acc / stopMin) * 100) : 0 }; }); })(),
+    byTurno: [...turnos].sort((a, b) => String(a[0]).localeCompare(String(b[0]))).map(([turno, min]) => ({ turno, min })),
     byMachine, byHour, top: stops.slice(0, 8),
   };
 }

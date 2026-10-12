@@ -12,7 +12,7 @@ Ele **documenta** o funcionamento do app; não substitui a avaliação do juríd
 | Máquina, peça, modelo, motivo da parada | Não | Dados de processo. |
 | Comentários escritos à mão (descrição, observações) | Pode ser | Dependendo do que o colaborador escreveu. |
 
-O app **não** lê nem guarda o nome do funcionário: só a chapa.
+O app lê só a **chapa**. Os **nomes** dos operadores só aparecem nos cards se a própria pessoa importar a planilha de controle (aba REFERENCIAS) em Listas de conferência → Operadores. Esses nomes ficam **apenas no navegador** de quem importou (armazenamento local), **nunca vão para o repositório, para o servidor ou para o Gemini**, e podem ser apagados com "Apagar nomes". A tabela chapa → turno (sem nomes) faz parte do código.
 
 ## Caminho dos dados
 
