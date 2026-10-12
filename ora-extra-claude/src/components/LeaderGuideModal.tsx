@@ -93,15 +93,7 @@ export const LeaderGuideModal: React.FC<LeaderGuideModalProps> = ({
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800">
-          <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={hideOnStartup}
-              onChange={(e) => onToggleHideOnStartup(e.target.checked)}
-              className="rounded border-slate-700 bg-slate-950 text-emerald-500"
-            />
-            <span>Não abrir automaticamente ao iniciar</span>
-          </label>
+          <span />
 
           <button
             type="button"

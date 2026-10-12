@@ -188,13 +188,8 @@ export default function App() {
       return false;
     }
   });
-  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(STORAGE_HIDE_GUIDE_KEY) !== 'true';
-    } catch {
-      return true;
-    }
-  });
+  // O guia nunca abre sozinho: só pelo botão "Como usar".
+  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
 
   const handleToggleHideGuideOnStartup = (hide: boolean) => {
     setHideGuideOnStartup(hide);
