@@ -82,7 +82,7 @@ function Sheet({
   const s = useMemo(() => buildSummary(recs), [recs]);
   const rows = useMemo(() => buildRows(recs, sort, group), [recs, sort, group]);
   const [r1, r2] = halves(rows);
-  const cols = ['Data', '#', 'Chapa', 'Funcionário', 'Peça', 'CC', 'Líder', 'Transporte'];
+  const cols = ['Data', '#', 'Chapa', 'Funcionário', 'Peça', 'CC', 'Líder', 'Horário', 'Transporte'];
 
   const table = (list: typeof rows) => (
     <table className="w-full text-[10.5px] border-collapse self-start">
@@ -110,6 +110,7 @@ function Sheet({
               <td className="pr-1.5">{x.r.motivoHe}</td>
               <td className="pr-1.5">{x.r.cc}</td>
               <td className="pr-1.5">{x.r.lider}</td>
+              <td className="pr-1.5 whitespace-nowrap tabular-nums font-semibold">{x.r.de && x.r.ate ? `${x.r.de}–${x.r.ate}` : '—'}</td>
               <td className="pr-1.5">{transpLabel(x.r)}</td>
             </tr>
           ),
