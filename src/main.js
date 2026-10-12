@@ -474,8 +474,8 @@ document.addEventListener('click', (e) => {
   if (tl) { openCardModal(tl.dataset.open); return; }
   const sw = e.target.closest('.sheetwrap');
   if (sw) { openSheetViewer(sw); return; }
-  const flip = e.target.closest('.flip');
-  if (flip && !e.target.closest('button, a')) { const on = flip.classList.toggle('flipped'); flip.setAttribute('aria-pressed', String(on)); return; }
+  const to = e.target.closest('button[data-flipto]');
+  if (to) { const f = to.closest('.flip'); f.classList.add('flipped'); f.setAttribute('aria-pressed', 'true'); return; }
   if (e.target.closest('button[data-flip]')) { const f = e.target.closest('.flip'); f.classList.remove('flipped'); f.setAttribute('aria-pressed', 'false'); return; }
   const nav = e.target.closest('button[data-nav]');
   if (nav) { if (nav.dataset.nav === 'undo') $('undook').click(); else showTab('read'); return; }
@@ -662,11 +662,11 @@ function flipCard(c) {
     c.fix ? h('div', { class: 'ffix' }, c.fix) : null,
     c.caution ? h('p', { class: 'fcaution' }, '⚠ ', c.caution) : null,
     (c.lines ?? []).length ? h('details', { class: 'fread' }, h('summary', {}, 'Ver os dados lidos'), (c.lines ?? []).map((l) => h('div', { class: 'fline' }, l))) : null,
-    h('div', { class: 'ffoot' }, h('span', {}, c.day ? `Folha do dia ${c.day}` : c.label), h('span', { class: 'fhint' }, 'Ver folha ↻')));
+    h('div', { class: 'ffoot' }, h('span', {}, c.day ? `Folha do dia ${c.day}` : c.label), h('button', { type: 'button', class: 'viewbtn', dataset: { flipto: '1' } }, 'Ver folha ↻')));
   const back = h('div', { class: 'face back' },
     sheetView(c),
     h('div', { class: 'fbtns' }, goBtn(c), h('button', { type: 'button', class: 'ghost ok', dataset: { dismiss: c.key }, title: 'A folha está certa: tira este aviso' }, 'Anotação correta ✓'), h('button', { type: 'button', class: 'ghost', dataset: { flip: '1' } }, 'Voltar ↻')));
-  return h('article', { class: `flip ${c.sev}`, style: `--kc:${c.color}`, tabindex: '0', role: 'button', 'aria-pressed': 'false', 'aria-label': `${c.machine}: ${c.title}. Clique para virar.` }, h('div', { class: 'flip-in' }, front, back));
+  return h('article', { class: `flip ${c.sev}`, style: `--kc:${c.color}`, tabindex: '0', 'aria-pressed': 'false', 'aria-label': `${c.machine}: ${c.title}` }, h('div', { class: 'flip-in' }, front, back));
 }
 
 function closeCardModal() { const m = $('cardmodal'); if (m) { m.classList.add('out'); setTimeout(() => m.remove(), 180); } document.removeEventListener('keydown', onCardKey); }
@@ -1153,7 +1153,7 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
 try { if (!localStorage.getItem('mt-help') && $('lock').hidden) setTimeout(() => { if ($('lock').hidden) openHelp(); }, 600); } catch { /* ignore */ }
 
 document.addEventListener('keydown', (e) => {
-  const f = e.target.closest?.('.flip, .acard');
+  const f = e.target.closest?.('.acard');
   if (f && e.target === f && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); f.click(); }
 });
 
