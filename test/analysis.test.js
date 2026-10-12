@@ -28,8 +28,9 @@ test('formato de duração', () => {
 });
 
 test('tempo padrão vem da matriz da planilha', () => {
-  assert.equal(standardHours('RAW05', 'LANÇA', 'PC210F-10M0'), 4.717);
-  assert.equal(standardHours('RAW05', 'lança', 'pc210f-10m0'), 4.717);
+  assert.equal(standardHours('RAW05', 'LANÇA', 'PC210F-10M0'), 4.7167);
+  assert.equal(standardHours('RAW05', 'lança', 'pc210f-10m0'), 4.7167);
+  assert.equal(standardHours('RAW10', 'COLAR-CENTER FRAME', 'PC210F-10M0'), null); // sem tempo padrão na matriz
   assert.equal(standardHours('RAW05', 'XYZ', 'ABC'), null);
 });
 

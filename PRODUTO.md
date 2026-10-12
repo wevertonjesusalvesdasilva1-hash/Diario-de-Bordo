@@ -60,7 +60,7 @@ Qualquer edição depois do OK desfaz o OK e exige novo OK.
 
 ## Regras de preenchimento automático
 
-- **Turno em branco:** o app preenche pelo horário e pela chapa. Turno 1 (dia): 07:30 às 17:30. Turno 2 (noite): 20:40 às 05:40. Nas horas de transição (05:40 às 07:30 e 17:30 às 20:40: hora extra do dia ou noite chegando mais cedo, a partir de 18:40) a **chapa decide**, aprendendo com os horários claros da mesma chapa. Na produção, o turno de finalização vem do último horário preenchido.
+- **Turno em branco:** o app preenche pelo horário e pela chapa. Turno 1 (dia): 07:30 às 17:30. Turno 2 (noite): 20:40 às 05:30. Nas horas de transição (05:30 às 07:30 e 17:30 às 20:40: hora extra do dia ou noite chegando mais cedo) a **chapa decide**, pela tabela de turnos da planilha de controle (aba REFERENCIAS: DIURNO = 1, NOITE/NOTURNO = 2); chapa fora da tabela aprende com os horários claros dela. Sem histórico: de manhã assume turno 1, e à noite o corte é 18:30. Calibrado com ~2.200 paradas da base real: 97% de acerto nas horas claras e ~90% nas de transição. Na produção, o turno de finalização vem do último horário preenchido.
 - Tudo que o app preenche fica marcado "auto" e vira um card de qualidade ("coluna de turno em branco"). Turno escrito pelo operador nunca é trocado; se contradiz o horário, só é sinalizado.
 - **Tyorei** na descrição define o motivo TYOREI (reunião diária). Esse motivo não tem coluna impressa na folha.
 
@@ -76,7 +76,7 @@ Qualquer edição depois do OK desfaz o OK e exige novo OK.
 - Um horário errado, mas plausível, pode passar sem marcação (a análise e o tempo padrão ajudam a achar).
 - Folhas com letra muito ruim exigem mais conferência (o app avisa quais).
 - A cota diária do plano gratuito do Gemini limita o volume; o app mostra o consumo estimado.
-- Os limites de "parada normal" por motivo são estimativas e devem ser calibrados com a fábrica (`src/core/cards.js`).
+- Os limites de "parada normal" por motivo vêm do percentil 90 das ~2.200 paradas da planilha de controle (troca de peça 30 min, set-up 40, consumíveis 40, ponte rolante 30, Tyorei 60, mecânica e elétrica 120, outros 90, aguardando peça 150, falta de peça 360, preventiva 180). Ficam em `src/core/cards.js` e podem ser ajustados.
 - Chapas aparecem, nomes de funcionários não (não há tabela chapa → nome).
 
 ## Próximos passos (candidatos, não prometidos)

@@ -4,7 +4,7 @@ export const CHAPAS = ['11596', '7910', '11833', '10977', '11647', '11046', '122
 
 export const PECAS = [
   'VIGA BULLD', 'VIGA PC', 'LANÇA', 'CENTER FRAME', 'SUB BRACKET', 'BRACKET', 'S-CASE',
-  'COLAR-CENTER FRAME', 'BOOM WA', 'ARTICULAÇÃO', 'FRAME TOP', 'LAMINA', 'ESTRUTURA', 'REFORÇO',
+  'COLAR-CENTER FRAME', 'BOOM WA', '1° OP LANÇA', '2° OP LANÇA REFORÇO', 'ARTICULAÇÃO', 'FRAME TOP', 'LAMINA', 'ESTRUTURA', 'REFORÇO',
 ];
 
 export const MODELOS = [
@@ -19,6 +19,9 @@ export const MOTIVOS = [
   'MECÂNICA', 'ELÉTRICA', 'PREVENTIVA', 'AGUARD. PEÇA', 'PONTE ROLANTE',
   'CONSUMIVEIS', 'TROCA DE PEÇA', 'SET-UP', 'OUTROS', 'FALTA DE PEÇA',
 ];
+
+// Turno de cada chapa, da aba REFERENCIAS da planilha de controle (DIURNO = 1, NOITE/NOTURNO = 2). Só números, sem nomes.
+export const CHAPA_TURNO = { 11596: '2', 7910: '1', 11833: '1', 10977: '1', 11647: '1', 11046: '2', 12273: '1', 10785: '2', 11678: '2' };
 
 // Motivo extra, fora das 10 colunas impressas (não tem X na folha): vem da palavra escrita na descrição.
 export const MOTIVOS_EXTRA = ['TYOREI'];

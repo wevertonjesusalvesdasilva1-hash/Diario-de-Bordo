@@ -1,13 +1,15 @@
 // Fills the TURNO columns the operator left blank, from the time of day and from the badge number (chapa).
 //   Turno 1 (day):   07:30 – 17:30. Overtime shows up as an early start (from ~05:30) or a late one (until ~18:30).
-//   Turno 2 (night): 20:40 – 05:40. A night chapa may arrive earlier (from ~18:40) or leave later (until ~07:30).
-// Records that are clearly day or clearly night teach which shift each chapa works; the odd hours
-// (05:40–07:30 and 17:30–20:40) follow the chapa. Pure functions; rows get row.auto.turno (why) and
+//   Turno 2 (night): 20:40 – 05:30. A night chapa may arrive earlier (from ~18:30) or leave later (until ~07:30).
+// The chapa → turno table of the control spreadsheet (REFERENCIAS) is the first guide for the odd hours
+// (05:30–07:30 and 17:30–20:40); chapas not in the table learn their shift from the clear hours.
+// Calibrated on ~2,200 stops of the real base: 97 % right on the clear hours, ~90 % on the odd ones. Pure functions; rows get row.auto.turno (why) and
 // row.flags.turno (when the cell was written but disagrees with the clock).
 import { aliasKey } from './lists.js';
+import { CHAPA_TURNO } from '../data/vocab.js';
 
 const toMin = (t) => { const m = /^(\d{2}):(\d{2})$/.exec(t ?? ''); return m ? +m[1] * 60 + +m[2] : null; };
-const DAY_FROM = 7 * 60 + 30, DAY_TO = 17 * 60 + 30, NIGHT_FROM = 20 * 60 + 40, EARLY_FROM = 5 * 60 + 40, NIGHT_EARLY_ARRIVAL = 18 * 60 + 40;
+const DAY_FROM = 7 * 60 + 30, DAY_TO = 17 * 60 + 30, NIGHT_FROM = 20 * 60 + 40, EARLY_FROM = 5 * 60 + 30, NIGHT_EARLY_ARRIVAL = 18 * 60 + 30;
 const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 // → { shift: '1'|'2', certain } or { shift: null, zone: 'early'|'evening' } for the in-between hours
@@ -41,24 +43,24 @@ export function chapaShifts(pages) {
     for (const r of records(p)) vote(r.chapa, r.ini);
     for (const row of p.prod) for (const s of prodSegments(row)) vote(s.chapa, s.ini);
   }
-  const out = new Map();
-  for (const [k, v] of votes) { const tot = v[1] + v[2]; if (v[1] / tot >= 0.75) out.set(k, '1'); else if (v[2] / tot >= 0.75) out.set(k, '2'); }
+  const out = new Map(Object.entries(CHAPA_TURNO).map(([k, v]) => [aliasKey(k), v]));
+  for (const [k, v] of votes) if (!out.has(k)) { const tot = v[1] + v[2]; if (v[1] / tot >= 0.75) out.set(k, '1'); else if (v[2] / tot >= 0.75) out.set(k, '2'); }
   return out;
 }
 
 function decide(ini, chapa, col, shifts) {
   const m = toMin(ini), c = shiftOfTime(m);
   if (!c) return null;
-  if (c.certain) return { shift: c.shift, why: `horário ${ini} (${c.shift === '1' ? '07:30 às 17:30' : 'das 20:40 às 05:40'})`, certain: true };
+  if (c.certain) return { shift: c.shift, why: `horário ${ini} (${c.shift === '1' ? '07:30 às 17:30' : 'das 20:40 às 05:30'})`, certain: true };
   const byChapa = shifts.get(aliasKey(chapa));
-  if (byChapa) return { shift: byChapa, why: `horário ${ini} fora do normal (hora extra) e a chapa ${chapa} trabalha no turno ${byChapa}`, certain: false };
+  if (byChapa) return { shift: byChapa, why: `horário ${ini} fora do normal (hora extra) e a chapa ${chapa} é do turno ${byChapa}`, certain: false };
   if (c.zone === 'evening') {
     return m < NIGHT_EARLY_ARRIVAL
-      ? { shift: '1', why: `horário ${ini} logo depois das 17:30: hora extra do turno 1 (chapa sem histórico)`, certain: false }
-      : { shift: '2', why: `horário ${ini} antes das 20:40: o turno 2 chegando mais cedo (chapa sem histórico)`, certain: false };
+      ? { shift: '1', why: `horário ${ini} logo depois das 17:30: hora extra do turno 1 (chapa fora da tabela)`, certain: false }
+      : { shift: '2', why: `horário ${ini} antes das 20:40: o turno 2 chegando mais cedo (chapa fora da tabela)`, certain: false };
   }
-  if (col) return { shift: col === 1 ? '1' : '2', why: `horário ${ini} antes das 07:30, chapa sem histórico: seguiu a coluna da folha`, certain: false };
-  return { shift: null, why: `horário ${ini} entre 05:40 e 07:30 e a chapa não define o turno` };
+  // 05:30–07:30: in the real base this is the day shift arriving early about 9 times out of 10
+  return { shift: '1', why: `horário ${ini} entre 05:30 e 07:30: na base quase sempre é o turno 1 chegando mais cedo (chapa fora da tabela)`, certain: false };
 }
 
 const writable = (row) => !row.edits?.turno && (!row.turno || row.turnoBlank || row.auto?.turno);

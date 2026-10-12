@@ -11,29 +11,30 @@ test('faixas de horário dos turnos', () => {
   assert.equal(shiftOfTime(m('07:30')).shift, '1');
   assert.equal(shiftOfTime(m('17:29')).shift, '1');
   assert.equal(shiftOfTime(m('20:40')).shift, '2');
-  assert.equal(shiftOfTime(m('05:39')).shift, '2');
+  assert.equal(shiftOfTime(m('05:29')).shift, '2');
   assert.equal(shiftOfTime(m('19:00')).zone, 'evening');
-  assert.equal(shiftOfTime(m('05:40')).zone, 'early');
+  assert.equal(shiftOfTime(m('05:30')).zone, 'early');
   assert.equal(shiftOfTime(m('06:30')).zone, 'early');
   assert.equal(shiftOfTime(m('18:00')).zone, 'evening');
 });
 
-test('turno em branco é preenchido pelo horário e a chapa decide as horas extras', () => {
+test('turno em branco: horário claro decide; nas horas de transição vale a tabela de chapas (REFERENCIAS)', () => {
   const page = { id: 1, label: 'f', machine: 'RAW05', date: '02/10/2026', prod: [], stops: [
     stop(1, '09:00', '09:30', '7910'), stop(2, '23:00', '23:30', '11678'),
-    stop(3, '05:40', '06:30', '7910'),   // 7910 é do dia: hora extra de manhã → turno 1
-    stop(4, '06:00', '07:00', '11678'),  // 11678 é da noite: saindo mais tarde → turno 2
-    stop(5, '18:00', '18:20', '7910'),   // logo depois das 17:30, chapa do dia → turno 1
-    stop(7, '19:10', '19:20', '8888'),   // chapa sem histórico, 19:10: noite chegando mais cedo → turno 2
-    stop(6, '06:00', '06:30', '9999'),   // chapa sem histórico, horário ambíguo → incerto
+    stop(3, '05:40', '06:30', '7910'),   // 7910 é DIURNO: hora extra de manhã → turno 1
+    stop(4, '06:00', '07:00', '11678'),  // 11678 é NOTURNO: saindo mais tarde → turno 2
+    stop(5, '18:00', '18:20', '7910'),   // logo depois das 17:30, chapa DIURNA → turno 1
+    stop(7, '19:10', '19:20', '8888'),   // chapa fora da tabela, 19:10: noite chegando mais cedo → turno 2
+    stop(6, '06:00', '06:30', '9999'),   // chapa fora da tabela, 06:00: na base é quase sempre o turno 1
   ] };
   const filled = inferTurnos([page]);
-  assert.deepEqual(page.stops.map((r) => r.turno), ['1', '2', '1', '2', '1', '2', '']);
-  assert.equal(filled, 6);
+  assert.deepEqual(page.stops.map((r) => r.turno), ['1', '2', '1', '2', '1', '2', '1']);
+  assert.equal(filled, 7);
   assert.match(page.stops[2].auto.turno, /hora extra/);
-  assert.match(page.stops[6].flags.turno, /incerto/);
   assert.match(page.stops[5].auto.turno, /20:40/);
+  assert.match(page.stops[6].auto.turno, /quase sempre é o turno 1/);
   assert.equal(chapaShifts([page]).get('7910'), '1');
+  assert.equal(chapaShifts([page]).get('11046'), '2');
 });
 
 test('turno escrito que contradiz o horário só é sinalizado; o escrito não é trocado', () => {

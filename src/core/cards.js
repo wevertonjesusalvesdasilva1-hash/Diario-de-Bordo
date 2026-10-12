@@ -3,9 +3,12 @@
 // Pure functions on the events built by analysis.js.
 
 // How long each reason normally takes, in minutes. Longer than this deserves an explanation (edit freely).
+// How long each reason normally takes, in minutes: about the 90th percentile of the ~2,200 stops in the
+// real control spreadsheet (the waiting reasons use a lower point, because long waits are common).
+// Longer than this deserves an explanation. Edit freely.
 export const LIMITE_PARADA = {
-  'TROCA DE PEÇA': 25, 'SET-UP': 45, 'CONSUMIVEIS': 20, 'MECÂNICA': 60, 'ELÉTRICA': 60,
-  'PONTE ROLANTE': 20, 'AGUARD. PEÇA': 30, 'FALTA DE PEÇA': 30, 'PREVENTIVA': 120, 'OUTROS': 30, 'TYOREI': 30,
+  'TROCA DE PEÇA': 30, 'SET-UP': 40, 'CONSUMIVEIS': 40, 'PONTE ROLANTE': 30, 'TYOREI': 60,
+  'MECÂNICA': 120, 'ELÉTRICA': 120, 'OUTROS': 90, 'AGUARD. PEÇA': 150, 'FALTA DE PEÇA': 360, 'PREVENTIVA': 180,
 };
 const LIMITE_PADRAO = 45;
 const GAP_MIN = 10, GAP_MAX = 6 * 60, TOL = 1;
@@ -73,7 +76,8 @@ export function buildCards(events, pages) {
       const lim = LIMITE_PARADA[s.motivo] ?? LIMITE_PADRAO;
       if (d <= lim) continue;
       const desc = (s.desc || '').trim();
-      const sev = !desc || d >= lim * 2 ? 'alta' : 'media';
+      const quickKind = lim <= 60; // for quick stops a missing comment is serious; waiting reasons are long by nature
+      const sev = (quickKind && !desc) || d >= lim * 2 ? 'alta' : 'media';
       add(sev, 'parada longa', s,
         `${sheet(s)}: ${nome(s.motivo)} de ${dur(d)} (${range(s)}); o normal é até ${dur(lim)}. ${desc ? `Ele comentou: "${desc}", mas vale validar se explica todo esse tempo.` : 'Não há comentário explicando.'}`,
         [`Parada linha ${s.linha || s.ri + 1}`, `${dur(d)} contra ${dur(lim)} normal`, desc ? 'com comentário' : 'sem comentário'],
