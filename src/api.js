@@ -8,7 +8,7 @@ export const setCode = (c) => { try { localStorage.setItem(KEY, c); } catch { /*
 
 export async function apiPost(path, body) {
   const res = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json', 'x-access-code': getCode() }, body: JSON.stringify(body) });
-  if (path !== '/api/login') bump();
+  if (path !== '/api/login') bump(1, path);
   if (res.status === 401) window.dispatchEvent(new CustomEvent('need-login'));
   if (res.status === 429) {
     const peek = await res.clone().json().catch(() => ({}));

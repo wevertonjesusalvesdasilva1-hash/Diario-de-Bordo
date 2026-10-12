@@ -4,7 +4,7 @@ import { analyze as analyseSheets, compactForAI, fmtDur } from './core/analysis.
 import { inkIn, cropToPaper } from './core/image.js';
 import { readSheet } from './core/gemini.js';
 import { apiPost, checkLogin, login } from './api.js';
-import { usageText, nearLimit, getLimit, setLimit, quotaHit, clearQuota } from './usage.js';
+import { usageText, usageHint, sheetsLeft, sheetRead, nearLimit, getLimit, setLimit, quotaHit, clearQuota } from './usage.js';
 import { buildPage, reconcile, applyInkMotivo, alignRows, alignJson, collectAsk, applyThirdReading, normMachine } from './core/rows.js';
 import { decodeEntities } from './core/text.js';
 import { recordEdit, recordRemoval, describeEdit } from './core/edits.js';
@@ -165,6 +165,7 @@ async function readPage(p) {
     const built = buildPage(json, { year: Number($('year').value) || new Date().getFullYear(), meta: { machineFromBubble: sec.bubble } });
     const rowWarns = alignRows(built, sec.rowInk);
     applyInkMotivo(built, sec.inkMotivo);
+    sheetRead();
     Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk, rowWarn: rowWarns.join('; '), crop: sec.crop });
     for (const r of p.prod) r.strip = sec.strips.prod[r.linha - 1];
     for (const r of p.stops) r.strip = sec.strips.stops[r.linha - 1];
@@ -211,6 +212,7 @@ async function processFiles(files, { append = false } = {}) {
   try {
     for await (const item of readFiles(files)) {
       n++;
+      if (item.page === 1 && getLimit() && item.total > sheetsLeft()) toast(`Este arquivo tem ${item.total} folha(s) e cabem só cerca de ${sheetsLeft()} hoje pela cota estimada. A leitura continua e, se a cota acabar, você retoma depois.`);
       st.replaceChildren(h('div', {}, `Lendo ${item.name}, página ${item.page}${item.total > 1 ? ` de ${item.total}` : ''}… não feche esta aba.`), h('progress', { max: item.total, value: item.page - 1 }));
       await new Promise((r) => setTimeout(r)); // let the browser paint
       const prep = prepare(item.image, { photo: !!item.photo });
@@ -968,6 +970,8 @@ checkLogin().then((st) => { if (st.required && !st.ok) showLock(); });
 
 function updateUsage() {
   $('usage-text').textContent = usageText();
+  $('usage').title = usageHint();
+  const left = $('sheetsleft'); if (left) left.textContent = getLimit() ? `Ainda cabem cerca de ${sheetsLeft()} folhas hoje (1 página do PDF = 1 folha, com produção e paradas).` : '';
   $('usage').classList.toggle('low', nearLimit());
 }
 function pendingPages() { return state.pages.filter((p) => p.status === 'erro' && p.pending && secrets.has(p.id)); }
@@ -992,6 +996,7 @@ $('resume').addEventListener('click', resumePending);
 $('quotaclear').addEventListener('click', () => { clearQuota(); state.quotaHit = false; updateQuotaUi(); });
 window.addEventListener('usage', () => { updateUsage(); updateQuotaUi(); });
 $('limit').value = getLimit() || '';
+updateUsage();
 $('limit').addEventListener('change', () => setLimit($('limit').value));
 updateUsage();
 

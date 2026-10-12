@@ -38,7 +38,7 @@
       </div>
     </div>
     <div class="top-actions">
-      <span class="live" id="usage" title="Estimativa feita neste navegador: o Gemini não informa a cota que sobra. Veja o valor real em aistudio.google.com/usage"><i></i><span id="usage-text">Leituras hoje 0</span></span>
+      <span class="live" id="usage" title="Estimativa feita neste navegador: o Gemini não informa a cota que sobra. Veja o valor real em aistudio.google.com/usage"><i></i><span id="usage-text">≈ 100 folhas restantes</span></span>
       <button id="theme" type="button" class="ghost" aria-label="Alternar tema claro ou escuro">Tema claro</button>
     </div>
   </header>
@@ -66,6 +66,7 @@
         <p><label class="camera">Fotografar folha<input id="camera" type="file" accept="image/*" capture="environment" hidden></label></p>
         <p class="note">PDF com várias páginas ou fotos JPG/PNG. A página pode estar girada ou levemente torta. Cada folha é lida duas vezes e as diferenças ficam marcadas (cerca de 1 minuto por folha).</p>
       </div>
+      <p class="note" id="sheetsleft"></p>
       <label class="row">Ano das datas
         <input id="year" type="number" min="2000" max="2100" style="width:6rem">
       </label>
@@ -128,8 +129,8 @@
           <span class="note" id="learned"></span>
         </div>
         <div class="row">
-          <label>Limite diário de leituras do Gemini <input id="limit" type="number" min="0" step="10" style="width:7rem" placeholder="ex: 250"></label>
-          <span class="note">Opcional. Serve só para mostrar quantas leituras restam no topo; o valor real está em aistudio.google.com/usage.</span>
+          <label>Limite diário de chamadas do Gemini <input id="limit" type="number" min="0" step="10" style="width:7rem" placeholder="250"></label>
+          <span class="note">Padrão 250 (um palpite). Serve só para estimar quantas folhas ainda cabem no dia; o valor real da sua conta está em aistudio.google.com/usage.</span>
         </div>
       </details>
     </section>
