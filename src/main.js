@@ -6,6 +6,7 @@ import { readSheet } from './core/gemini.js';
 import { apiPost, checkLogin, login } from './api.js';
 import { usageText, nearLimit, getLimit, setLimit, quotaHit, clearQuota } from './usage.js';
 import { buildPage, reconcile, applyInkMotivo, alignRows, alignJson, collectAsk, applyThirdReading, normMachine } from './core/rows.js';
+import { decodeEntities } from './core/text.js';
 import { buildPanel } from './core/panel.js';
 import { allRows, toTSV, workbookBytes } from './core/export.js';
 import { getLists, saveGroupLists, learnAlias, resetLists, setActiveGroup, groupOf as listGroup } from './core/lists.js';
@@ -544,7 +545,7 @@ async function fetchAI(a) {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Erro ${res.status}`);
     if (state.analysis !== a) return; // the OK was withdrawn meanwhile
-    const clean = (t) => { const ta = document.createElement('textarea'); ta.innerHTML = String(t); return ta.value; }; // safety net for HTML entities
+    const clean = decodeEntities; // safety net for HTML entities
     a.ai = body.pontos.map(clean); state.ai = a.ai;
   } catch (e) {
     if (state.analysis !== a) return;
@@ -587,7 +588,7 @@ function renderAnalysis() {
   const tile = (lab, val, small, cls = '') => h('div', { class: `tile ${cls}` }, h('span', { class: 'lab' }, lab), h('b', {}, val), h('small', {}, small));
 
   const aiBlock = state.ai === 'loading' ? h('p', { class: 'skeleton' }, 'A IA está lendo os números para escrever os pontos importantes…')
-    : Array.isArray(state.ai) ? h('ol', { class: 'apoints' }, state.ai.map((t) => h('li', {}, t)))
+    : Array.isArray(state.ai) ? h('ol', { class: 'apoints' }, state.ai.map((t) => h('li', {}, decodeEntities(t))))
     : h('p', { class: 'note' }, `Não consegui gerar o resumo da IA (${state.ai?.error ?? 'erro'}). O resumo automático abaixo continua valendo.`);
 
   const sections = [

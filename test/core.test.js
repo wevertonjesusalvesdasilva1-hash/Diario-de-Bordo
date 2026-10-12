@@ -63,3 +63,10 @@ test('exportação: texto para colar e planilha', () => {
   assert.equal(ws.G3.w, '07:54');
   assert.equal(ws.A3.f, 'CONCATENATE(B3&D3&E3)');
 });
+
+test('decodifica códigos HTML do resumo da IA, mesmo sem ponto e vírgula', async () => {
+  const { decodeEntities } = await import('../src/core/text.js');
+  assert.equal(decodeEntities('sobreposi&ccedil&atilde&o de 2h00 em produ&ccedil&otilde&es'), 'sobreposição de 2h00 em produções');
+  assert.equal(decodeEntities('AGUARD. PE&Ccedil;A &mdash; coment&aacute;rio'), 'AGUARD. PEÇA &mdash; comentário');
+  assert.equal(decodeEntities('padr&atilde&o e valida&ccedil&atilde&o'), 'padrão e validação');
+});
