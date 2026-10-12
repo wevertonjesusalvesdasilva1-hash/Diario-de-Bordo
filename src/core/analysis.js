@@ -40,7 +40,10 @@ function segment(date, ini, fim) {
   if (end - start > MAX_HOURS * 60) return null;
   return { start, end };
 }
-const badWhy = (ini, fim) => (toMin(ini) != null && toMin(ini) === toMin(fim) ? 'início e fim iguais' : toMin(ini) != null && toMin(fim) != null ? `duração acima de ${MAX_HOURS} horas` : 'data ou horário incompleto');
+// Time and date cells still marked as doubtful in the review. The analysis only judges what the person checked:
+// a record with a doubtful time is set aside and listed, instead of producing warnings about a possible misreading.
+const doubtKeys = (r, keys) => Object.keys(r.flags ?? {}).filter((k) => keys.test(k) && !(k === 'data' && /cabeçalho/.test(r.flags[k])));
+const badWhy = (ini, fim) => (toMin(ini) != null && toMin(ini) === toMin(fim) ? 'início e fim iguais' : toMin(ini) != null && toMin(fim) != null && toMin(fim) < toMin(ini) && (toMin(fim) + 1440 - toMin(ini)) > MAX_HOURS * 60 ? `o fim (${fim}) vem antes do início (${ini}) e a duração passaria de ${MAX_HOURS} horas` : toMin(ini) != null && toMin(fim) != null ? `duração acima de ${MAX_HOURS} horas` : 'data ou horário incompleto');
 
 // The day most rows of the sheet carry. A row on another day cannot be placed on this sheet's timeline
 // (it would invent conflicts and gaps), so it is set aside and reported on its own.
@@ -58,15 +61,18 @@ const offDay = (ref, data, startMin) => {
 };
 
 export function buildEvents(pages) {
-  const events = [], skipped = [], offDate = [];
+  const events = [], skipped = [], offDate = [], doubt = [];
   for (const page of pages) {
     const machine = page.machine || 'SEM MÁQUINA';
     const base = { machine, page: page.id, label: page.label };
     const rd = referenceDay(page), ref = rd.day;
     const refText = rd.text.slice(0, 5);
     page.prod.forEach((r, ri) => {
+      const rowDoubt = doubtKeys(r, /^data$/);
       for (const n of [1, 2, 3]) {
         if (!r[`ini${n}`] && !r[`fim${n}`]) continue;
+        const dk = [...rowDoubt, ...doubtKeys(r, new RegExp(`^(ini|fim)${n}$`))];
+        if (dk.length) { doubt.push({ ...base, table: 'prod', ri, linha: r.linha, data: r.data, ini: r[`ini${n}`], fim: r[`fim${n}`], fields: dk, chapa: r[`chapa${n}`], type: 'prod' }); continue; }
         // a row on another day than the rest of the sheet is usually a mistyped or misread date: it is kept on the
         // sheet's day (so it does not invent gaps) and reported on its own as a date to check
         const off = segment(r.data, r[`ini${n}`], r[`fim${n}`]) && offDay(ref, r.data, toMin(r[`ini${n}`]));
@@ -78,6 +84,8 @@ export function buildEvents(pages) {
     });
     page.stops.forEach((r, ri) => {
       if (!r.ini && !r.fim) return;
+      const dk = doubtKeys(r, /^(data|ini|fim)$/);
+      if (dk.length) { doubt.push({ ...base, table: 'stops', ri, linha: r.linha, data: r.data, ini: r.ini, fim: r.fim, fields: dk, chapa: r.chapa, motivo: r.motivo, type: 'stop' }); return; }
       const off = segment(r.data, r.ini, r.fim) && offDay(ref, r.data, toMin(r.ini));
       if (off) offDate.push({ ...base, table: 'stops', ri, linha: r.linha, data: r.data, refText, chapa: r.chapa });
       const seg = segment(off ? rd.text : r.data, r.ini, r.fim);
@@ -85,7 +93,7 @@ export function buildEvents(pages) {
       events.push({ ...base, type: 'stop', table: 'stops', ri, linha: r.linha, data: r.data, ...seg, chapa: r.chapa, turno: r.turno, motivo: r.motivo, desc: r.desc });
     });
   }
-  return { events, skipped, offDate };
+  return { events, skipped, offDate, doubt };
 }
 
 // ---- cross-check on one machine -------------------------------------------
@@ -204,11 +212,11 @@ function summarise(machine, events, pages) {
 const RANK = { alta: 0, media: 1, info: 2 };
 
 export function analyze(pages, { dismissed = new Set() } = {}) {
-  const { events, skipped, offDate } = buildEvents(pages);
+  const { events, skipped, offDate, doubt } = buildEvents(pages);
   const byMachine = new Map();
   for (const p of pages) { const k = p.machine || 'SEM MÁQUINA'; if (!byMachine.has(k)) byMachine.set(k, []); byMachine.get(k).push(p); }
   const machines = [...byMachine.entries()].map(([name, ps]) => summarise(name, events.filter((e) => e.machine === name), ps));
-  const cards = buildCards(events, pages, offDate);
+  const cards = buildCards(events, pages, offDate, doubt);
   // overlaps, gaps and stop durations are now cards; the other checks (standard time, missing reason) stay as issues
   const keep = (i) => !['sobreposição', 'lacuna'].includes(i.kind);
   for (const m of machines) m.issues = m.issues.filter(keep);

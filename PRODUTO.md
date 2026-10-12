@@ -51,6 +51,10 @@ Qualquer edição depois do OK desfaz o OK e exige novo OK.
 - *Alterações feitas pelo usuário* depois da leitura, em lista, no fim.
 - A IA não escreve mais o resumo da análise (economiza uma chamada por OK).
 
+### Em cima de dado conferido, não da imagem
+- A análise **não usa IA nem olha a imagem**: ela só aplica regras sobre os valores da tabela, os mesmos que vão para o Excel (já conferidos e corrigidos por você). A imagem do verso do card serve só para você comparar.
+- Registro com horário ou data **ainda marcado como dúvida** na conferência **não é julgado**: vira o card "Ainda em dúvida (não analisado)", sempre o primeiro. Confirme ou corrija o horário e dê o OK de novo.
+
 ### Como o app evita acusar o operador à toa
 Validado com folhas reais (UMC 01, UMC 02, HMC 16, NCBZ, RAW05) e com a planilha de controle:
 - Cruzamento de até 14 min é arredondamento, não erro. Parada curta (5 min ou mais) **totalmente dentro** da produção é erro.

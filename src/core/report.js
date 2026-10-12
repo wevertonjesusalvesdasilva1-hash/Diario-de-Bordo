@@ -5,6 +5,7 @@
 // Cards the person marked as "annotated correctly" are left out (and counted).
 
 export const KINDS = [
+  { id: 'em dúvida', color: '#cbd5e1', name: 'Ainda em dúvida (não analisado)', hint: 'Horário ainda marcado como dúvida na conferência. A análise só julga dado conferido.' },
   { id: 'produzindo parado', color: '#dc2626', name: 'Produção inclui parada', hint: 'O tempo de produção cobre uma parada anotada: a máquina parada não produz.' },
   { id: 'registros sobrepostos', color: '#facc15', name: 'Dois registros no mesmo horário', hint: 'Duas produções, ou duas paradas, ocupam o mesmo horário.' },
   { id: 'parada longa', color: '#fb923c', name: 'Parada longa', hint: 'Parada maior do que o normal para o motivo.' },

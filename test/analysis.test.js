@@ -241,3 +241,23 @@ test('parada implausível (Tyorei de 2h15) deixa o aviso de que o horário pode 
   const c = analyze([page]).report.find((x) => x.kind === 'produzindo parado');
   assert.ok(c); assert.match(c.caution, /muito longa para o motivo/);
 });
+
+test('o exemplo da folha RAW10: parada 08:45–08:30 ainda em dúvida não é julgada nem gera conflito falso', () => {
+  const page = { id: 50, label: 'f', machine: 'RAW10', date: '04/10/2026',
+    prod: [prod(2, '04/10/2026', { chapa1: '11046', ini1: '08:42', fim1: '10:50' })],
+    stops: [stop(1, '04/10/2026', '08:45', '08:30', 'AGUARD. PEÇA', { desc: 'MONTAGEM PC240', flags: { ini: 'IA em dúvida', fim: 'hora inválida' } })] };
+  const a = analyze([page]);
+  assert.equal(a.cards.filter((c) => c.kind === 'produzindo parado').length, 0);
+  const d = a.cards.find((c) => c.kind === 'em dúvida');
+  assert.ok(d); assert.match(d.lines[0], /Parada linha 1 · 04\/10\/2026 · 08:45–08:30 · em dúvida: início e fim/);
+  assert.equal(a.report[0].kind, 'em dúvida'); // aparece primeiro
+});
+
+test('mesmo conferido, fim antes do início que passaria de 16 h vira registro incompleto, não conflito', () => {
+  const page = { id: 51, label: 'f', machine: 'RAW10', date: '04/10/2026',
+    prod: [prod(2, '04/10/2026', { chapa1: '11046', ini1: '08:42', fim1: '10:50' })],
+    stops: [stop(1, '04/10/2026', '08:45', '08:30', 'AGUARD. PEÇA', { desc: 'x' })] };
+  const a = analyze([page]);
+  assert.equal(a.cards.filter((c) => c.kind === 'produzindo parado').length, 0);
+  assert.match(a.report.find((c) => c.kind === 'incompleto').lines[0], /o fim \(08:30\) vem antes do início \(08:45\)/);
+});

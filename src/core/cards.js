@@ -50,7 +50,7 @@ function subtract(a, b, cuts) {
   return { pieces, cut: merged.reduce((s, [x, y]) => s + (y - x), 0) };
 }
 
-export function buildCards(events, pages, offDate = []) {
+export function buildCards(events, pages, offDate = [], doubt = []) {
   const pageById = new Map(pages.map((p) => [p.id, p]));
   const cards = [];
   const add = (sev, kind, e, headline, extra = {}) => {
@@ -136,6 +136,17 @@ export function buildCards(events, pages, offDate = []) {
       if (!cover || e.end > cover.end) cover = e;
     }
   }
+  // records whose time is still marked as doubtful in the review: not judged, listed so the person can finish checking them
+  const doubtBy = new Map();
+  for (const d of doubt) { const k = d.page; if (!doubtBy.has(k)) doubtBy.set(k, []); doubtBy.get(k).push(d); }
+  for (const [page, list] of doubtBy) {
+    const first = list[0];
+    const dline = (d) => `${d.type === 'prod' ? 'Produção' : 'Parada'} linha ${d.linha || d.ri + 1} · ${d.data || 'sem data'} · ${d.ini || '??:??'}–${d.fim || '??:??'} · em dúvida: ${andList(d.fields.map((f) => ({ ini: 'início', fim: 'fim', data: 'data' }[f.replace(/\d$/, '')] ?? f)))}`;
+    add('alta', 'em dúvida', first, `${first.machine} · folha do dia ${dayOf(pageById.get(page))}: ${list.length} registro(s) estão com o horário ou a data ainda marcados como dúvida na conferência. A análise só julga dado conferido, então eles não foram analisados. Volte à conferência, confirme ou corrija esses horários e dê o OK de novo.`,
+      { brief: `${list.length} registro${list.length === 1 ? '' : 's'} com horário ainda em dúvida: não analisado${list.length === 1 ? '' : 's'}`, big: String(list.length), bigLabel: 'não analisado' + (list.length === 1 ? '' : 's'),
+        why: 'Confirme o horário na conferência (revisão rápida) para o registro entrar na análise.', who: whoText(list.map((d) => d.chapa)), lines: list.map(dline), refs: list.map((d) => ({ table: d.table, linha: d.linha || d.ri + 1 })) });
+  }
+
   // a row dated on another day than the rest of its sheet
   for (const o of offDate) {
     const pg = pageById.get(o.page);

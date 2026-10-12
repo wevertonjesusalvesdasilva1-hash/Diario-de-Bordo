@@ -596,7 +596,7 @@ function giveOk() {
   const btn = $('ok');
   if (flags && btn.dataset.sure !== '1') {
     btn.dataset.sure = '1';
-    btn.textContent = `Ainda há ${flags} célula(s) marcada(s). Clique de novo para dar OK mesmo assim`;
+    btn.textContent = `Ainda há ${flags} célula(s) em dúvida. Horário em dúvida NÃO entra na análise. Clique de novo para dar OK mesmo assim`;
     setTimeout(() => { btn.dataset.sure = ''; updateReviewUi(); }, 6000);
     return;
   }
