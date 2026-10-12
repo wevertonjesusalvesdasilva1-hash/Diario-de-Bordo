@@ -31,7 +31,7 @@ export function parseOperatorRows(rows) {
 
 export const operatorName = (chapa) => getOperators()[String(chapa ?? '').replace(/\D/g, '')]?.nome ?? '';
 
-// "Francisco Denes da Silva (7910) · 4×" for the chapas that show up most; without a table: "chapa 7910 · 4×"
+// "Fulano de Tal (7910) · 4×" for the chapas that show up most; without a table: "chapa 7910 · 4×"
 export function whoText(chapas, max = 2) {
   const count = new Map();
   for (const c of chapas) { const k = String(c ?? '').replace(/\D/g, ''); if (k) count.set(k, (count.get(k) ?? 0) + 1); }
