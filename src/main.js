@@ -517,12 +517,12 @@ function updateReviewUi() {
   if (!any && state.tab === 'panel') showTab('read');
   $('okbox').hidden = !any;
   $('tab-analysis').disabled = !state.reviewed;
-  $('tab-lock').textContent = state.reviewed ? 'aprovada' : 'aguardando seu OK';
+  $('tab-lock').textContent = state.reviewed ? 'aprovada' : 'precisa do OK';
   $('okbox').classList.toggle('done', state.reviewed);
   const at = state.okAt ? new Date(state.okAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
   $('okstate').textContent = state.reviewed
-    ? `Aprovado às ${at}. Se você mudar qualquer dado, o OK é desfeito e a análise precisa ser refeita.`
-    : 'Confira cada linha com o recorte da folha. A análise só é feita depois do seu OK.';
+    ? `Aprovado às ${at}. Se você mudar algo, o OK é desfeito.`
+    : 'Confira as linhas marcadas. A análise só sai depois do seu OK.';
   if (!$('ok').dataset.sure) $('ok').textContent = 'Revisei tudo · dar OK e gerar análise';
   $('ok').hidden = state.reviewed;
   $('viewanalysis').hidden = !state.reviewed;
@@ -1024,3 +1024,38 @@ $('year').value = store.get('year') || new Date().getFullYear();
 $('year').addEventListener('change', () => store.set('year', $('year').value));
 fillLists();
 restore();
+
+// ---------------------------------------------------------------- ajuda, menu e efeito 3D
+const helpEl = $('help');
+function openHelp() { helpEl.hidden = false; try { localStorage.setItem('mt-help', '1'); } catch { /* private mode */ } $('helpclose').focus(); }
+function closeHelp() { helpEl.hidden = true; }
+$('helpbtn').addEventListener('click', openHelp);
+$('helpclose').addEventListener('click', closeHelp);
+helpEl.addEventListener('click', (e) => { if (e.target === helpEl) closeHelp(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (!helpEl.hidden) closeHelp(); closeMenu(); } });
+
+const menuEl = $('menu'), menuBtn = $('menubtn');
+function closeMenu() { menuEl.hidden = true; menuBtn.setAttribute('aria-expanded', 'false'); }
+menuBtn.addEventListener('click', (e) => { e.stopPropagation(); const open = menuEl.hidden; menuEl.hidden = !open; menuBtn.setAttribute('aria-expanded', String(open)); });
+document.addEventListener('click', (e) => { if (!e.target.closest('.menuwrap')) closeMenu(); else if (e.target.closest('#menu button')) closeMenu(); });
+menuEl.addEventListener('click', (e) => {
+  const act = e.target.closest('button[data-menu]')?.dataset.menu;
+  if (!act) return;
+  if (act === 'help') openHelp();
+  if (act === 'lists' || act === 'limit') { $('listsbox').open = true; $('listsbox').scrollIntoView({ behavior: 'smooth', block: 'center' }); if (act === 'limit') setTimeout(() => $('limit').focus(), 400); }
+  if (act === 'clear') $('clear').click();
+  if (act === 'logout') { try { localStorage.removeItem('mt-code'); } catch { /* ignore */ } location.reload(); }
+});
+
+// the drop zone tilts a little with the pointer (3D); skipped for reduced motion
+const dropEl = $('drop');
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  dropEl.addEventListener('pointermove', (e) => {
+    const r = dropEl.getBoundingClientRect();
+    dropEl.style.setProperty('--ry', `${(((e.clientX - r.left) / r.width) - 0.5) * 18}deg`);
+    dropEl.style.setProperty('--rx', `${(0.5 - ((e.clientY - r.top) / r.height)) * 12}deg`);
+  });
+  dropEl.addEventListener('pointerleave', () => { dropEl.style.setProperty('--ry', '0deg'); dropEl.style.setProperty('--rx', '0deg'); });
+}
+// first visit: show the help once
+try { if (!localStorage.getItem('mt-help') && $('lock').hidden) setTimeout(() => { if ($('lock').hidden) openHelp(); }, 600); } catch { /* ignore */ }

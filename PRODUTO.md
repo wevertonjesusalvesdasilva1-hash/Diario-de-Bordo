@@ -54,7 +54,8 @@ Qualquer edição depois do OK desfaz o OK e exige novo OK.
 
 **Operação**
 - Código de acesso, limite de tentativas, contador de leituras do dia com "retomar leitura" quando a cota do Gemini acaba.
-- Tema claro e escuro, botão de voltar ao topo, funciona no celular.
+- Visual preto e branco com vidro, gradientes e movimento suave; tema claro e escuro; botão de voltar ao topo; funciona no celular.
+- Botão **?** (ajuda com passo a passo, cores e dúvidas, aberta sozinha na primeira visita) e menu **⋮** (como usar, tema, listas, limite diário, limpar tudo, sair).
 
 ## Regras que não mudam
 

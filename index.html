@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <script src="/theme.js"></script>
   <link rel="stylesheet" href="/src/style.css">
 </head>
@@ -26,20 +26,26 @@
 
   <header class="top">
     <div class="brand">
-      <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
-        <circle cx="20" cy="20" r="15" fill="none" stroke="currentColor" stroke-width="1.5"/>
-        <circle cx="20" cy="20" r="8" fill="none" stroke="currentColor" stroke-width="1" opacity=".6"/>
-        <path d="M20 2v8M20 30v8M2 20h8M30 20h8" stroke="currentColor" stroke-width="1.5"/>
-        <circle cx="20" cy="20" r="2.2" fill="currentColor"/>
-      </svg>
+      <div class="cube" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <div>
         <h1>Maple Tapping</h1>
-        <p class="sub">Diário de Bordo · RAW · UMC 01 · UMC 02 · HMC 16 · NCBZ</p>
+        <p class="sub">Diário de Bordo</p>
       </div>
     </div>
     <div class="top-actions">
-      <span class="live" id="usage" title="Estimativa feita neste navegador: o Gemini não informa a cota que sobra. Veja o valor real em aistudio.google.com/usage"><i></i><span id="usage-text">≈ 100 folhas restantes</span></span>
-      <button id="theme" type="button" class="ghost" aria-label="Alternar tema claro ou escuro">Tema claro</button>
+      <span class="live" id="usage" title="Estimativa feita neste navegador. O valor real está em aistudio.google.com/usage"><i></i><span id="usage-text">≈ 100 folhas restantes</span></span>
+      <button id="helpbtn" type="button" class="icon" aria-label="Ajuda: como usar" title="Ajuda: como usar">?</button>
+      <div class="menuwrap">
+        <button id="menubtn" type="button" class="icon" aria-haspopup="menu" aria-expanded="false" aria-label="Menu" title="Menu">⋮</button>
+        <div id="menu" role="menu" hidden>
+          <button type="button" role="menuitem" data-menu="help">Como usar</button>
+          <button type="button" role="menuitem" id="theme">Tema claro</button>
+          <button type="button" role="menuitem" data-menu="lists">Listas de conferência</button>
+          <button type="button" role="menuitem" data-menu="limit">Limite diário de chamadas</button>
+          <button type="button" role="menuitem" data-menu="clear">Limpar tudo</button>
+          <button type="button" role="menuitem" data-menu="logout">Sair</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -61,10 +67,10 @@
     <section class="card" id="upload">
       <h2 class="ptitle">Entrada de folhas</h2>
       <div id="drop" class="drop" tabindex="0">
-        <div class="scan" aria-hidden="true"></div>
-        <p class="big">Arraste os arquivos aqui ou <label class="link">escolha<input id="files" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
+        <div class="orb" aria-hidden="true"><i></i><i></i><i></i></div>
+        <p class="big">Arraste os arquivos ou <label class="link">escolha<input id="files" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
         <p><label class="camera">Fotografar folha<input id="camera" type="file" accept="image/*" capture="environment" hidden></label></p>
-        <p class="note">PDF com várias páginas ou fotos JPG/PNG. A página pode estar girada ou levemente torta. Cada folha é lida duas vezes e as diferenças ficam marcadas (cerca de 1 minuto por folha).</p>
+        <p class="note">PDF ou foto. Cada folha é lida duas vezes e as dúvidas ficam marcadas.</p>
       </div>
       <p class="note" id="sheetsleft"></p>
       <label class="row">Ano das datas
@@ -80,8 +86,8 @@
     </section>
 
     <nav class="tabs" id="tabs" role="tablist" hidden>
-      <button id="tab-read" type="button" role="tab" class="tab on" aria-selected="true">1 · Leitura e conferência</button>
-      <button id="tab-analysis" type="button" role="tab" class="tab" aria-selected="false" disabled>2 · Análise <span id="tab-lock">aguardando seu OK</span></button>
+      <button id="tab-read" type="button" role="tab" class="tab on" aria-selected="true">1 · Conferência</button>
+      <button id="tab-analysis" type="button" role="tab" class="tab" aria-selected="false" disabled>2 · Análise <span id="tab-lock">precisa do OK</span></button>
       <button id="tab-panel" type="button" role="tab" class="tab" aria-selected="false">3 · Painel</button>
     </nav>
 
@@ -119,8 +125,8 @@
 
     <section class="card">
       <details id="listsbox">
-        <summary><span class="ptitle inline">Listas de conferência</span> <span class="note">chapas, peças e modelos usados para checar a leitura</span></summary>
-        <p class="note">Uma linha por valor. Chapa nova (operador novo) deve entrar aqui, senão será marcada como desconhecida. RAW e usinagem têm listas separadas.</p>
+        <summary><span class="ptitle inline">Listas de conferência</span> <span class="note">chapas, peças e modelos</span></summary>
+        <p class="note">Um valor por linha. Chapa nova precisa entrar aqui, senão fica marcada. RAW e usinagem têm listas separadas.</p>
         <div class="row"><label>Máquinas <select id="lgroup"><option value="raw">RAW (solda)</option><option value="usi">Usinagem (UMC 01, UMC 02, HMC 16, NCBZ)</option></select></label></div>
         <div class="lists">
           <label>Chapas<textarea id="l-chapas" rows="8" spellcheck="false"></textarea></label>
@@ -155,6 +161,48 @@
     <div class="card qrbox">
       <header class="qrhead"><strong id="qrtitle">Revisão rápida</strong><span id="qrcount" class="sel"></span><button id="qrclose" type="button" class="ghost">Fechar (Esc)</button></header>
       <div id="qrbody"></div>
+    </div>
+  </div>
+  <div id="help" hidden role="dialog" aria-modal="true" aria-labelledby="helptitle">
+    <div class="card helpbox">
+      <header class="qrhead"><strong id="helptitle">Como usar o Maple Tapping</strong><button id="helpclose" type="button" class="ghost">Fechar (Esc)</button></header>
+      <div class="helpbody">
+        <p class="lead">Lê a folha do Diário de Bordo (produção e paradas), entrega as linhas prontas para a planilha e mostra onde a folha se contradiz.</p>
+        <h4>Passo a passo</h4>
+        <ol class="steps">
+          <li><b>Suba a folha.</b> PDF, foto ou câmera do celular. Cada página do PDF é uma folha.</li>
+          <li><b>Confira.</b> As células marcadas são as que a leitura ficou em dúvida. Compare com o recorte da folha acima de cada linha. Use <em>Revisão rápida</em> para passar só pelas marcadas.</li>
+          <li><b>Dê o OK.</b> Só depois dele a análise é feita. Dá para desfazer o OK e revisar de novo.</li>
+          <li><b>Veja a Análise.</b> Cards mostram o que não fecha: produzindo e parado ao mesmo tempo, paradas longas, tempo sem registro e quem preenche errado.</li>
+          <li><b>Exporte.</b> Copie PRODUÇÃO e PARADAS para colar na base, ou baixe o Excel.</li>
+        </ol>
+        <h4>O que significam as cores</h4>
+        <ul class="legend">
+          <li><i class="sw warn"></i> Amarelo: leitura em dúvida, vale conferir.</li>
+          <li><i class="sw bad"></i> Vermelho: valor inválido ou ilegível.</li>
+          <li><i class="sw edit"></i> Azul: você alterou o que o app leu.</li>
+          <li><i class="sw fill"></i> Laranja: você preencheu o que estava em branco.</li>
+        </ul>
+        <h4>As abas</h4>
+        <ul>
+          <li><b>1 · Conferência:</b> onde você revisa e corrige.</li>
+          <li><b>2 · Análise:</b> liberada depois do OK. Sempre usa o arquivo que você acabou de subir.</li>
+          <li><b>3 · Painel:</b> tempo parado por motivo, máquina e hora.</li>
+        </ul>
+        <h4>Dicas</h4>
+        <ul>
+          <li>Clique no recorte da folha para ampliar.</li>
+          <li>Datas: digite só números, as barras entram sozinhas.</li>
+          <li>Na revisão rápida: <kbd>Enter</kbd> confirma, <kbd>Esc</kbd> fecha.</li>
+          <li>O botão ↑ no canto leva ao topo.</li>
+        </ul>
+        <h4>Dúvidas comuns</h4>
+        <ul>
+          <li><b>"folhas restantes":</b> estimativa da cota diária do Gemini. Cada folha gasta cerca de 2 a 3 chamadas.</li>
+          <li><b>Chapa nova:</b> inclua em Menu → Listas de conferência.</li>
+          <li><b>Meus dados:</b> ficam só neste navegador. Subir um arquivo novo apaga a leitura anterior.</li>
+        </ul>
+      </div>
     </div>
   </div>
   <div id="lightbox" hidden><img alt="Linha ampliada"></div>
