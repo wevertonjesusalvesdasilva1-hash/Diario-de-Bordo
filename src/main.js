@@ -1,14 +1,15 @@
 import { readFiles, toCanvas, jpegB64, jpegUrl } from './files.js';
 import { analyze, detectMachine } from './core/layout.js';
-import { analyze as analyseSheets, compactForAI, fmtDur } from './core/analysis.js';
+import { analyze as analyseSheets, fmtDur } from './core/analysis.js';
 import { inkIn, cropToPaper } from './core/image.js';
 import { readSheet } from './core/gemini.js';
-import { apiPost, checkLogin, login } from './api.js';
+import { checkLogin, login } from './api.js';
 import { usageText, usageHint, sheetsLeft, sheetRead, nearLimit, getLimit, setLimit, quotaHit, clearQuota } from './usage.js';
 import { applyKeywords, mentionsTyorei } from './core/rows.js';
 import { inferTurnos } from './core/turno.js';
 import { buildPage, reconcile, applyInkMotivo, alignRows, alignJson, collectAsk, applyThirdReading, normMachine } from './core/rows.js';
 import { decodeEntities } from './core/text.js';
+import { TIERS } from './core/report.js';
 import { recordEdit, recordRemoval, describeEdit } from './core/edits.js';
 import { buildPanel } from './core/panel.js';
 import { allRows, toTSV, workbookBytes } from './core/export.js';
@@ -53,7 +54,7 @@ let saveTimer;
 function persist(delay = 400) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows }) => ({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows }));
+    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo }) => ({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo }));
     saveState({ pages: keep, nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig, ai: Array.isArray(state.ai) ? state.ai : null });
   }, delay);
 }
@@ -87,7 +88,7 @@ function prepare(imageIn, { photo = false } = {}) {
   try { lay = analyze(image, { photo }); } catch (e) { console.warn('layout', e); }
   if (!lay) {
     const full = toCanvas(image, 0, 0, image.width, image.height, 2000);
-    return { A: [jpegB64(full, 0.88)], B: [jpegB64(full, 0.9)], strips: { prod: [], stops: [] }, bubble: '', inkMotivo: [], geomOk: false, rowInk: null, crop: null };
+    return { A: [jpegB64(full, 0.88)], B: [jpegB64(full, 0.9)], strips: { prod: [], stops: [] }, bubble: '', inkMotivo: [], geomOk: false, rowInk: null, crop: null, sheet: jpegUrl(toCanvas(image, 0, 0, image.width, image.height, 1800), 0.72), sheetGeo: null };
   }
   const { img, prodX, prodY, stopX, stopY, scale: sc } = lay;
   const full = toCanvas(img, 0, 0, img.width, img.height, 2000);
@@ -118,7 +119,10 @@ function prepare(imageIn, { photo = false } = {}) {
     const rowH = (ys.at(-1) - ys[0]) / (ys.length - 1) + 4;
     return { cols: xs.slice(0, -1).map((x, i) => [(x - x0) / W, (xs[i + 1] - x0) / W]), aspect: W / rowH };
   };
+  const relGrid = (xs, ys) => ({ y: ys.map((y) => y / img.height), x0: xs[0] / img.width, x1: xs.at(-1) / img.width });
   return {
+    sheet: jpegUrl(toCanvas(img, 0, 0, img.width, img.height, 1800), 0.72),
+    sheetGeo: lay.geomOk ? { prod: relGrid(prodX, prodY), stops: relGrid(stopX, stopY) } : null,
     crop: lay.geomOk ? { prod: meta(prodX, prodY), stops: meta(stopX, stopY) } : null,
     rowInk,
     // the X column is only trusted when the printed grid was recognised on this sheet
@@ -169,7 +173,7 @@ async function readPage(p) {
     applyInkMotivo(built, sec.inkMotivo);
     applyKeywords(built);
     sheetRead();
-    Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk, rowWarn: rowWarns.join('; '), crop: sec.crop });
+    Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk, rowWarn: rowWarns.join('; '), crop: sec.crop, sheet: sec.sheet, sheetGeo: sec.sheetGeo });
     for (const r of p.prod) r.strip = sec.strips.prod[r.linha - 1];
     for (const r of p.stops) r.strip = sec.strips.stops[r.linha - 1];
     p.include = true;
@@ -453,10 +457,17 @@ function learnFromEdit(row, field, value) {
 }
 
 document.addEventListener('click', (e) => {
+  const filt = e.target.closest('button[data-anafilter]');
+  if (filt) { anaFilter = filt.dataset.anafilter; renderAnalysis(); return; }
+  const sw = e.target.closest('.sheetwrap');
+  if (sw && !e.target.closest('#lightbox')) { const lb = $('lightbox'); const big = sw.cloneNode(true); big.classList.add('zoomed'); lb.replaceChildren(big); lb.hidden = false; return; }
+  const flip = e.target.closest('.flip');
+  if (flip && !e.target.closest('button, a')) { const on = flip.classList.toggle('flipped'); flip.setAttribute('aria-pressed', String(on)); return; }
+  if (e.target.closest('button[data-flip]')) { const f = e.target.closest('.flip'); f.classList.remove('flipped'); f.setAttribute('aria-pressed', 'false'); return; }
   const nav = e.target.closest('button[data-nav]');
   if (nav) { if (nav.dataset.nav === 'undo') $('undook').click(); else showTab('read'); return; }
   const img = e.target.closest('img[data-zoom]');
-  if (img) { $('lightbox').querySelector('img').src = img.src; $('lightbox').hidden = false; return; }
+  if (img) { $('lightbox').replaceChildren(h('img', { src: img.src, alt: 'Linha ampliada' })); $('lightbox').hidden = false; return; }
   if (e.target.closest('#lightbox')) { $('lightbox').hidden = true; return; }
   const b = e.target.closest('button[data-act]');
   if (!b) return;
@@ -583,25 +594,8 @@ function giveOk() {
   }
   btn.dataset.sure = '';
   state.reviewed = true; state.okAt = new Date().toISOString(); state.okSig = sig();
-  state.analysis = analyseSheets(inc); state.ai = 'loading';
+  state.analysis = analyseSheets(inc); state.ai = null;
   updateReviewUi(); showTab('analysis'); persist(0);
-  fetchAI(state.analysis);
-}
-
-async function fetchAI(a) {
-  try {
-    const res = await apiPost('/api/analyze', { resumo: compactForAI(a) });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error || `Erro ${res.status}`);
-    if (state.analysis !== a) return; // the OK was withdrawn meanwhile
-    const clean = decodeEntities; // safety net for HTML entities
-    a.ai = body.pontos.map(clean); state.ai = a.ai;
-  } catch (e) {
-    if (state.analysis !== a) return;
-    state.ai = { error: e.message };
-  }
-  if (state.tab === 'analysis') renderAnalysis();
-  persist();
 }
 
 function goToRow(pid, table, ri) {
@@ -614,106 +608,79 @@ function goToRow(pid, table, ri) {
   setTimeout(() => el.classList.remove('hl'), 2300);
 }
 
-// Timeline strip for a card: coloured segments on a clock axis, so the finding can be seen at a glance.
-const hhmm = (abs) => { const m = ((abs % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
-function timeline(v) {
-  const span = v.to - v.from, pct = (x) => `${(((x - v.from) / span) * 100).toFixed(2)}%`;
-  const segColor = (g) => g.kind === 'prod' ? 'var(--accent)' : g.kind === 'stop' ? motColor(g.motivo) : g.kind === 'conflict' || g.kind === 'excess' ? 'var(--bad)' : 'transparent';
-  const bars = v.segs.filter((g) => g.kind !== 'conflict').map((g) => h('i', { class: `seg ${g.kind}`, style: `left:${pct(g.start)};width:calc(${pct(g.end)} - ${pct(g.start)});background:${segColor(g)}`, title: `${g.label} ${hhmm(g.start)}–${hhmm(g.end)}` }));
-  const over = v.segs.filter((g) => g.kind === 'conflict').map((g) => h('i', { class: 'seg conflict', style: `left:${pct(g.start)};width:calc(${pct(g.end)} - ${pct(g.start)})`, title: `Conflito ${hhmm(g.start)}–${hhmm(g.end)}` }));
-  const ticks = [];
-  const step = 60 * Math.max(1, Math.ceil(span / 60 / 8));
-  for (let t = Math.ceil(v.from / step) * step; t <= v.to; t += step) if ((t - v.from) / span > 0.06 && (t - v.from) / span < 0.94) ticks.push(h('span', { class: 'tick', style: `left:${pct(t)}` }, hhmm(t)));
-  const legend = v.segs.map((g) => h('span', { class: 'lg' }, h('i', { class: `dot ${g.kind}`, style: g.kind === 'gap' ? '' : `background:${segColor(g)}` }), `${g.label} ${hhmm(g.start)}–${hhmm(g.end)}`));
-  return h('div', { class: 'tl' }, h('div', { class: 'tlbar' }, ...bars, ...over), h('div', { class: 'tlaxis' }, ...ticks), h('div', { class: 'tllegend' }, ...legend));
+const SEV = { alta: ['Alta', 'tag bad'], media: ['Média', 'tag'], info: ['Info', 'tag'] };
+const goBtn = (i) => h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: i.page, k: i.table, r: i.ri } }, 'Ir para a linha');
+let anaFilter = 'all';
+
+// Back of a card: the whole sheet, with the rows that matter outlined. Click it to zoom.
+function sheetView(c) {
+  const p = pageOf(c.page);
+  if (!p?.sheet) return h('p', { class: 'note nosheet' }, 'A imagem desta folha não foi guardada. Envie o arquivo de novo para vê-la aqui.');
+  const wrap = h('div', { class: 'sheetwrap', title: 'Clique para ampliar' }, h('img', { src: p.sheet, alt: `Folha ${p.label}` }));
+  for (const r of c.refs ?? []) {
+    const g = p.sheetGeo?.[r.table]; const n = (r.linha || 0) - 1;
+    if (!g || n < 0 || n + 1 >= g.y.length) continue;
+    wrap.append(h('i', { class: 'hl', style: `top:${(g.y[n] * 100).toFixed(2)}%;height:${((g.y[n + 1] - g.y[n]) * 100).toFixed(2)}%;left:${(g.x0 * 100).toFixed(2)}%;width:${((g.x1 - g.x0) * 100).toFixed(2)}%` }));
+  }
+  return wrap;
 }
 
-const SEV = { alta: ['Alta', 'tag bad'], media: ['Média', 'tag'], info: ['Info', 'tag'] };
+function flipCard(c) {
+  const where = (c.refs ?? []).map((r) => `${r.table === 'prod' ? 'produção' : 'parada'} linha ${r.linha}`).join(' e ');
+  const front = h('div', { class: 'face front' },
+    h('div', { class: 'ftop' }, h('strong', { class: 'fmachine' }, c.machine), h('span', { class: SEV[c.sev][1] }, SEV[c.sev][0])),
+    h('div', { class: 'ftitle' }, c.title),
+    c.big ? h('div', { class: 'fbig2' }, h('b', {}, c.big), h('small', {}, c.bigLabel)) : null,
+    h('p', { class: 'fbrief' }, c.brief),
+    h('div', { class: 'ffoot' }, h('span', {}, c.day ? `Folha do dia ${c.day}` : c.label), h('span', { class: 'fhint' }, 'Ver folha ↻')));
+  const back = h('div', { class: 'face back' },
+    sheetView(c),
+    h('p', { class: 'fcap' }, where ? `Veja: ${where}. ` : '', c.text),
+    h('div', { class: 'fbtns' }, goBtn(c), h('button', { type: 'button', class: 'ghost', dataset: { flip: '1' } }, 'Virar ↻')));
+  const el = h('article', { class: `flip ${c.sev}`, tabindex: '0', role: 'button', 'aria-pressed': 'false', 'aria-label': `${c.machine}: ${c.title}. Clique para ver a folha.` }, h('div', { class: 'flip-in' }, front, back));
+  return el;
+}
 
 function renderAnalysis() {
   const root = $('view-analysis');
   const a = state.analysis;
   if (!a) { root.replaceChildren(h('p', { class: 'note' }, 'Dê o OK na aba de conferência para gerar a análise.')); return; }
   const at = new Date(state.okAt).toLocaleString('pt-BR');
-  const tile = (lab, val, small, cls = '') => h('div', { class: `tile ${cls}` }, h('span', { class: 'lab' }, lab), h('b', {}, val), h('small', {}, small));
+  const report = a.report ?? [];
+  const machines = [...new Set(report.map((c) => c.machine))].sort((x, y) => String(x).localeCompare(String(y), 'pt-BR'));
+  if (anaFilter !== 'all' && !machines.includes(anaFilter)) anaFilter = 'all';
+  const shown = report.filter((c) => anaFilter === 'all' || c.machine === anaFilter);
+  const graves = shown.filter((c) => c.sev === 'alta').length;
 
-  const aiBlock = state.ai === 'loading' ? h('p', { class: 'skeleton' }, 'A IA está lendo os números para escrever os pontos importantes…')
-    : Array.isArray(state.ai) ? h('ol', { class: 'apoints' }, state.ai.map((t) => h('li', {}, decodeEntities(t))))
-    : h('p', { class: 'note' }, `Não consegui gerar o resumo da IA (${state.ai?.error ?? 'erro'}). O resumo automático abaixo continua valendo.`);
+  const chips = machines.length > 1 ? h('div', { class: 'fchips' }, ['all', ...machines].map((m) => h('button', { type: 'button', class: `fchip${anaFilter === m ? ' on' : ''}`, dataset: { anafilter: m } }, m === 'all' ? 'Todas as máquinas' : m))) : null;
+  const head = h('section', { class: 'card' },
+    h('h2', { class: 'ptitle' }, 'Análise', h('span', { class: 'badge-ai' }, `${a.sheets} folha(s) · OK às ${new Date(state.okAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`)),
+    h('div', { class: 'row backrow' },
+      h('button', { type: 'button', class: 'ghost', dataset: { nav: 'read' } }, '← Voltar à conferência'),
+      h('button', { type: 'button', class: 'ghost', dataset: { nav: 'undo' } }, 'Desfazer o OK e revisar de novo')),
+    h('p', { class: 'asum' }, shown.length ? h('span', {}, h('b', {}, `${shown.length} aviso${shown.length === 1 ? '' : 's'}`), graves ? ` · ${graves} grave${graves === 1 ? '' : 's'}` : '', ' · clique em um card para ver a folha') : 'Nenhum aviso: a folha não se contradiz, não há tempos grandes e o preenchimento está em dia.'),
+    chips);
 
-  const sections = [
-    h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, `Análise · ${a.sheets} folha(s) · aprovada em ${at}`),
-      h('div', { class: 'row backrow' },
-        h('button', { type: 'button', class: 'ghost', dataset: { nav: 'read' } }, '← Voltar à conferência'),
-        h('button', { type: 'button', class: 'ghost', dataset: { nav: 'undo' } }, 'Desfazer o OK e revisar de novo')),
-      h('div', { class: 'astats' },
-        tile('Produzindo', fmtDur(a.totals.prodMin), 'tempo registrado'),
-        tile('Parado', fmtDur(a.totals.stopMin), `${a.totals.pctStop} % do tempo`),
-        tile('Horários que fecham', a.totals.fecham == null ? '—' : `${a.totals.fecham}%`, 'entre produção e paradas'),
-        tile('Pontos graves', String(a.totals.alta), 'para validar', a.totals.alta ? 'warn' : ''),
-        tile('Pontos médios', String(a.totals.media), 'para conferir', a.totals.media ? 'warn' : ''))),
-    h('section', { class: 'card' }, h('h3', {}, 'Pontos importantes', h('span', { class: 'badge-ai' }, 'resumo da IA')), aiBlock),
-  ];
-
-  for (const m of a.machines) {
-    const maxMin = Math.max(1, ...m.motivos.map((x) => x.min));
-    sections.push(h('section', { class: 'card' },
-      h('h2', { class: 'ptitle' }, `${m.name}${m.dates.length ? ` · ${m.dates.map((d) => d.slice(0, 5)).join(', ')}` : ''}`),
-      h('ul', { class: 'apoints' }, m.bullets.map((b) => h('li', {}, b))),
-      m.motivos.length ? h('h3', {}, 'Paradas por motivo') : null,
-      ...m.motivos.map((x) => h('div', { class: 'brow' }, h('span', {}, x.motivo), h('div', { class: 'track' }, h('i', { style: `width:${Math.round((x.min / maxMin) * 100)}%` })), h('b', {}, `${fmtDur(x.min)} · ${x.count}×`))),
-      m.standards.length ? h('h3', {}, 'Produção × tempo padrão') : null,
-      m.standards.length ? h('div', { class: 'scroll' }, h('table', { class: 'std' },
-        h('thead', {}, h('tr', {}, ['Peça', 'Modelo', 'Linhas', 'Real', 'Padrão', '% do padrão'].map((t) => h('th', {}, t)))),
-        h('tbody', {}, m.standards.map((g) => h('tr', {}, h('td', {}, g.peca), h('td', {}, g.modelo), h('td', {}, String(g.rows)), h('td', {}, fmtDur(g.realH * 60)),
-          h('td', {}, g.ratio != null ? fmtDur(g.stdH * 60) : 'sem padrão'), h('td', {}, g.ratio != null ? `${Math.round(g.ratio * 100)} %` : '—')))))) : null));
+  const sections = [head];
+  for (const t of TIERS) {
+    const list = shown.filter((c) => c.tier === t.id);
+    if (!list.length) continue;
+    sections.push(h('section', { class: `tier t${t.id}` }, h('h3', {}, t.name, h('span', { class: 'tcount' }, String(list.length)), h('small', {}, t.hint)), h('div', { class: 'flips' }, list.map(flipCard))));
   }
 
-  const ICON = { 'produzindo parado': '⚠', 'registros sobrepostos': '⇄', 'parada longa': '⏱', 'sem registro': '?' };
-  const KIND = { 'produzindo parado': 'Produzindo e parado ao mesmo tempo', 'registros sobrepostos': 'Dois registros no mesmo horário', 'parada longa': 'Parada mais longa que o normal', 'sem registro': 'Tempo sem registro' };
-  const goBtn = (i) => h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: i.page, k: i.table, r: i.ri } }, 'Ir para a linha');
-  const bySheet = new Map();
-  for (const c of a.cards) { const k = `${c.machine} · folha do dia ${c.day}`; if (!bySheet.has(k)) bySheet.set(k, []); bySheet.get(k).push(c); }
-  const cardsBlock = a.cards.length
-    ? [...bySheet].map(([title, list]) => h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, title, h('span', { class: 'badge-ai' }, `${list.length} ponto${list.length === 1 ? '' : 's'}`)),
-      h('div', { class: 'fcards' }, list.map((c) => h('article', { class: `fcard ${c.sev}` },
-        h('div', { class: 'fhead' }, h('span', { class: 'ficon' }, ICON[c.kind] ?? '!'), h('div', {}, h('span', { class: SEV[c.sev][1] }, SEV[c.sev][0]), h('strong', {}, KIND[c.kind] ?? c.kind)),
-          c.viz?.big ? h('div', { class: 'fbig' }, h('b', {}, c.viz.big), h('small', {}, c.viz.bigLabel)) : null),
-        c.viz ? timeline(c.viz) : null,
-        h('p', {}, c.headline),
-        c.why ? h('p', { class: 'note' }, c.why) : null,
-        goBtn(c))))))
-    : [h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Pontos para validar'), h('p', { class: 'note' }, 'Nada fora do esperado: produção e paradas não se contradizem, não há paradas longas demais nem tempo sem registro.'))];
-  const Q = a.quality ?? [];
-  const QKIND = { 'turno em branco': 'Turno em branco', 'turno incerto': 'Turno incerto', 'turno diferente do horário': 'Turno não bate com o horário', 'sem chapa': 'Chapa não preenchida', 'sem motivo': 'Parada sem motivo', 'horário incompleto': 'Horário incompleto', 'sem data': 'Data não preenchida', caligrafia: 'Caligrafia difícil' };
-  const QICON = { 'turno em branco': '◐', 'turno incerto': '◐', 'turno diferente do horário': '◐', 'sem chapa': '#', 'sem motivo': '?', 'horário incompleto': '⏱', 'sem data': '📅', caligrafia: '✎' };
-  const qBlock = h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Qualidade do preenchimento', h('span', { class: 'badge-ai' }, Q.length ? `${Q.length} ponto${Q.length === 1 ? '' : 's'}` : 'tudo certo')),
-    Q.length ? h('div', { class: 'fcards' }, Q.map((c) => h('article', { class: `fcard ${c.sev}` },
-      h('div', { class: 'fhead' }, h('span', { class: 'ficon' }, QICON[c.problem ?? c.kind] ?? '!'), h('div', {}, h('span', { class: SEV[c.sev][1] }, SEV[c.sev][0]), h('strong', {}, QKIND[c.problem ?? c.kind] ?? c.kind)),
-        h('div', { class: 'fbig' }, h('b', {}, `${Math.round((c.meter.part / c.meter.total) * 100)} %`), h('small', {}, `${c.meter.part} de ${c.meter.total}`))),
-      h('div', { class: 'meter' }, h('i', { style: `width:${Math.round((c.meter.part / c.meter.total) * 100)}%` })),
-      h('p', {}, c.headline),
-      c.chips?.length ? h('div', { class: 'chips' }, c.chips.map((x) => h('span', { class: 'chip static' }, x))) : null,
-      h('p', { class: 'note' }, c.why),
-      goBtn(c)))) : h('p', { class: 'note' }, 'Nenhum colaborador deixou colunas em branco com frequência e nenhuma folha ficou difícil de ler.'));
+  // what the person changed after the reading (kept as it was)
   const E = a.edits ?? [];
   const EKIND = { alterado: 'Alterado', preenchido: 'Preenchido', apagado: 'Apagado', 'linha nova': 'Linha nova', 'linha excluída': 'Linha excluída' };
   const eBySheet = new Map();
   for (const e of E) { const k = `${e.machine} · folha do dia ${e.day}`; if (!eBySheet.has(k)) eBySheet.set(k, []); eBySheet.get(k).push(e); }
-  const eBlock = h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Alterações feitas por você', h('span', { class: 'badge-ai' }, E.length ? `${E.length} alteraç${E.length === 1 ? 'ão' : 'ões'}` : 'nenhuma')),
+  sections.push(h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Alterações feitas por você', h('span', { class: 'badge-ai' }, E.length ? `${E.length} alteraç${E.length === 1 ? 'ão' : 'ões'}` : 'nenhuma')),
     E.length ? [h('p', { class: 'note' }, 'Tudo que você mudou, preencheu ou apagou depois da leitura do app. Informação que você colocou e que não estava na leitura merece uma segunda olhada na folha.'),
       ...[...eBySheet].map(([title, list]) => h('div', { class: 'esheet' }, h('h3', {}, title),
         list.map((e) => h('div', { class: `issue edit ${e.kind === 'preenchido' || e.kind === 'linha nova' ? 'fill' : ''}` }, h('span', { class: e.kind === 'preenchido' || e.kind === 'linha nova' ? 'tag bad' : 'tag' }, EKIND[e.kind]),
           h('div', {}, `${e.where}: ${describeEdit(e)}`, e.alert ? h('small', { class: 'stillbad' }, 'Essa linha ainda aparece em um alerta da análise') : null), goBtn(e)))))]
-      : h('p', { class: 'note' }, 'Você não alterou nada depois da leitura: os dados estão como o app leu.'));
-  sections.splice(2, 0, qBlock, eBlock, ...cardsBlock);
-  const others = a.issues.filter((i) => !a.cards.includes(i));
-  if (others.length) sections.push(h('section', { class: 'card' }, h('h3', {}, `Outras conferências (${others.length})`),
-    others.map((i) => h('div', { class: 'issue' }, h('span', { class: SEV[i.sev][1] }, SEV[i.sev][0]),
-      h('div', {}, i.text, h('small', {}, `${i.machine} · ${i.label} · linha ${i.linha || '?'}`)), goBtn(i)))));
+      : h('p', { class: 'note' }, 'Você não alterou nada depois da leitura: os dados estão como o app leu.')));
   root.replaceChildren(...sections);
 }
-
 
 // ---------------------------------------------------------------- painel
 const panelOpt = { group: 'all', day: 'all' };
@@ -1057,7 +1024,7 @@ function closeHelp() { helpEl.hidden = true; }
 $('helpbtn').addEventListener('click', openHelp);
 $('helpclose').addEventListener('click', closeHelp);
 helpEl.addEventListener('click', (e) => { if (e.target === helpEl) closeHelp(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (!helpEl.hidden) closeHelp(); closeMenu(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (!$('lightbox').hidden) $('lightbox').hidden = true; if (!helpEl.hidden) closeHelp(); closeMenu(); } });
 
 const menuEl = $('menu'), menuBtn = $('menubtn');
 function closeMenu() { menuEl.hidden = true; menuBtn.setAttribute('aria-expanded', 'false'); }
@@ -1084,3 +1051,8 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
 }
 // first visit: show the help once
 try { if (!localStorage.getItem('mt-help') && $('lock').hidden) setTimeout(() => { if ($('lock').hidden) openHelp(); }, 600); } catch { /* ignore */ }
+
+document.addEventListener('keydown', (e) => {
+  const f = e.target.closest?.('.flip');
+  if (f && e.target === f && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); f.click(); }
+});

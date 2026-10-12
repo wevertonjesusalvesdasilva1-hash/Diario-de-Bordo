@@ -541,3 +541,50 @@ td.auto { box-shadow: inset 0 0 0 1.5px var(--ink); border-radius: 6px; position
 td.auto::after { content: "auto"; position: absolute; top: -8px; left: 5px; font: 600 .56rem var(--f-head); letter-spacing: .08em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: var(--ink); color: var(--bg); pointer-events: none; z-index: 1; }
 td.auto.edited::after { content: "editado"; }
 .sw.auto { border-color: var(--ink); background: transparent; }
+
+/* ===== Análise: cards que viram (frente: resumo, verso: a folha inteira) ===== */
+.asum { margin: 6px 0 0; color: var(--muted); font-size: .92rem; }
+.asum b { color: var(--ink); }
+.fchips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.fchip { border-radius: 999px; padding: 6px 14px; font: 500 .8rem var(--f-body); }
+.fchip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.tier { margin: 22px 0 6px; animation: rise .6s var(--ease) both; }
+.tier h3 { font: 600 1rem var(--f-head); margin: 0 0 12px; gap: 10px; }
+.tier h3::after { display: none; }
+.tier h3 small { color: var(--muted); font: 400 .8rem var(--f-body); }
+.tcount { min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px; display: inline-grid; place-items: center; background: var(--ink); color: var(--bg); font: 600 .74rem var(--f-head); }
+.tier.t5 .tcount { background: var(--muted); }
+.flips { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.flip { perspective: 1400px; height: 360px; cursor: pointer; border-radius: 16px; outline-offset: 3px; }
+.flip-in { position: relative; height: 100%; display: grid; transition: transform .75s var(--ease); transform-style: preserve-3d; }
+.flip.flipped .flip-in { transform: rotateY(180deg); }
+.face { grid-area: 1 / 1; min-height: 0; overflow: hidden; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden; border: 1px solid var(--line2); border-left: 4px solid var(--warn);
+  background: linear-gradient(160deg, rgb(255 255 255 / .07), rgb(255 255 255 / .02)), var(--panel2);
+  box-shadow: 0 14px 40px rgb(0 0 0 / .3); transition: box-shadow .4s var(--ease); }
+:root[data-theme="light"] .face { background: linear-gradient(160deg, #fff, #f6f6f7); box-shadow: 0 10px 30px rgb(0 0 0 / .1); }
+.flip.alta .face { border-left-color: var(--bad); }
+.flip:hover .face { box-shadow: 0 18px 50px rgb(0 0 0 / .4); }
+.back { transform: rotateY(180deg); padding: 12px; gap: 8px; }
+.ftop { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.fmachine { font: 700 1.35rem var(--f-head); letter-spacing: -.01em; }
+.ftitle { font: 600 .95rem var(--f-head); }
+.fbig2 { display: flex; align-items: baseline; gap: 10px; margin-top: 2px; }
+.fbig2 b { font: 700 2.4rem/1 var(--f-head); letter-spacing: -.02em; }
+.fbig2 small { color: var(--muted); font-size: .8rem; }
+.fbrief { margin: 0; color: var(--ink); font-size: .9rem; line-height: 1.45; flex: 1; overflow: hidden; }
+.ffoot { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--line2); padding-top: 10px; }
+.fhint { font-weight: 500; color: var(--ink); }
+.sheetwrap { position: relative; flex: 1; min-height: 0; overflow: hidden; border-radius: 10px; background: #fff; display: grid; place-items: center; cursor: zoom-in; border: 1px solid var(--line2); }
+.sheetwrap img { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; object-fit: contain; }
+.sheetwrap .hl { position: absolute; border: 2px solid #ff3b3b; background: rgb(255 59 59 / .18); border-radius: 3px; pointer-events: none; box-shadow: 0 0 0 1px rgb(255 255 255 / .6); }
+.nosheet { margin: auto; text-align: center; }
+.fcap { margin: 0; font-size: .74rem; color: var(--muted); line-height: 1.35; max-height: 3.9em; overflow: hidden; }
+.fbtns { display: flex; justify-content: space-between; gap: 8px; }
+.fbtns button { padding: 5px 12px; font-size: .78rem; }
+#lightbox .sheetwrap.zoomed { width: min(2000px, 220%); flex: none; display: block; background: #fff; cursor: zoom-out; overflow: visible; }
+#lightbox .sheetwrap.zoomed img { width: 100%; max-width: none; max-height: none; }
+@media (max-width: 640px) { .flips { grid-template-columns: 1fr; } .flip { height: 380px; } }
+@media (prefers-reduced-motion: reduce) {
+  .flip-in { transition: none; }
+}

@@ -32,6 +32,6 @@ export function usageText() {
 }
 export function usageHint() {
   const n = used(), lim = getLimit();
-  return lim ? `Estimativa neste navegador. Usadas hoje: ${n} de ${lim} chamadas ao Gemini. Cada folha (1 página do PDF com produção e paradas) gasta cerca de ${callsPerSheet().toFixed(1)} chamadas, e o resumo da análise gasta mais 1. O limite real da sua conta está em aistudio.google.com/usage; ajuste o valor em "Listas de conferência".` : 'Informe o limite diário nas configurações para ver quantas folhas ainda cabem.';
+  return lim ? `Estimativa neste navegador. Usadas hoje: ${n} de ${lim} chamadas ao Gemini. Cada folha (1 página do PDF com produção e paradas) gasta cerca de ${callsPerSheet().toFixed(1)} chamadas. O limite real da sua conta está em aistudio.google.com/usage; ajuste o valor em "Listas de conferência".` : 'Informe o limite diário nas configurações para ver quantas folhas ainda cabem.';
 }
 export const nearLimit = () => { const lim = getLimit(); return lim > 0 && used() >= lim * 0.9; };

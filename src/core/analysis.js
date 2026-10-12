@@ -6,6 +6,7 @@ import { aliasKey } from './lists.js';
 import { buildCards } from './cards.js';
 import { buildQuality } from './quality.js';
 import { collectEdits } from './edits.js';
+import { buildReport } from './report.js';
 
 export const GAP_MIN = 10;        // minutes without any record that deserve a look
 export const GAP_MAX = 6 * 60;    // beyond this the machine is considered not scheduled (night, weekend…)
@@ -188,16 +189,19 @@ export function analyze(pages) {
     .sort((a, b) => RANK[a.sev] - RANK[b.sev]);
   const prodMin = machines.reduce((s, m) => s + m.prodMin, 0), stopMin = machines.reduce((s, m) => s + m.stopMin, 0);
   const tr = machines.reduce((s, m) => ({ total: s.total + m.transitions.total, ok: s.ok + m.transitions.ok }), { total: 0, ok: 0 });
-  return {
+  const quality = buildQuality(pages);
+  const result = {
     generatedAt: new Date().toISOString(),
     sheets: pages.length,
-    machines, issues, cards, quality: buildQuality(pages), edits: collectEdits(pages, cards),
+    machines, issues, cards, quality, edits: collectEdits(pages, cards),
     totals: {
       prodMin, stopMin, pctStop: prodMin + stopMin ? Math.round((stopMin / (prodMin + stopMin)) * 100) : 0,
       alta: issues.filter((i) => i.sev === 'alta').length, media: issues.filter((i) => i.sev === 'media').length, info: issues.filter((i) => i.sev === 'info').length,
       fecham: tr.total ? Math.round((tr.ok / tr.total) * 100) : null,
     },
   };
+  result.report = buildReport(result);
+  return result;
 }
 
 // Compact text version for the AI summary (numbers only, no raw images or free text beyond descriptions).

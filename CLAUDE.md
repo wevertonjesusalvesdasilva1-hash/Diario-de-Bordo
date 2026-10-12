@@ -25,10 +25,10 @@ Teste de navegador: `playwright-core` com o Chromium já instalado em `/opt/pw-b
 - `src/core/` (funções puras, testáveis em Node):
   - `layout.js`, `image.js`: visão computacional da folha (grade, rotação, bolinha da máquina, máscaras de caneta).
   - `rows.js`, `parse.js`: transforma o JSON do modelo em linhas e marca dúvidas (`flags`); reconciliação das leituras.
-  - `analysis.js` (+ `cards.js`, `quality.js`, `edits.js`, `panel.js`): análise, cards, qualidade de preenchimento, alterações do usuário e painel.
+  - `analysis.js` (+ `cards.js`, `quality.js`, `edits.js`, `report.js` que ordena os cards por prioridade, `turno.js`, `panel.js`): análise, cards, qualidade de preenchimento, alterações do usuário e painel.
   - `export.js`: TSV e Excel. `lists.js`: listas RAW/usinagem e correções aprendidas. `text.js`: utilidades de texto.
 - `src/data/`: vocabulário (`vocab.js`) e tempos padrão (`padrao.js`, vindos da matriz da planilha).
-- `api/` (Vercel, Node ESM): `extract.js` (leituras A/B/C), `analyze.js` (resumo da IA), `login.js`, `_auth.js`, `_gemini.js`, `_shared.js`. Funções **não** importam de `src/`; o que for comum é duplicado (ver `decodeEntities`).
+- `api/` (Vercel, Node ESM): `extract.js` (leituras A/B/C), `analyze.js` (resumo da IA, hoje sem uso na tela), `login.js`, `_auth.js`, `_gemini.js`, `_shared.js`. Funções **não** importam de `src/`; o que for comum é duplicado (ver `decodeEntities`).
 - `test/`: testes unitários e de integração. `scripts/`: ferramentas de depuração.
 
 ## Regras de código

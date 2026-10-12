@@ -44,10 +44,11 @@ Qualquer edição depois do OK desfaz o OK e exige novo OK.
 - Tudo que o usuário altera ou preenche é destacado na célula e vai para o relatório.
 
 **Análise (aba 2, após o OK)**
-- *Cards por folha*, com linha do tempo colorida: produzindo e parado ao mesmo tempo, dois registros no mesmo horário, parada mais longa que o normal (por motivo), tempo sem registro.
-- *Qualidade do preenchimento*: chapa em branco, parada sem motivo, horário incompleto, data faltando, caligrafia difícil.
-- *Alterações feitas pelo usuário* depois da leitura.
-- Produção contra o **tempo padrão** (matriz da planilha) e resumo escrito pela IA (apenas números).
+- Só **cards de aviso**, sem texto corrido nem tabelas. Cada card **vira**: a frente mostra máquina, problema, dia, tempo e um resumo curto; o verso mostra a **folha inteira** com a linha do problema marcada em vermelho (clique para ampliar).
+- Ordem de prioridade: 1) anotação errada (produzindo e parado ao mesmo tempo, dois registros no mesmo horário); 2) tempo grande (parada acima do normal, produção acima do tempo padrão); 3) preenchimento (chapa, motivo, horário, data e turno em branco ou fora do horário); 4) outros (tempo sem registro, etc.); 5) caligrafia, por último.
+- Filtro por máquina (UMC 01, UMC 02…) quando há mais de uma.
+- *Alterações feitas pelo usuário* depois da leitura, em lista, no fim.
+- A IA não escreve mais o resumo da análise (economiza uma chamada por OK).
 
 **Painel (aba 3)**
 - Tempo parado por motivo, por máquina, por hora do dia e maiores paradas, com filtro por grupo e dia.

@@ -68,6 +68,8 @@ export function buildQuality(pages) {
         text: `${machine}: ${pr.kind} em ${bad.length} de ${pool.length} registros`,
         chips: [`Folhas: ${days.join(', ')}`, ...(pr.kind === 'sem chapa' ? [`Chapas que aparecem: ${uniq(pool.map((r) => r.chapa).filter(Boolean)).slice(0, 4).join(', ') || 'nenhuma'}`] : [])],
         why: pr.why, meter: { part: bad.length, total: pool.length, label: pr.kind },
+        brief: `${pr.kind === 'sem chapa' ? 'Chapa em branco' : pr.kind === 'sem motivo' ? 'Parada sem motivo' : pr.kind === 'horário incompleto' ? 'Horário incompleto' : 'Data em branco'} em ${bad.length} de ${pool.length} registros`,
+        refs: bad.filter((r) => r.p.id === first.p.id).slice(0, 8).map((r) => ({ table: r.table, linha: r.linha })),
       });
     }
   }
@@ -81,7 +83,8 @@ export function buildQuality(pages) {
     const mk = (list, problem, sev, headline, why) => {
       const first = list[0];
       cards.push({ sev, kind: 'preenchimento', problem, machine, page: first.p.id, label: first.p.label, day: day(first.p), table: first.table, ri: first.ri, linha: first.r.linha,
-        headline, text: headline, chips: [`Folhas: ${uniq(list.map((x) => day(x.p))).join(', ')}`], why, meter: { part: list.length, total: all.length, label: problem } });
+        headline, text: headline, brief: problem === 'turno em branco' ? `Turno em branco em ${list.length} de ${all.length} linhas (preenchido pelo app)` : problem === 'turno incerto' ? `Turno incerto em ${list.length} linha(s)` : `Turno não bate com o horário em ${list.length} linha(s)`,
+        refs: list.filter((x) => x.p.id === first.p.id).slice(0, 8).map((x) => ({ table: x.table, linha: x.r.linha })), chips: [`Folhas: ${uniq(list.map((x) => day(x.p))).join(', ')}`], why, meter: { part: list.length, total: all.length, label: problem } });
     };
     if (blank.length - unsure.length >= 2) {
       const n = blank.length - unsure.length;
@@ -103,7 +106,7 @@ export function buildQuality(pages) {
       headline: `${p.machine || 'Folha'} · folha do dia ${day(p)}: letra difícil de ler. ${bad} de ${filled} células preenchidas (${pct(bad, filled)} %) ficaram ilegíveis, com leituras diferentes ou fora do esperado.`,
       text: `Folha do dia ${day(p)}: ${bad} de ${filled} células de leitura difícil`,
       chips: [`Folha ${p.label}`], why: 'Essas folhas dão mais trabalho na extração. Vale conferir célula a célula e pedir letra mais legível ao colaborador.',
-      meter: { part: bad, total: filled, label: 'células difíceis' },
+      meter: { part: bad, total: filled, label: 'células difíceis' }, brief: `${bad} de ${filled} células difíceis de ler`, refs: [],
     });
   }
   const RANK = { alta: 0, media: 1 };
