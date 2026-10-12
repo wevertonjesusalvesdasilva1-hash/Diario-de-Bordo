@@ -5,7 +5,7 @@
 // How long each reason normally takes, in minutes. Longer than this deserves an explanation (edit freely).
 export const LIMITE_PARADA = {
   'TROCA DE PEÇA': 25, 'SET-UP': 45, 'CONSUMIVEIS': 20, 'MECÂNICA': 60, 'ELÉTRICA': 60,
-  'PONTE ROLANTE': 20, 'AGUARD. PEÇA': 30, 'FALTA DE PEÇA': 30, 'PREVENTIVA': 120, 'OUTROS': 30,
+  'PONTE ROLANTE': 20, 'AGUARD. PEÇA': 30, 'FALTA DE PEÇA': 30, 'PREVENTIVA': 120, 'OUTROS': 30, 'TYOREI': 30,
 };
 const LIMITE_PADRAO = 45;
 const GAP_MIN = 10, GAP_MAX = 6 * 60, TOL = 1;

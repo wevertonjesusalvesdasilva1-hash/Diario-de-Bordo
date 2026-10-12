@@ -280,8 +280,8 @@ tr.hl td { animation: hl 2.2s ease; }
 .qrdone { text-align: center; padding: 18px 0; }
 
 /* painel */
-:root { --m0:#f2b84b; --m1:#ffd93d; --m2:#6bcb77; --m3:#ff6b6b; --m4:#4d96ff; --m5:#c77dff; --m6:#ff9f45; --m7:#2ee6c8; --m8:#9aa5b1; --m9:#ff7ab6; }
-:root[data-theme="light"] { --m0:#b9770e; --m1:#a08500; --m2:#2e8b3f; --m3:#c93c3c; --m4:#1f6fd1; --m5:#8a3fc4; --m6:#c4600e; --m7:#078a80; --m8:#6b7683; --m9:#c43b84; }
+:root { --m10:#d4d4d8; --m0:#f2b84b; --m1:#ffd93d; --m2:#6bcb77; --m3:#ff6b6b; --m4:#4d96ff; --m5:#c77dff; --m6:#ff9f45; --m7:#2ee6c8; --m8:#9aa5b1; --m9:#ff7ab6; }
+:root[data-theme="light"] { --m10:#52525b; --m0:#b9770e; --m1:#a08500; --m2:#2e8b3f; --m3:#c93c3c; --m4:#1f6fd1; --m5:#8a3fc4; --m6:#c4600e; --m7:#078a80; --m8:#6b7683; --m9:#c43b84; }
 .brow .track.plain { background: var(--line2); height: 14px; }
 .stack { display: flex; height: 100%; min-width: 3px; }
 .stack i { position: static; display: block; box-shadow: none; min-width: 2px; }
@@ -535,3 +535,9 @@ kbd { font: 500 .78rem var(--f-mono); padding: 1px 6px; border: 1px solid var(--
   *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   .drop { transform: none; }
 }
+
+/* valores preenchidos pelo app (turno pelo horário, Tyorei pela descrição) */
+td.auto { box-shadow: inset 0 0 0 1.5px var(--ink); border-radius: 6px; position: relative; }
+td.auto::after { content: "auto"; position: absolute; top: -8px; left: 5px; font: 600 .56rem var(--f-head); letter-spacing: .08em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: var(--ink); color: var(--bg); pointer-events: none; z-index: 1; }
+td.auto.edited::after { content: "editado"; }
+.sw.auto { border-color: var(--ink); background: transparent; }

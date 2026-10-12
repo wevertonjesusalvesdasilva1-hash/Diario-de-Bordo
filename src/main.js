@@ -5,6 +5,8 @@ import { inkIn, cropToPaper } from './core/image.js';
 import { readSheet } from './core/gemini.js';
 import { apiPost, checkLogin, login } from './api.js';
 import { usageText, usageHint, sheetsLeft, sheetRead, nearLimit, getLimit, setLimit, quotaHit, clearQuota } from './usage.js';
+import { applyKeywords, mentionsTyorei } from './core/rows.js';
+import { inferTurnos } from './core/turno.js';
 import { buildPage, reconcile, applyInkMotivo, alignRows, alignJson, collectAsk, applyThirdReading, normMachine } from './core/rows.js';
 import { decodeEntities } from './core/text.js';
 import { recordEdit, recordRemoval, describeEdit } from './core/edits.js';
@@ -12,7 +14,7 @@ import { buildPanel } from './core/panel.js';
 import { allRows, toTSV, workbookBytes } from './core/export.js';
 import { getLists, saveGroupLists, learnAlias, resetLists, setActiveGroup, groupOf as listGroup } from './core/lists.js';
 import { saveState, loadState } from './store.js';
-import { MOTIVOS, MAQUINAS } from './data/vocab.js';
+import { MOTIVOS, MOTIVOS_ALL, MAQUINAS } from './data/vocab.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -165,11 +167,13 @@ async function readPage(p) {
     const built = buildPage(json, { year: Number($('year').value) || new Date().getFullYear(), meta: { machineFromBubble: sec.bubble } });
     const rowWarns = alignRows(built, sec.rowInk);
     applyInkMotivo(built, sec.inkMotivo);
+    applyKeywords(built);
     sheetRead();
     Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk, rowWarn: rowWarns.join('; '), crop: sec.crop });
     for (const r of p.prod) r.strip = sec.strips.prod[r.linha - 1];
     for (const r of p.stops) r.strip = sec.strips.stops[r.linha - 1];
     p.include = true;
+    inferTurnos(okPages());
     markDuplicates();
   } catch (e) {
     p.status = 'erro'; p.error = e.message;
@@ -262,12 +266,14 @@ function fieldCell(p, kind, ri, row, [key, , , cls]) {
   const flag = row.flags?.[key];
   const bad = flag && BAD.test(flag);
   const attrs = { dataset: { p: p.id, k: kind, r: ri, f: key }, title: flag || row.learned?.[key] ? `${flag ?? ''}${row.learned?.[key] ? ` (aprendido: li "${row.learned[key]}")` : ''}` : false };
+  const ed0 = row.edits?.[key], auto0 = row.auto?.[key];
+  if (ed0) attrs.title = editTitle(ed0); else if (auto0) attrs.title = auto0;
   const control = key === 'motivo'
-    ? h('select', attrs, h('option', { value: '' }, '—'), [...MOTIVOS, ...(row.motivo && !MOTIVOS.includes(row.motivo) ? [row.motivo] : [])].map((m) => h('option', { value: m, selected: m === row.motivo }, m)))
+    ? h('select', attrs, h('option', { value: '' }, '—'), [...MOTIVOS_ALL, ...(row.motivo && !MOTIVOS_ALL.includes(row.motivo) ? [row.motivo] : [])].map((m) => h('option', { value: m, selected: m === row.motivo }, m)))
     : h('input', { ...attrs, ...(key === 'data' ? dateAttrs : {}), type: 'text', value: row[key] ?? '', spellcheck: false });
   const ed = row.edits?.[key];
-  if (ed) attrs.title = editTitle(ed);
-  return h('td', { class: `${cls ?? ''}${flag ? ' flag' : ''}${bad ? ' bad' : ''}${ed ? (String(ed.from ?? '').trim() ? ' edited' : ' edited fill') : ''}` }, control);
+  const auto = row.auto?.[key];
+  return h('td', { class: `${cls ?? ''}${flag ? ' flag' : ''}${bad ? ' bad' : ''}${ed ? (String(ed.from ?? '').trim() ? ' edited' : ' edited fill') : ''}${auto && !ed ? ' auto' : ''}` }, control);
 }
 
 const hasDoubt = (row) => !!row.rowFlag || Object.keys(row.flags ?? {}).length > 0;
@@ -389,12 +395,31 @@ document.addEventListener('input', (e) => {
   row[d.f === 'desc' ? 'desc' : d.f] = e.target.value;
   recordEdit(row, d.f, before, e.target.value);
   markEdited(e.target.closest('td'), row.edits?.[d.f]);
+  if (d.f === 'turno' && row.auto?.turno) { delete row.auto.turno; e.target.closest('td').classList.remove('auto'); }
+  if (d.f === 'desc' && d.k === 'stops' && mentionsTyorei(e.target.value) && row.motivo !== 'TYOREI' && !row.edits?.motivo) {
+    row.motivo = 'TYOREI'; delete row.flags.motivo; row.auto = { ...(row.auto ?? {}), motivo: 'Definido pela palavra "Tyorei" na descrição.' };
+    const sel = document.querySelector(`select[data-p="${d.p}"][data-k="stops"][data-r="${d.r}"][data-f="motivo"]`);
+    if (sel) { sel.value = 'TYOREI'; sel.title = row.auto.motivo; const td = sel.closest('td'); td.classList.remove('flag', 'bad'); td.classList.add('auto'); }
+  }
   if (row.flags?.[d.f]) { delete row.flags[d.f]; e.target.closest('td').classList.remove('flag', 'bad'); }
   updateSummary(); persist();
 });
 
+function refreshTurnos(page) {
+  inferTurnos(okPages());
+  for (const kind of ['prod', 'stops']) page[kind].forEach((row, ri) => {
+    const inp = document.querySelector(`[data-p="${page.id}"][data-k="${kind}"][data-r="${ri}"][data-f="turno"]`);
+    if (!inp) return;
+    inp.value = row.turno ?? '';
+    const td = inp.closest('td'); const flag = row.flags?.turno;
+    td.classList.toggle('auto', !!row.auto?.turno && !row.edits?.turno);
+    td.classList.toggle('flag', !!flag); td.classList.toggle('bad', !!flag && BAD.test(flag));
+    inp.title = row.edits?.turno ? editTitle(row.edits.turno) : (row.auto?.turno ?? flag ?? '');
+  });
+}
 document.addEventListener('change', (e) => {
   const d = e.target.dataset;
+  if (d?.f && /^(ini|fim|chapa)/.test(d.f) && d.k) { const pg = pageOf(d.p); if (pg) { refreshTurnos(pg); updateSummary(); persist(); } }
   if (d?.f === 'data') { const v = withYear(e.target.value); if (v !== e.target.value) { e.target.value = v; e.target.dispatchEvent(new Event('input', { bubbles: true })); } }
   if (d?.act === 'machine') { const p = pageOf(d.p); const was = p.machine; p.machine = e.target.value; p.machineFlag = null; if (was !== p.machine) { const pe = p.edits?.machine; p.edits = { ...(p.edits ?? {}), machine: { from: pe ? pe.from : was, to: p.machine } }; if (p.edits.machine.from === p.machine) delete p.edits.machine; } renderPage(p); updateSummary(); persist(); return; }
   if (d?.act === 'include') { const p = pageOf(d.p); p.include = e.target.checked; renderPage(p); updateSummary(); persist(); return; }
@@ -660,8 +685,8 @@ function renderAnalysis() {
         goBtn(c))))))
     : [h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Pontos para validar'), h('p', { class: 'note' }, 'Nada fora do esperado: produção e paradas não se contradizem, não há paradas longas demais nem tempo sem registro.'))];
   const Q = a.quality ?? [];
-  const QKIND = { 'sem chapa': 'Chapa não preenchida', 'sem motivo': 'Parada sem motivo', 'horário incompleto': 'Horário incompleto', 'sem data': 'Data não preenchida', caligrafia: 'Caligrafia difícil' };
-  const QICON = { 'sem chapa': '#', 'sem motivo': '?', 'horário incompleto': '⏱', 'sem data': '📅', caligrafia: '✎' };
+  const QKIND = { 'turno em branco': 'Turno em branco', 'turno incerto': 'Turno incerto', 'turno diferente do horário': 'Turno não bate com o horário', 'sem chapa': 'Chapa não preenchida', 'sem motivo': 'Parada sem motivo', 'horário incompleto': 'Horário incompleto', 'sem data': 'Data não preenchida', caligrafia: 'Caligrafia difícil' };
+  const QICON = { 'turno em branco': '◐', 'turno incerto': '◐', 'turno diferente do horário': '◐', 'sem chapa': '#', 'sem motivo': '?', 'horário incompleto': '⏱', 'sem data': '📅', caligrafia: '✎' };
   const qBlock = h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Qualidade do preenchimento', h('span', { class: 'badge-ai' }, Q.length ? `${Q.length} ponto${Q.length === 1 ? '' : 's'}` : 'tudo certo')),
     Q.length ? h('div', { class: 'fcards' }, Q.map((c) => h('article', { class: `fcard ${c.sev}` },
       h('div', { class: 'fhead' }, h('span', { class: 'ficon' }, QICON[c.problem ?? c.kind] ?? '!'), h('div', {}, h('span', { class: SEV[c.sev][1] }, SEV[c.sev][0]), h('strong', {}, QKIND[c.problem ?? c.kind] ?? c.kind)),
@@ -692,7 +717,7 @@ function renderAnalysis() {
 
 // ---------------------------------------------------------------- painel
 const panelOpt = { group: 'all', day: 'all' };
-const MOT_COLOR = Object.fromEntries(MOTIVOS.map((m, i) => [m, `var(--m${i})`]));
+const MOT_COLOR = Object.fromEntries(MOTIVOS_ALL.map((m, i) => [m, `var(--m${i})`]));
 MOT_COLOR['SEM MOTIVO'] = 'var(--muted)';
 const motColor = (m) => MOT_COLOR[m] ?? 'var(--muted)';
 
@@ -861,7 +886,7 @@ function renderQR() {
   let input = null, chips = null;
   if (field) {
     input = field === 'motivo'
-      ? h('select', { id: 'qrinput' }, h('option', { value: '' }, '—'), [...MOTIVOS, ...(row.motivo && !MOTIVOS.includes(row.motivo) ? [row.motivo] : [])].map((m) => h('option', { value: m, selected: m === row.motivo }, m)))
+      ? h('select', { id: 'qrinput' }, h('option', { value: '' }, '—'), [...MOTIVOS_ALL, ...(row.motivo && !MOTIVOS_ALL.includes(row.motivo) ? [row.motivo] : [])].map((m) => h('option', { value: m, selected: m === row.motivo }, m)))
       : h('input', { id: 'qrinput', type: 'text', value: row[field] ?? '', spellcheck: false, autocomplete: 'off', ...(field === 'data' ? dateAttrs : {}) });
     if (field === 'data') input.addEventListener('input', () => { input.value = maskDate(input.value); });
     const sugg = suggestionChips(row, field);

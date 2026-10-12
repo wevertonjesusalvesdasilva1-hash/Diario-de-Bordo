@@ -72,6 +72,27 @@ export function buildQuality(pages) {
     }
   }
 
+  // TURNO column: blank on the sheet (the app filled it from the clock and the chapa) or contradicting the clock
+  for (const [machine, ps] of byMachine) {
+    const all = ps.flatMap((p) => ['prod', 'stops'].flatMap((table) => p[table].map((r, ri) => ({ r, p, table, ri }))));
+    const blank = all.filter((x) => x.r.auto?.turno && !x.r.edits?.turno);
+    const clash = all.filter((x) => /indica turno/.test(x.r.flags?.turno ?? ''));
+    const unsure = blank.filter((x) => !x.r.turno);
+    const mk = (list, problem, sev, headline, why) => {
+      const first = list[0];
+      cards.push({ sev, kind: 'preenchimento', problem, machine, page: first.p.id, label: first.p.label, day: day(first.p), table: first.table, ri: first.ri, linha: first.r.linha,
+        headline, text: headline, chips: [`Folhas: ${uniq(list.map((x) => day(x.p))).join(', ')}`], why, meter: { part: list.length, total: all.length, label: problem } });
+    };
+    if (blank.length - unsure.length >= 2) {
+      const n = blank.length - unsure.length;
+      mk(blank.filter((x) => x.r.turno), 'turno em branco', n / all.length >= 0.6 ? 'alta' : 'media',
+        `${machine}: a coluna de turno veio em branco em ${n} de ${all.length} linhas. O app preencheu pelo horário (turno 1: 07:30 às 17:30) e pela chapa. Os campos estão marcados como "auto".`,
+        'Confira os marcados como "auto". Hora extra e chapa nova podem mudar o turno certo. O ideal é o operador preencher a coluna.');
+    }
+    if (unsure.length) mk(unsure, 'turno incerto', 'media', `${machine}: em ${unsure.length} linha(s) o turno está em branco e o horário (entre 05:30 e 07:30) não permite saber. Preencha à mão.`, 'O horário cai entre os turnos e a chapa ainda não tem histórico para decidir.');
+    if (clash.length) mk(clash, 'turno diferente do horário', 'media', `${machine}: em ${clash.length} linha(s) o turno anotado não bate com o horário. Exemplo: ${clash[0].r.flags.turno}.`, 'Pode ser hora extra, ou o turno ou o horário foram anotados errado.');
+  }
+
   for (const p of pages) {
     const { filled, bad } = handwriting(p);
     if (bad < HARD_CELLS || !filled || bad / filled < HARD_SHARE) continue;

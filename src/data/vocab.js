@@ -20,6 +20,10 @@ export const MOTIVOS = [
   'CONSUMIVEIS', 'TROCA DE PEÇA', 'SET-UP', 'OUTROS', 'FALTA DE PEÇA',
 ];
 
+// Motivo extra, fora das 10 colunas impressas (não tem X na folha): vem da palavra escrita na descrição.
+export const MOTIVOS_EXTRA = ['TYOREI'];
+export const MOTIVOS_ALL = [...MOTIVOS, ...MOTIVOS_EXTRA];
+
 // Máquinas atendidas pelo app. RAW (solda robotizada) é marcada por bolinha na folha;
 // as de usinagem vêm com o nome escrito/impresso no campo MÁQUINA.
 export const MAQUINAS_RAW = ['RAW05', 'RAW06', 'RAW09', 'RAW10', 'RAW11', 'RAW12'];

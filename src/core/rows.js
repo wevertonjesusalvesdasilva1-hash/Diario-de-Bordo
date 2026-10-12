@@ -2,7 +2,7 @@
 // normalises every field and records why a cell deserves a second look (flags).
 import { normTime, normChapa, normTurno, normDate, normPeca, normModelo } from './parse.js';
 import { getLists, lookupAlias, aliasKey, setActiveGroup, groupOf } from './lists.js';
-import { MOTIVOS, MAQUINAS } from '../data/vocab.js';
+import { MOTIVOS, MOTIVOS_ALL, MAQUINAS } from '../data/vocab.js';
 
 export const PROD_FIELDS = ['data', 'peca', 'modelo', 'chapa1', 'ini1', 'fim1', 'chapa2', 'ini2', 'fim2', 'chapa3', 'ini3', 'fim3', 'turno_finalizou', 'obs'];
 export const STOP_FIELDS = ['data', 'chapa', 'ini', 'fim', 'turno', 'motivo', 'descricao'];
@@ -10,7 +10,7 @@ export const STOP_FIELDS = ['data', 'chapa', 'ini', 'fim', 'turno', 'motivo', 'd
 export function normMotivo(text) {
   if (!text) return { value: '', flag: 'sem motivo' };
   const t = aliasKey(text);
-  for (const m of MOTIVOS) if (aliasKey(m) === t) return { value: m, flag: null };
+  for (const m of MOTIVOS_ALL) if (aliasKey(m) === t) return { value: m, flag: null };
   const alias = { CONSUMIVEIS: ['TROCADECONSUMIVEIS', 'CONSUMIVEL', 'TROCADECONSUMIVEL'], 'AGUARD. PEÇA': ['AGUARDANDOPECA', 'AGUARDPECA'], 'SET-UP': ['SETUP'], 'TROCA DE PEÇA': ['TROCA', 'TROCAPECA', 'TROCADEPECA'] };
   for (const [m, list] of Object.entries(alias)) if (list.includes(t)) return { value: m, flag: null };
   return { value: String(text).trim().toUpperCase(), flag: 'motivo desconhecido' };
@@ -213,6 +213,17 @@ export function buildPage(json, { year, meta = {} }) {
   return page;
 }
 
+// "Tyorei" (the daily meeting) is written in the description, with no printed column: it sets the motive.
+const TYOREI_RE = /TYORE|TIORE|CHOREI|TYOURE/;
+export const mentionsTyorei = (desc) => TYOREI_RE.test(aliasKey(desc));
+export function applyKeywords(page) {
+  for (const r of page.stops) {
+    if (!mentionsTyorei(r.desc) || r.edits?.motivo) continue;
+    r.motivo = 'TYOREI'; delete r.flags.motivo;
+    r.auto = { ...(r.auto ?? {}), motivo: 'Definido pela palavra "Tyorei" na descrição.' };
+  }
+}
+
 // The X is detected from the pixels (which column of the printed grid holds ink), which is
 // more reliable than the model's reading: the model tends to slip one column sideways.
 // inkIdx[linha-1] = index in MOTIVOS, -1 when no X was found, or the two candidate indexes when the X sits on a border.
@@ -253,6 +264,7 @@ export function alignRows(page, ink) {
   const blank = (rows, turnoInk, field) => {
     if (!turnoInk) return;
     for (const r of rows) {
+      if (r.linha >= 1 && turnoInk[r.linha - 1] === false) r.turnoBlank = true;
       if (r.linha >= 1 && r[field] && turnoInk[r.linha - 1] === false) r.flags[field] = r.flags[field] ? `${r.flags[field]} · turno não está escrito na folha` : 'turno não está escrito na folha (deduzido)';
     }
   };
