@@ -3,7 +3,7 @@ import { analyze, detectMachine } from './core/layout.js';
 import { analyze as analyseSheets, fmtDur } from './core/analysis.js';
 import { inkIn, cropToPaper } from './core/image.js';
 import { readSheet } from './core/gemini.js';
-import { checkLogin, login } from './api.js';
+import { checkLogin, login, apiGet } from './api.js';
 import { usageText, usageHint, sheetsLeft, sheetRead, nearLimit, getLimit, setLimit, quotaHit, clearQuota } from './usage.js';
 import { applyKeywords, mentionsTyorei } from './core/rows.js';
 import { inferTurnos } from './core/turno.js';
@@ -1035,10 +1035,10 @@ function showLock(msg) {
 $('lockform').addEventListener('submit', async (e) => {
   e.preventDefault();
   const r = await login($('lockcode').value.trim());
-  if (r.ok) { $('lock').hidden = true; $('lockcode').value = ''; } else showLock(r.error || 'Código inválido');
+  if (r.ok) { $('lock').hidden = true; $('lockcode').value = ''; loadOperators(); } else showLock(r.error || 'Código inválido');
 });
 window.addEventListener('need-login', () => showLock('Digite o código de acesso'));
-checkLogin().then((st) => { if (st.required && !st.ok) showLock(); });
+checkLogin().then((st) => { if (st.required && !st.ok) showLock(); else loadOperators(); });
 
 function updateUsage() {
   $('usage-text').textContent = usageText();
@@ -1128,6 +1128,18 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ---------------------------------------------------------------- operadores (nomes só neste navegador)
+// The operators table comes from the server (protected by the access code): nothing to import by hand.
+async function loadOperators() {
+  try {
+    const res = await apiGet('/api/operadores');
+    if (!res.ok) return;
+    const { operadores } = await res.json();
+    if (!operadores || !Object.keys(operadores).length) return;
+    setOperators({ ...getOperators(), ...operadores });
+    showOperators(); refreshAnalysis();
+    document.querySelectorAll('input[data-f^="chapa"]').forEach((i) => { const sm = i.closest('td')?.querySelector('.opn'); if (sm) sm.textContent = operatorName(i.value); });
+  } catch { /* offline or no API: names stay as they were */ }
+}
 function showOperators() {
   const n = Object.keys(getOperators()).length;
   $('opinfo').textContent = n ? `${n} operador(es) carregado(s) neste navegador.` : 'Nenhum nome carregado.';

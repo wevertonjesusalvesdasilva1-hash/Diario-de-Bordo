@@ -17,6 +17,12 @@ export async function apiPost(path, body) {
   return res;
 }
 
+export async function apiGet(path) {
+  const res = await fetch(path, { headers: { 'x-access-code': getCode() } });
+  if (res.status === 401) window.dispatchEvent(new CustomEvent('need-login'));
+  return res;
+}
+
 // → { required: boolean, ok: boolean } ; ok = this browser already holds a valid code (or none is needed)
 export async function checkLogin() {
   try {

@@ -128,3 +128,22 @@ test('terceira leitura: valida o pedido e devolve as respostas', async () => {
   r = await call({ pass: 'C', images: ['QUJD', 'QUJD'], ask: [{ id: 'S1', tabela: 'stops', linha: 1, campos: ['fim'] }] }, '4.4.4.3');
   assert.equal(r.code, 400, 'número de imagens diferente do pedido');
 });
+
+test('/api/operadores só entrega a tabela com o código de acesso e nunca sem código configurado', async () => {
+  const { default: handler } = await import('../api/operadores.js');
+  const run = async (headers, env) => {
+    const old = { c: process.env.ACCESS_CODE, o: process.env.OPERADORES_JSON };
+    process.env.ACCESS_CODE = env.code ?? ''; process.env.OPERADORES_JSON = env.ops ?? '';
+    let status, body;
+    const res = { status(s) { status = s; return this; }, setHeader() { return this; }, json(b) { body = b; return this; } };
+    await handler({ method: 'GET', headers: { host: 'x', ...headers } }, res);
+    process.env.ACCESS_CODE = old.c ?? ''; process.env.OPERADORES_JSON = old.o ?? '';
+    if (!old.c) delete process.env.ACCESS_CODE; if (!old.o) delete process.env.OPERADORES_JSON;
+    return { status, body };
+  };
+  const ops = JSON.stringify({ 7910: { nome: 'Fulano de Tal', turno: '1' }, abc: { nome: 'x' } });
+  assert.equal((await run({ 'x-access-code': 'certo' }, { code: 'certo', ops })).body.operadores['7910'].nome, 'Fulano de Tal');
+  assert.equal(Object.keys((await run({ 'x-access-code': 'certo' }, { code: 'certo', ops })).body.operadores).length, 1); // chapa inválida descartada
+  assert.equal((await run({ 'x-access-code': 'errado' }, { code: 'certo', ops })).status, 401);
+  assert.deepEqual((await run({}, { ops })).body, { operadores: {} }); // sem código configurado: nunca entrega
+});

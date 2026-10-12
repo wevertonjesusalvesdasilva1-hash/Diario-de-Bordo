@@ -93,7 +93,7 @@ Validado com folhas reais (UMC 01, UMC 02, HMC 16, NCBZ, RAW05) e com a planilha
 - Folhas com letra muito ruim exigem mais conferência (o app avisa quais).
 - A cota diária do plano gratuito do Gemini limita o volume; o app mostra o consumo estimado.
 - Os limites de "parada normal" por motivo vêm do percentil 90 das ~2.200 paradas da planilha de controle (troca de peça 30 min, set-up 40, consumíveis 40, ponte rolante 30, Tyorei 60, mecânica e elétrica 120, outros 90, aguardando peça 150, falta de peça 360, preventiva 180). Ficam em `src/core/cards.js` e podem ser ajustados.
-- Nomes de operadores só aparecem se a pessoa importar a aba REFERENCIAS da planilha de controle; ficam só no navegador dela (ver `docs/PRIVACIDADE.md`).
+- Os nomes dos operadores vêm sozinhos (tabela guardada como variável protegida na Vercel, fora do repositório) e aparecem na conferência e nos cards. Só existem nomes para as chapas da aba REFERENCIAS (robôs RAW); chapas da usinagem aparecem só pelo número até entrarem na tabela (ver `docs/PRIVACIDADE.md`).
 
 ## Próximos passos (candidatos, não prometidos)
 

@@ -12,7 +12,7 @@ Ele **documenta** o funcionamento do app; não substitui a avaliação do juríd
 | Máquina, peça, modelo, motivo da parada | Não | Dados de processo. |
 | Comentários escritos à mão (descrição, observações) | Pode ser | Dependendo do que o colaborador escreveu. |
 
-O app lê só a **chapa**. Os **nomes** dos operadores só aparecem nos cards se a própria pessoa importar a planilha de controle (aba REFERENCIAS) em Listas de conferência → Operadores. Esses nomes ficam **apenas no navegador** de quem importou (armazenamento local), **nunca vão para o repositório, para o servidor ou para o Gemini**, e podem ser apagados com "Apagar nomes". A tabela chapa → turno (sem nomes) faz parte do código.
+Os **nomes** dos operadores ficam numa variável protegida do projeto na Vercel (`OPERADORES_JSON`), **fora do repositório**. O servidor só os entrega a quem tem o código de acesso, e o navegador os guarda localmente para mostrar nos cards. Eles nunca vão ao Gemini. Para atualizar a lista, troque o valor da variável (ou importe a aba REFERENCIAS em Listas de conferência → Operadores). A tabela chapa → turno (sem nomes) faz parte do código.
 
 ## Caminho dos dados
 
