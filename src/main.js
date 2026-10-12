@@ -10,7 +10,7 @@ import { inferTurnos } from './core/turno.js';
 import { buildPage, reconcile, applyInkMotivo, alignRows, alignJson, collectAsk, applyThirdReading, normMachine } from './core/rows.js';
 import { decodeEntities } from './core/text.js';
 import { KINDS } from './core/report.js';
-import { parseOperatorRows, getOperators, setOperators, clearOperators } from './core/operators.js';
+import { parseOperatorRows, getOperators, setOperators, clearOperators, operatorName } from './core/operators.js';
 import * as XLSX from 'xlsx';
 import { recordEdit, recordRemoval, describeEdit } from './core/edits.js';
 import { buildPanel } from './core/panel.js';
@@ -280,7 +280,8 @@ function fieldCell(p, kind, ri, row, [key, , , cls]) {
     : h('input', { ...attrs, ...(key === 'data' ? dateAttrs : {}), type: 'text', value: row[key] ?? '', spellcheck: false });
   const ed = row.edits?.[key];
   const auto = row.auto?.[key];
-  return h('td', { class: `${cls ?? ''}${flag ? ' flag' : ''}${bad ? ' bad' : ''}${ed ? (String(ed.from ?? '').trim() ? ' edited' : ' edited fill') : ''}${auto && !ed ? ' auto' : ''}` }, control);
+  const who = /^chapa/.test(key) ? operatorName(row[key]) : '';
+  return h('td', { class: `${cls ?? ''}${flag ? ' flag' : ''}${bad ? ' bad' : ''}${ed ? (String(ed.from ?? '').trim() ? ' edited' : ' edited fill') : ''}${auto && !ed ? ' auto' : ''}` }, control, /^chapa/.test(key) ? h('small', { class: 'opn', dataset: { opn: key } }, who) : null);
 }
 
 const hasDoubt = (row) => !!row.rowFlag || Object.keys(row.flags ?? {}).length > 0;
@@ -426,6 +427,7 @@ function refreshTurnos(page) {
 }
 document.addEventListener('change', (e) => {
   const d = e.target.dataset;
+  if (d?.f && /^chapa/.test(d.f)) { const sm = e.target.closest('td')?.querySelector('.opn'); if (sm) sm.textContent = operatorName(e.target.value); }
   if (d?.f && /^(ini|fim|chapa)/.test(d.f) && d.k) { const pg = pageOf(d.p); if (pg) { refreshTurnos(pg); updateSummary(); persist(); } }
   if (d?.f === 'data') { const v = withYear(e.target.value); if (v !== e.target.value) { e.target.value = v; e.target.dispatchEvent(new Event('input', { bubbles: true })); } }
   if (d?.act === 'machine') { const p = pageOf(d.p); const was = p.machine; p.machine = e.target.value; p.machineFlag = null; if (was !== p.machine) { const pe = p.edits?.machine; p.edits = { ...(p.edits ?? {}), machine: { from: pe ? pe.from : was, to: p.machine } }; if (p.edits.machine.from === p.machine) delete p.edits.machine; } renderPage(p); updateSummary(); persist(); return; }
@@ -1139,9 +1141,9 @@ $('opfile').addEventListener('change', async (e) => {
     const name = wb.SheetNames.find((n) => /referenc/i.test(n));
     const ops = name ? parseOperatorRows(XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' })) : {};
     if (!Object.keys(ops).length) return toast('Não achei a aba REFERENCIAS com as colunas Chapa e Nome nesse arquivo.');
-    setOperators(ops); showOperators(); refreshAnalysis();
+    setOperators(ops); showOperators(); refreshAnalysis(); document.querySelectorAll('input[data-f^="chapa"]').forEach((i) => { const sm = i.closest('td')?.querySelector('.opn'); if (sm) sm.textContent = operatorName(i.value); });
     toast(`${Object.keys(ops).length} operadores carregados. Os nomes ficam só neste navegador.`);
   } catch (err) { toast(`Não consegui abrir a planilha: ${err.message}`); }
 });
-$('opclear').addEventListener('click', () => { clearOperators(); showOperators(); refreshAnalysis(); toast('Nomes apagados deste navegador.'); });
+$('opclear').addEventListener('click', () => { clearOperators(); showOperators(); refreshAnalysis(); document.querySelectorAll('.opn').forEach((n) => { n.textContent = ''; }); toast('Nomes apagados deste navegador.'); });
 showOperators();

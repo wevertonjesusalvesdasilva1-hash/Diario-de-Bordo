@@ -4,7 +4,7 @@
 //
 // Precision matters more than volume: every card says exactly what was read (dates and times) so the person can
 // judge it against the sheet, and crossings of a few minutes are treated as rounding, not as a wrong note.
-import { whoText } from './operators.js';
+import { whoText, operatorName } from './operators.js';
 import { shiftOfTime } from './turno.js';
 
 // How long each reason normally takes, in minutes: about the 90th percentile of the ~2,200 stops in the
@@ -36,7 +36,7 @@ const suspect = (e) => {
 const overlap = (a, b) => Math.min(a.end, b.end) - Math.max(a.start, b.start);
 
 // "Produção linha 1 · 05/10/2026 · 12:00–15:00 · chapa 7910": exactly what the reading holds
-const evLine = (e) => `${e.type === 'prod' ? 'Produção' : 'Parada'} linha ${e.linha || e.ri + 1} · ${e.data || 'sem data'} · ${range(e)}${e.type === 'stop' ? ` · ${nome(e.motivo)}` : ''}${e.chapa ? ` · chapa ${e.chapa}` : ''}`;
+const evLine = (e) => `${e.type === 'prod' ? 'Produção' : 'Parada'} linha ${e.linha || e.ri + 1} · ${e.data || 'sem data'} · ${range(e)}${e.type === 'stop' ? ` · ${nome(e.motivo)}` : ''}${e.chapa ? ` · chapa ${e.chapa}${operatorName(e.chapa) ? ` (${operatorName(e.chapa)})` : ''}` : ''}`;
 const ref = (e) => ({ table: e.table, linha: e.linha || e.ri + 1 });
 
 // the parts of [a, b] left after taking the cuts out

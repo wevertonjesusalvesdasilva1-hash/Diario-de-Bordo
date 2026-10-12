@@ -126,8 +126,8 @@ export function analysisSheet(a) {
   const stdEnd = rows.length;
   blank();
   add('ALERTAS PARA CONFERIR');
-  add('Gravidade', 'Máquina', 'Folha', 'Linha', 'Tipo', 'Descrição');
-  for (const i of a.issues) add(i.sev === 'alta' ? 'ALTA' : i.sev === 'media' ? 'média' : 'info', i.machine, i.label, i.linha || '', i.kind, i.text);
+  add('Gravidade', 'Máquina', 'Folha', 'Linha', 'Tipo', 'Descrição', 'Operador');
+  for (const i of a.issues) add(i.sev === 'alta' ? 'ALTA' : i.sev === 'media' ? 'média' : 'info', i.machine, i.label, i.linha || '', i.kind, i.text, i.who || '');
 
   if (a.edits?.length) {
     blank();
