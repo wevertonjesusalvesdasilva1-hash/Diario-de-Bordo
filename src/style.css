@@ -347,3 +347,8 @@ td.edited.fill::after { content: "preenchido"; background: var(--warn); color: #
 .esheet h3 { margin: 14px 0 4px; }
 .issue.edit.fill { background: var(--warn-soft); }
 small.stillbad { color: var(--bad); }
+
+/* listas de seleção abertas: fundo sólido e texto legível nos dois temas
+   (as opções herdavam o fundo translúcido rosa/amarelo do campo marcado) */
+select option, select optgroup { background-color: var(--panel2); color: var(--ink); font-family: var(--f-mono); letter-spacing: 0; text-transform: none; }
+select option:checked { background-color: var(--accent); color: var(--accent-ink); }
