@@ -48,18 +48,19 @@ export default async function handler(req, res) {
   // the third reading may use a stronger model when GEMINI_PASS_C_MODEL is set
   const models = [...new Set(third && process.env.GEMINI_PASS_C_MODEL ? [process.env.GEMINI_PASS_C_MODEL, ...chain] : chain)];
   try {
-    const { data, model } = await gemini(models, key, parts, third ? SCHEMA_C : SCHEMA);
+    const { data, model, trace } = await gemini(models, key, parts, third ? SCHEMA_C : SCHEMA);
     const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
     if (!text) return send(res, 502, { error: `O Gemini não devolveu texto (${data?.candidates?.[0]?.finishReason ?? 'sem motivo'})` });
     let parsed;
     try { parsed = JSON.parse(text); } catch { return send(res, 502, { error: 'Resposta do Gemini não era JSON válido' }); }
-    return send(res, 200, { data: parsed, model });
+    return send(res, 200, { data: parsed, model, trace });
   } catch (e) {
     const quota = e.status === 429;
     const busy = e.status === 503 || e.status === 504 || e.status === 500;
     return send(res, quota ? 429 : busy ? 503 : 502, {
       error: quota ? (e.daily ? 'Limite diário do plano gratuito do Gemini atingido. Volta a funcionar amanhã.' : 'Limite do plano gratuito do Gemini atingido. Tente de novo em alguns minutos.')
         : busy ? 'O Gemini está sobrecarregado agora. Tente de novo em alguns minutos.' : e.message,
+      trace: e.trace,
     });
   }
 }

@@ -25,26 +25,30 @@ async function once(model, key, parts, schema, budgetMs, thinking = true) {
 // 503 ("high demand") and 429 are usually per model, so switching model is the fastest way out.
 export async function gemini(models, key, parts, schema) {
   const start = Date.now();
+  const trace = []; // one entry per attempt: which model, what came back, how long it took
   let last = { status: 0, text: 'sem resposta' };
   for (let round = 0; Date.now() - start < DEADLINE_MS; round++) {
     for (const model of models) {
       const left = DEADLINE_MS - (Date.now() - start);
       if (left < 8_000) break;
+      const t0 = Date.now();
       try {
         const out = await once(model, key, parts, schema, left);
-        if (out.ok) return { data: out.data, model };
+        trace.push({ model, status: out.ok ? 200 : out.status, ms: Date.now() - t0 });
+        if (out.ok) return { data: out.data, model, trace };
         last = out;
         if (out.status === 400 || out.status === 401 || out.status === 403) { const e = new Error(`Gemini ${out.status}: ${out.text}`); e.status = out.status; throw e; }
         if (out.status === 429 && /PerDay|per day/i.test(out.text)) { const e = new Error(`Gemini 429: ${out.text}`); e.status = 429; e.daily = true; throw e; }
       } catch (e) {
-        if (e.status) throw e;
+        trace.push({ model, status: e.status ?? e.name, ms: Date.now() - t0 });
+        if (e.status) { e.trace = trace; throw e; }
         last = { status: 504, text: e.name === 'TimeoutError' ? 'o Gemini demorou demais' : String(e.message) };
       }
     }
     await sleep(Math.min(4_000 * (round + 1), 12_000));
   }
   const err = new Error(`Gemini ${last.status}: ${last.text}`);
-  err.status = last.status;
+  err.status = last.status; err.trace = trace;
   throw err;
 }
 

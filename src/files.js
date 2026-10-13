@@ -86,5 +86,14 @@ export function toCanvas(img, sx = 0, sy = 0, sw = img.width, sh = img.height, m
   return out;
 }
 
+// the same canvas, smaller (used to make heavy scans fit one request)
+export function shrinkCanvas(c, k) {
+  if (k >= 1) return c;
+  const out = document.createElement('canvas');
+  out.width = Math.max(1, Math.round(c.width * k)); out.height = Math.max(1, Math.round(c.height * k));
+  out.getContext('2d').drawImage(c, 0, 0, out.width, out.height);
+  return out;
+}
+
 export const jpegB64 = (canvas, q = 0.9) => canvas.toDataURL('image/jpeg', q).split(',')[1];
 export const jpegUrl = (canvas, q = 0.8) => canvas.toDataURL('image/jpeg', q);

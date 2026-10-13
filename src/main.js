@@ -1,4 +1,5 @@
-import { readFiles, toCanvas, jpegB64, jpegUrl } from './files.js';
+import { readFiles, toCanvas, jpegB64, jpegUrl, shrinkCanvas } from './files.js';
+import { fitToBudget } from './core/fit.js';
 import { analyze, detectMachine } from './core/layout.js';
 import { analyze as analyseSheets, fmtDur } from './core/analysis.js';
 import { inkIn, cropToPaper } from './core/image.js';
@@ -144,11 +145,13 @@ function prepare(imageIn, { photo = false } = {}) {
   try { lay = analyze(image, { photo }); } catch (e) { console.warn('layout', e); }
   if (!lay) {
     const full = toCanvas(image, 0, 0, image.width, image.height, 2000);
-    return { A: [jpegB64(full, 0.88)], B: [jpegB64(full, 0.9)], strips: { prod: [], stops: [] }, bubble: '', inkMotivo: [], geomOk: false, rowInk: null, crop: null, sheet: jpegUrl(toCanvas(image, 0, 0, image.width, image.height, 1800), 0.72), sheetGeo: null };
+    return { A: fitToBudget((q, k) => [jpegB64(shrinkCanvas(full, k), q)], { q: 0.88 }), B: fitToBudget((q, k) => [jpegB64(shrinkCanvas(full, k), q)], { q: 0.9 }), strips: { prod: [], stops: [] }, bubble: '', inkMotivo: [], geomOk: false, rowInk: null, crop: null, sheet: jpegUrl(toCanvas(image, 0, 0, image.width, image.height, 1800), 0.72), sheetGeo: null };
   }
   const { img, prodX, prodY, stopX, stopY, scale: sc } = lay;
   const full = toCanvas(img, 0, 0, img.width, img.height, 2000);
   const crop = (xs, ys, headPx, maxW) => toCanvas(img, xs[0] - 8, ys[0] - headPx * sc, xs.at(-1) - xs[0] + 16, ys.at(-1) - ys[0] + headPx * sc + 6, maxW);
+  const cropProd2200 = crop(prodX, prodY, 62, 2200), cropStop2200 = crop(stopX, stopY, 100, 2200);
+  const cropProd2400 = crop(prodX, prodY, 62, 2400), cropStop2400 = crop(stopX, stopY, 100, 2400);
   const strip = (xs, ys, i) => jpegUrl(toCanvas(img, xs[0] - 2, ys[i] - 2, xs.at(-1) - xs[0] + 4, ys[i + 1] - ys[i] + 4, 1500), 0.8);
   // which motive column holds the X on each stop row, measured from the pixels
   const inkMotivo = stopY.slice(0, -1).map((_, r) => {
@@ -184,8 +187,8 @@ function prepare(imageIn, { photo = false } = {}) {
     // the X column is only trusted when the printed grid was recognised on this sheet
     inkMotivo: lay.geomOk ? inkMotivo : [],
     geomOk: lay.geomOk,
-    A: [jpegB64(full, 0.88), jpegB64(crop(prodX, prodY, 62, 2200), 0.9), jpegB64(crop(stopX, stopY, 100, 2200), 0.9)],
-    B: [jpegB64(crop(prodX, prodY, 62, 2400), 0.92), jpegB64(crop(stopX, stopY, 100, 2400), 0.92)],
+    A: fitToBudget((q, k) => [jpegB64(shrinkCanvas(full, k), q - 0.02), jpegB64(shrinkCanvas(cropProd2200, k), q), jpegB64(shrinkCanvas(cropStop2200, k), q)], { q: 0.9 }),
+    B: fitToBudget((q, k) => [jpegB64(shrinkCanvas(cropProd2400, k), q), jpegB64(shrinkCanvas(cropStop2400, k), q)], { q: 0.92 }),
     strips: { prod: prodY.slice(0, -1).map((_, i) => strip(prodX, prodY, i)), stops: stopY.slice(0, -1).map((_, i) => strip(stopX, stopY, i)) },
     bubble: detectMachine(lay).machine ?? '',
   };

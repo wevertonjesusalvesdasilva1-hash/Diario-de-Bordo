@@ -70,3 +70,16 @@ test('decodifica códigos HTML do resumo da IA, mesmo sem ponto e vírgula', asy
   assert.equal(decodeEntities('AGUARD. PE&Ccedil;A &mdash; coment&aacute;rio'), 'AGUARD. PEÇA &mdash; comentário');
   assert.equal(decodeEntities('padr&atilde&o e valida&ccedil&atilde&o'), 'padrão e validação');
 });
+
+import { fitToBudget } from '../src/core/fit.js';
+test('imagens pesadas são reduzidas até caber em uma requisição', () => {
+  // pretend every image weighs 1.6M characters at q 0.9 and scale 1 (heavy, noisy scan), proportional to q and scale²
+  const enc = (q, k) => [0, 1, 2].map(() => 'x'.repeat(Math.round(1_600_000 * (q / 0.9) * k * k)));
+  const out = fitToBudget(enc, { q: 0.9 });
+  assert.ok(out.reduce((n, s) => n + s.length, 0) <= 3_400_000);
+  // a light scan is left untouched
+  const light = fitToBudget((q) => ['y'.repeat(Math.round(500_000 * q))], { q: 0.9 });
+  assert.equal(light[0].length, 450_000);
+  // impossible budget: stops at the floor instead of looping forever
+  assert.ok(fitToBudget(() => ['z'.repeat(9_000_000)], { q: 0.9 })[0].length === 9_000_000);
+});
