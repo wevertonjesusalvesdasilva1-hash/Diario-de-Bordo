@@ -40,3 +40,9 @@ export async function login(code) {
   if (res.ok) setCode(code);
   return { ok: res.ok, error: body.error };
 }
+
+export async function apiSend(method, path, body) {
+  const res = await fetch(path, { method, headers: { 'content-type': 'application/json', 'x-access-code': getCode() }, body: JSON.stringify(body) });
+  if (res.status === 401) window.dispatchEvent(new CustomEvent('need-login'));
+  return res;
+}

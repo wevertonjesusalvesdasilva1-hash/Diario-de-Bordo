@@ -686,3 +686,11 @@ td.auto.edited::after { content: "editado"; }
 .flip .fread summary { font-size: 1.05rem; font-weight: 600; color: var(--ink); padding: 8px 0; }
 .flip .fline { font-size: .95rem; }
 #cardmodal .fbtns button { font-size: 1rem; padding: 10px 16px; }
+
+.syncpill { display: inline-flex; align-items: center; gap: 7px; font: 600 .78rem var(--f-body); padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line2); color: var(--muted); max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.syncpill[hidden] { display: none !important; }
+.syncpill i { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+.syncpill[data-kind="ok"] i { background: #4ade80; }
+.syncpill[data-kind="busy"] i { background: #facc15; animation: pulse 1s infinite; }
+.syncpill[data-kind="warn"] i { background: #f87171; }
+@keyframes pulse { 50% { opacity: .3; } }

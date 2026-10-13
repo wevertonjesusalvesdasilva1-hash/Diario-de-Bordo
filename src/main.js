@@ -17,6 +17,8 @@ import { buildPanel } from './core/panel.js';
 import { allRows, toTSV, workbookBytes } from './core/export.js';
 import { getLists, saveGroupLists, learnAlias, resetLists, setActiveGroup, groupOf as listGroup } from './core/lists.js';
 import { saveState, loadState, saveQueue, loadQueue, clearQueue } from './store.js';
+import { createSync, syncWanted } from './sync.js';
+import { newSid } from './core/share.js';
 import { MOTIVOS, MOTIVOS_ALL, MAQUINAS } from './data/vocab.js';
 
 const $ = (id) => document.getElementById(id);
@@ -52,17 +54,18 @@ function toast(msg) {
 
 // ---------------------------------------------------------------- persistence
 
-let saveTimer;
+let saveTimer, sync = null;
 function persist(delay = 400) {
   clearTimeout(saveTimer);
+  sync?.changed();
   saveTimer = setTimeout(() => {
-    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo }) => ({ id, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo }));
+    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo }) => ({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo }));
     saveState({ dismissed: [...state.dismissed], pages: keep, nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig, ai: Array.isArray(state.ai) ? state.ai : null });
   }, delay);
 }
 
 let restored = Promise.resolve(), resumed = false;
-const maybeResume = () => restored.then(() => { if (!resumed && $('lock').hidden) { resumed = true; resumeQueue(); } });
+const maybeResume = () => restored.then(() => { if (!resumed && $('lock').hidden) { resumed = true; startSyncIfWanted(); resumeQueue(); } });
 
 async function restore() {
   const saved = await loadState();
@@ -73,6 +76,7 @@ async function restore() {
   for (const p of saved.pages) {
     if (p.status === 'erro') p.error = `${p.error || 'Erro'} (envie o arquivo de novo para repetir)`;
     p.file ??= String(p.label).split(' · pág.')[0];
+    p.sid ??= newSid();
     p.pending = false;
     state.pages.push(p);
     $('pages').append(h('section', { class: 'card page', id: `page-${p.id}` }));
@@ -85,6 +89,43 @@ async function restore() {
   }
   updateSummary();
 }
+
+
+// ---------------------------------------------------------------- sincronizar com a equipe
+function applyShared({ pages, meta }) {
+  state.pages = []; $('pages').replaceChildren();
+  state.nextId = meta.nextId ?? pages.length + 1; state.batch = meta.batch ?? 0;
+  state.dismissed = new Set(meta.dismissed ?? []);
+  for (const p of pages) {
+    p.pending = false; state.pages.push(p);
+    $('pages').append(h('section', { class: 'card page', id: `page-${p.id}` }));
+    renderPage(p);
+  }
+  state.reviewed = false; state.analysis = null;
+  if (meta.reviewed && sig() === meta.okSig) {
+    state.reviewed = true; state.okAt = meta.okAt; state.okSig = meta.okSig;
+    state.analysis = analyseSheets(includedPages(), { dismissed: state.dismissed });
+  }
+  updateSummary(); updateReviewUi();
+  if (state.tab === 'analysis') { if (state.reviewed) renderAnalysis(); else showTab('read'); }
+  persist(0);
+}
+const syncPill = $('syncpill');
+function setSyncStatus(kind, text) {
+  syncPill.hidden = kind === 'off' && !sync?.on && !syncWanted();
+  syncPill.dataset.kind = kind; $('sync-text').textContent = text; syncPill.title = text;
+  const btn = document.querySelector('[data-menu="sync"]'); if (btn) btn.textContent = sync?.on ? 'Parar de sincronizar' : 'Sincronizar com a equipe';
+}
+sync = createSync({
+  getPages: () => state.pages,
+  getMeta: () => ({ dismissed: [...state.dismissed], nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig }),
+  apply: applyShared,
+  busy: () => state.busy,
+  status: setSyncStatus,
+  toast,
+  ask: (t) => window.confirm(t),
+});
+const startSyncIfWanted = () => { if (syncWanted()) restored.then(() => sync.start()); };
 
 // The tab was closed or reloaded while a file was being read: pick up where it stopped.
 async function resumeQueue() {
@@ -242,7 +283,7 @@ async function processFiles(files, { append = false, skip = null } = {}) {
       await new Promise((r) => setTimeout(r)); // let the browser paint
       const prep = prepare(item.image, { photo: !!item.photo });
       if (item.page === 1 && !skip) state.batch++;
-      const p = { id: state.nextId++, batch: state.batch, file: item.name, label: `${item.name} · pág. ${item.page}`, status: 'lendo', error: '', machine: '', date: '', include: false, prod: [], stops: [] };
+      const p = { id: state.nextId++, sid: newSid(), batch: state.batch, file: item.name, label: `${item.name} · pág. ${item.page}`, status: 'lendo', error: '', machine: '', date: '', include: false, prod: [], stops: [] };
       secrets.set(p.id, prep);
       state.pages.push(p);
       $('pages').append(h('section', { class: 'card page', id: `page-${p.id}` }));
@@ -1151,6 +1192,7 @@ menuEl.addEventListener('click', (e) => {
   if (act === 'help') openHelp();
   if (act === 'lists' || act === 'limit') { $('listsbox').open = true; $('listsbox').scrollIntoView({ behavior: 'smooth', block: 'center' }); if (act === 'limit') setTimeout(() => $('limit').focus(), 400); }
   if (act === 'clear') $('clear').click();
+  if (act === 'sync') { if (sync.on) sync.stop(); else sync.start().then((ok) => ok && toast('Sincronização ligada: o que você mexer aparece no PC do colega.')); }
   if (act === 'logout') { try { localStorage.removeItem('mt-code'); } catch { /* ignore */ } location.reload(); }
 });
 

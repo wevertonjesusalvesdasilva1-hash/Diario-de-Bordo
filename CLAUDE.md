@@ -28,6 +28,7 @@ Teste de navegador: `playwright-core` com o Chromium já instalado em `/opt/pw-b
   - `analysis.js` (+ `cards.js`, `quality.js`, `edits.js`, `report.js` que ordena os cards por prioridade, `turno.js`, `panel.js`): análise, cards, qualidade de preenchimento, alterações do usuário e painel.
   - `export.js`: TSV e Excel. `lists.js`: listas RAW/usinagem e correções aprendidas. `text.js`: utilidades de texto.
 - `src/core/optime.js`: linha do tempo do dia de trabalho (minutos desde 04:00, bloco próprio por folha). Cards: `story` (frase simples, `*x*` = negrito) e `people` (operadores) vêm de `cards.js`; a UI está em `tile`/`flipCard`/`openCardModal` de `main.js` (classe `.acard`; `.tile` já é o resumo).
+- Sincronização: `api/sync.js` (estado leve + imagens por folha em um Blob privado da Vercel, variável `BLOB_READ_WRITE_TOKEN`; sem ela responde 503), `src/sync.js` (envio e consulta a cada ~3,5 s), `src/core/share.js` (separa/junta imagens; `page.sid` identifica a folha). Campos novos em página entram no `persist()` e, se forem pesados, nas imagens de `share.js`.
 - `src/data/`: vocabulário (`vocab.js`) e tempos padrão (`padrao.js`, vindos da matriz da planilha).
 - `api/` (Vercel, Node ESM): `extract.js` (leituras A/B/C), `analyze.js` (resumo da IA, hoje sem uso na tela), `login.js`, `_auth.js`, `_gemini.js`, `_shared.js`. Funções **não** importam de `src/`; o que for comum é duplicado (ver `decodeEntities`).
 - `test/`: testes unitários e de integração. `scripts/`: ferramentas de depuração.
@@ -51,7 +52,7 @@ Teste de navegador: `playwright-core` com o Chromium já instalado em `/opt/pw-b
 
 ## Segredos e segurança
 
-- Variáveis na Vercel: `GEMINI_API_KEY` (sensível), `ACCESS_CODE` (sensível), `OPERADORES_JSON` (sensível: chapa → nome e turno, servido por `api/operadores.js` só com o código de acesso; nunca no repositório), `GEMINI_MODEL` e opcionais (`GEMINI_FALLBACK_MODELS`, `GEMINI_PASS_C_MODEL`, `THINKING_BUDGET`).
+- Variáveis na Vercel: `GEMINI_API_KEY` (sensível), `ACCESS_CODE` (sensível), `BLOB_READ_WRITE_TOKEN` (criada ao ligar o Blob ao projeto; guarda a sala de sincronização), `OPERADORES_JSON` (sensível: chapa → nome e turno, servido por `api/operadores.js` só com o código de acesso; nunca no repositório), `GEMINI_MODEL` e opcionais (`GEMINI_FALLBACK_MODELS`, `GEMINI_PASS_C_MODEL`, `THINKING_BUDGET`).
 - **Nunca** escrever o código de acesso, chaves ou folhas reais no repositório, em commits, issues ou conversas públicas.
 - As APIs checam origem, código de acesso (comparação em tempo constante) e limitam tentativas por IP.
 - Não subir folhas reais nem exemplos com chapas verdadeiras (ver `docs/PRIVACIDADE.md`).

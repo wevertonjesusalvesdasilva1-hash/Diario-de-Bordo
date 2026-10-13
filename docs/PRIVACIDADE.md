@@ -46,3 +46,8 @@ Os **nomes** dos operadores ficam numa variável protegida do projeto na Vercel 
 ## Direitos dos titulares
 
 Colaboradores podem pedir à empresa informação sobre seus dados, correção ou eliminação. Como o app não guarda dados em servidor, a eliminação no app é feita limpando a leitura no navegador; já os arquivos exportados precisam ser tratados pela empresa.
+
+
+## Sincronização com a equipe (opcional)
+
+Ligada pelo menu, ela envia a leitura (dados e imagens das folhas) para um armazenamento privado da Vercel (Blob), acessível só pelas funções do app com o código de acesso. Fica guardada até alguém enviar outro arquivo ou limpar tudo. Desligada, nada disso é enviado.

@@ -119,3 +119,11 @@ Validado com folhas reais (UMC 01, UMC 02, HMC 16, NCBZ, RAW05) e com a planilha
 - Na grade, cada aviso é um cartão pequeno: máquina, tipo, **nome do operador** (com a chapa) e o número principal.
 - Ao clicar, o cartão abre grande na tela (✕ no canto, Esc ou clique fora fecham). Ele traz uma frase simples com horas e linha, por exemplo "O operador anotou produção das 12:00 às 15:00 (linha 1) e parada das 13:00 às 14:00". Dá para virar e ver a folha, ou marcar "Anotação correta ✓".
 - A análise usa uma linha do tempo por folha (cada folha é um dia de trabalho): folhas nunca são comparadas entre si e a data escrita não muda o cruzamento.
+
+
+## Sincronizar com a equipe
+
+- Menu ⋮ → "Sincronizar com a equipe". Quem mexer (ler, corrigir, dar OK, marcar "anotação correta") aparece no PC do colega em alguns segundos. Todos que têm o código de acesso entram na mesma sala.
+- Vale a última gravação: se duas pessoas salvam ao mesmo tempo, a segunda recebe a versão da primeira e é avisada.
+- Uma leitura nova de arquivo substitui a da sala para todos (como já acontece na tela de cada um).
+- Se a página for recarregada no meio da leitura, ela continua sozinha de onde parou.
