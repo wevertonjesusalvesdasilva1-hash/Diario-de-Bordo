@@ -44,7 +44,7 @@ export default async function handler(req, res) {
     parts.push({ inline_data: { mime_type: 'image/jpeg', data: b64.replace(/^data:image\/jpeg;base64,/, '') } });
   });
 
-  const chain = [process.env.GEMINI_MODEL || 'gemini-flash-latest', ...(process.env.GEMINI_FALLBACK_MODELS || 'gemini-2.5-flash,gemini-flash-lite-latest').split(',').map((m) => m.trim()).filter(Boolean)];
+  const chain = [process.env.GEMINI_MODEL || 'gemini-flash-latest', ...(process.env.GEMINI_FALLBACK_MODELS || 'gemini-3.8-flash,gemini-flash-lite-latest').split(',').map((m) => m.trim()).filter(Boolean)];
   // the third reading may use a stronger model when GEMINI_PASS_C_MODEL is set
   const models = [...new Set(third && process.env.GEMINI_PASS_C_MODEL ? [process.env.GEMINI_PASS_C_MODEL, ...chain] : chain)];
   try {
