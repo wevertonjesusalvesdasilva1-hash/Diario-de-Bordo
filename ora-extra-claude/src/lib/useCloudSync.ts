@@ -33,6 +33,21 @@ export function useCloudSync(
     for (let i = 0; i < extra.length; i += 100) await supabase.from('he_assignments').delete().in('id', extra.slice(i, i + 100));
   };
 
+  /** Apaga TODOS os dados do banco (para recomeçar com um Excel novo). Devolve false se algo falhar. */
+  const clearAll = useCallback(async () => {
+    if (!supabase) return true;
+    setState('syncing');
+    const tabelas: [string, string][] = [['he_reallocations', 'id'], ['he_timeline_events', 'id'], ['he_assignments', 'id'], ['he_shifts', 'id'], ['he_employees', 'chapa']];
+    for (const [t, col] of tabelas) {
+      const { error } = await supabase.from(t).delete().neq(col, '');
+      if (error) { setState('error'); return false; }
+    }
+    snapshot.current = new Map();
+    replaceRef.current = false;
+    setState('online');
+    return true;
+  }, []);
+
   const pull = useCallback(async () => {
     if (!supabase) return;
     setState('syncing');
@@ -41,15 +56,14 @@ export function useCloudSync(
       supabase.from('he_timeline_events').select('*'),
     ]);
     if (a.error || e.error) return setState('error');
-    if (a.data && a.data.length > 0) {
-      const { keep: recs, dropIds } = dedupeRecords(a.data.map((row) => ({ rec: fromRows(row, e.data ?? []), at: row.updated_at as string })));
-      // duplicatas antigas no banco (mesma pessoa/dia/peça com outro código): limpa
-      for (let i = 0; i < dropIds.length; i += 100) {
-        await supabase.from('he_assignments').delete().in('id', dropIds.slice(i, i + 100)); // precisa de await: a chamada só executa quando aguardada
-      }
-      snapshot.current = new Map(recs.map((r) => [r.id, JSON.stringify(r)]));
-      setRecords(recs);
+    // A nuvem é a fonte da verdade: se estiver vazia (ex.: depois de "Apagar todos os dados"), este aparelho também esvazia.
+    const { keep: recs, dropIds } = dedupeRecords((a.data ?? []).map((row) => ({ rec: fromRows(row, e.data ?? []), at: row.updated_at as string })));
+    // duplicatas antigas no banco (mesma pessoa/dia/peça com outro código): limpa
+    for (let i = 0; i < dropIds.length; i += 100) {
+      await supabase.from('he_assignments').delete().in('id', dropIds.slice(i, i + 100)); // precisa de await: a chamada só executa quando aguardada
     }
+    snapshot.current = new Map(recs.map((r) => [r.id, JSON.stringify(r)]));
+    setRecords(recs);
     loaded.current = true;
     setState('online');
   }, [setRecords]);
@@ -130,5 +144,5 @@ export function useCloudSync(
     };
   }, [session, push]);
 
-  return { session: null as Session | null, ready: true, state, needsLogin: false, markReplace };
+  return { session: null as Session | null, ready: true, state, needsLogin: false, markReplace, clearAll };
 }

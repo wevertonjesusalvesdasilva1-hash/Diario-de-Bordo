@@ -33,6 +33,7 @@ import PlanejamentoHoraExtra from './components/PlanejamentoHoraExtra';
 import AdminUsers from './components/AdminUsers';
 import LoginScreen from './components/LoginScreen';
 import { useCloudSync } from './lib/useCloudSync';
+import { cloudEnabled } from './lib/supabase';
 import { getRealFactoryDataset, normalizeOvertimeRecord } from './data/realSampleData';
 import {
   AbsentPieceAction,
@@ -67,6 +68,7 @@ import {
 } from './data/leaderDatabase';
 
 const STORAGE_KEY = 'horaextra_diario_records_v4';
+const CLEARED_KEY = 'horaextra_cleared_v1'; // "Apagar todos os dados": não recarregar a simulação sozinha
 const STORAGE_DATE_KEY = 'horaextra_selected_date_v4';
 const STORAGE_LEADER_KEY = 'horaextra_selected_leader_v1';
 const STORAGE_HIDE_GUIDE_KEY = 'horaextra_hide_onboarding_v1';
@@ -114,6 +116,7 @@ function getCurrentTimeHHMM(): string {
 export default function App() {
   const [records, setRecords] = useState<OvertimeRecord[]>(() => {
     try {
+      if (localStorage.getItem(CLEARED_KEY) === 'true') return [];
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -124,7 +127,8 @@ export default function App() {
     } catch {
       // ignore storage errors
     }
-    return getRealFactoryDataset();
+    // com a nuvem ligada o app começa vazio (a simulação só entra pelo menu); sem nuvem, mostra a simulação
+    return cloudEnabled ? [] : getRealFactoryDataset();
   });
 
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -143,6 +147,8 @@ export default function App() {
   // Top-left 3-dots menu state + inline reset confirmation
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [confirmingResetInline, setConfirmingResetInline] = useState<boolean>(false);
+  const [confirmingWipe, setConfirmingWipe] = useState<boolean>(false);
+  const [wiping, setWiping] = useState<boolean>(false);
 
   // Filters in Visão do Líder
   const [statusFilter, setStatusFilter] = useState<'ALL' | AttendanceStatus>('ALL');
@@ -959,6 +965,7 @@ export default function App() {
     try {
       const parsed = await parseOvertimeExcel(file);
       cloud.markReplace();
+      try { localStorage.removeItem(CLEARED_KEY); } catch { /* ignore */ }
       setRecords(parsed);
       const uniqueDates = Array.from(new Set(parsed.map((r) => r.data)));
       if (uniqueDates.length > 0) {
@@ -1025,8 +1032,28 @@ export default function App() {
     setTimeout(() => setFeedback(null), 3500);
   };
 
+  // Apagar TODOS os dados (app + banco) para recomeçar com um Excel novo.
+  const handleWipeAll = async () => {
+    setWiping(true);
+    const ok = await cloud.clearAll();
+    setWiping(false);
+    if (!ok) {
+      setFeedback({ type: 'error', message: 'Não consegui apagar os dados da nuvem. Verifique a conexão e tente de novo.' });
+      setTimeout(() => setFeedback(null), 5000);
+      return;
+    }
+    try { localStorage.setItem(CLEARED_KEY, 'true'); } catch { /* ignore */ }
+    setRecords([]);
+    setConfirmingWipe(false);
+    setIsMenuOpen(false);
+    setActiveView('PLANNING');
+    setFeedback({ type: 'success', message: 'Todos os dados foram apagados. Agora é só subir o Excel novo.' });
+    setTimeout(() => setFeedback(null), 5000);
+  };
+
   const handleReloadWeekendSimulation = () => {
     const freshData = getRealFactoryDataset();
+    try { localStorage.removeItem(CLEARED_KEY); } catch { /* ignore */ }
     setRecords(freshData);
     setSelectedDate('03/10/2026');
     setIsMenuOpen(false);
@@ -1520,17 +1547,19 @@ export default function App() {
               Ações de Simulação e Limpeza
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                handleReloadWeekendSimulation();
-                setIsMenuOpen(false);
-              }}
-              className="w-full min-h-[42px] px-3 py-2 rounded-xl text-left text-xs font-semibold text-emerald-300 hover:bg-emerald-950/50 flex items-center gap-2 transition-colors mb-1"
-            >
-              <RotateCcw className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Recarregar Simulação Realista (Sáb/Dom)</span>
-            </button>
+            {!cloudEnabled && (
+              <button
+                type="button"
+                onClick={() => {
+                  handleReloadWeekendSimulation();
+                  setIsMenuOpen(false);
+                }}
+                className="w-full min-h-[42px] px-3 py-2 rounded-xl text-left text-xs font-semibold text-emerald-300 hover:bg-emerald-950/50 flex items-center gap-2 transition-colors mb-1"
+              >
+                <RotateCcw className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Recarregar Simulação Realista (Sáb/Dom)</span>
+              </button>
+            )}
 
             {/* Inline Reset Confirmation (No window.confirm!) */}
             {!confirmingResetInline ? (
@@ -1558,6 +1587,51 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setConfirmingResetInline(false)}
+                    className="flex-1 min-h-[40px] rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-xs font-semibold"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Apagar TODOS os dados (app + nuvem) para subir um Excel novo */}
+            {!confirmingWipe ? (
+              <button
+                type="button"
+                onClick={() => setConfirmingWipe(true)}
+                className="w-full min-h-[42px] px-3 py-2 rounded-xl text-left text-xs font-bold text-red-300 bg-red-950/40 border border-red-500/40 hover:bg-red-950/70 flex items-center gap-2 transition-colors mt-1"
+              >
+                <Trash2 className="w-4 h-4 shrink-0" />
+                <span>Apagar TODOS os dados (limpar o app para um Excel novo)</span>
+              </button>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-red-950/70 border border-red-500/60 mt-1">
+                <p className="text-xs font-bold text-red-100 mb-1">Apagar os {records.length} registros de todos os dias?</p>
+                <p className="text-[11px] text-red-200/90 mb-2">
+                  Apaga no app e no banco, para todos os aparelhos. Não dá para desfazer. Se precisar, baixe um backup antes.
+                </p>
+                <button
+                  type="button"
+                  disabled={records.length === 0}
+                  onClick={() => exportOvertimeExcel(records, 'ALL')}
+                  className="w-full min-h-[38px] mb-2 rounded-lg bg-slate-900 border border-slate-600 text-slate-200 text-xs font-semibold disabled:opacity-40"
+                >
+                  Baixar backup (.xlsx) antes
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={wiping}
+                    onClick={handleWipeAll}
+                    className="flex-1 min-h-[40px] rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold disabled:opacity-60"
+                  >
+                    {wiping ? 'Apagando…' : 'Sim, apagar tudo'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={wiping}
+                    onClick={() => setConfirmingWipe(false)}
                     className="flex-1 min-h-[40px] rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-xs font-semibold"
                   >
                     Cancelar
