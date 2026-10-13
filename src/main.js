@@ -1,3 +1,4 @@
+import './verificado.css';
 import { readFiles, toCanvas, jpegB64, jpegUrl, shrinkCanvas } from './files.js';
 import { fitToBudget } from './core/fit.js';
 import { analyze, detectMachine } from './core/layout.js';
