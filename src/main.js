@@ -206,7 +206,8 @@ async function readPage(p) {
       readSheet({ images: sec.B, pass: 'B', hints: hints() }),
     ]);
     if (a.status === 'rejected' && b.status === 'rejected') throw a.reason;
-    setActiveGroup(listGroup(sec.bubble || normMachine((a.value ?? b.value)?.maquina)));
+    const grp = listGroup(sec.bubble || normMachine((a.value ?? b.value)?.maquina));
+    setActiveGroup(grp);
     const single = a.status === 'rejected' || b.status === 'rejected';
     const json = single ? (a.status === 'fulfilled' ? a.value : b.value) : reconcile(a.value, b.value);
     // third reading, only for the cells where the first two readings disagree on a chapa or a time
@@ -224,6 +225,7 @@ async function readPage(p) {
         } catch (e) { /* the two readings stand; the divergences stay flagged */ if (e.quota) state.quotaHit = true; }
       }
     }
+    setActiveGroup(grp); // other sheets are read meanwhile: put this sheet's lists back
     const built = buildPage(json, { year: Number($('year').value) || new Date().getFullYear(), meta: { machineFromBubble: sec.bubble } });
     const rowWarns = alignRows(built, sec.rowInk);
     applyInkMotivo(built, sec.inkMotivo);
@@ -259,6 +261,7 @@ function markDuplicates() {
   state.pages.forEach((p) => { if (p.status === 'ok') renderPage(p); });
 }
 
+const PARALLEL = 3; // sheets read at once
 async function processFiles(files, { append = false, skip = null } = {}) {
   if (state.busy) return toast('Aguarde a leitura atual terminar');
   state.busy = true;
@@ -274,6 +277,7 @@ async function processFiles(files, { append = false, skip = null } = {}) {
   const st = $('status');
   st.hidden = false;
   let n = 0;
+  const running = new Set();
   try {
     for await (const item of readFiles(files)) {
       if (skip?.has(`${item.name}|${item.page}`)) continue;
@@ -291,8 +295,14 @@ async function processFiles(files, { append = false, skip = null } = {}) {
         // the free quota ran out: keep the prepared page and let the person resume later
         p.status = 'erro'; p.pending = true; p.error = 'Aguardando a cota do Gemini voltar. Use "Retomar leitura".';
         renderPage(p); persist();
-      } else await readPage(p);
+      } else {
+        // several sheets are read at the same time (the wait is the model's, not ours)
+        while (running.size >= PARALLEL) await Promise.race(running);
+        const job = readPage(p).finally(() => running.delete(job));
+        running.add(job);
+      }
     }
+    await Promise.all(running);
     await clearQueue();
     updateQuotaUi();
     toast(state.quotaHit ? 'A cota do Gemini acabou no meio da leitura. O que faltou ficou aguardando: use "Retomar leitura" quando ela voltar.' : n ? 'Leitura concluída. Confira as células destacadas.' : 'Nenhuma página encontrada nos arquivos');
