@@ -1184,7 +1184,13 @@ function renderFiles() {
   box.replaceChildren(...(list.length ? [h('h4', {}, 'Arquivos enviados')] : []), ...list.map((f) => h('div', { class: 'fitem' },
     h('span', { class: 'fname' }, f.file), h('span', { class: 'fmeta' }, `${f.pages.length} folha${f.pages.length === 1 ? '' : 's'} · ${sideLabel(f.group)}`),
     h('button', { type: 'button', class: 'ghost', onclick: () => viewFile(f) }, '👁 Ver'),
-    h('button', { type: 'button', class: 'ghost', onclick: () => downloadFilePdf(f) }, '⤓ Baixar PDF'))));
+    h('button', { type: 'button', class: 'ghost', onclick: () => downloadFilePdf(f) }, '⤓ Baixar PDF'),
+    h('button', { type: 'button', class: 'ghost rm', title: 'Apaga este arquivo (ou esta foto) e as folhas dele da leitura', onclick: () => deleteFile(f) }, '🗑 Apagar'))));
+}
+// removes one uploaded file (or photo) with all its sheets; the usual "Desfazer exclusão" brings it back
+function deleteFile(f) {
+  if (f.pages.some((p) => p.status === 'lendo')) return toast('Esse arquivo ainda está sendo lido. Espere terminar para apagar.');
+  removePages(f.pages, `${f.file} apagado (${f.pages.length} folha${f.pages.length === 1 ? '' : 's'}).`);
 }
 function viewFile(f) {
   $('fileview')?.remove();
