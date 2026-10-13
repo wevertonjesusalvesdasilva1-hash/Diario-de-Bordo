@@ -817,8 +817,29 @@ function sortCards(list) {
 function sheetView(c) {
   const p = pageOf(c.page);
   if (!p?.sheet) return h('p', { class: 'note nosheet' }, 'A imagem desta folha não foi guardada. Envie o arquivo de novo para vê-la aqui.');
-  const wrap = h('div', { class: 'sheetwrap', title: 'Clique para abrir a folha e dar zoom' }, h('img', { src: p.sheet, alt: `Folha ${p.label}` }), h('span', { class: 'lupa', 'aria-hidden': 'true' }, '🔍'));
-  for (const m of cardMarks(c, p)) wrap.append(h('i', { class: m.kind === 'cell' ? 'hl cell' : 'hl', style: `top:${(m.y * 100).toFixed(2)}%;height:${(m.h * 100).toFixed(2)}%;left:${(m.x * 100).toFixed(2)}%;width:${(m.w * 100).toFixed(2)}%` }));
+  const marks = cardMarks(c, p);
+  const img = h('img', { src: p.sheet, alt: `Folha ${p.label}` });
+  const pct = (v) => `${(v * 100).toFixed(2)}%`;
+  const inner = h('div', { class: 'focusin' }, img, marks.map((m) => h('i', { class: m.kind === 'cell' ? 'hl cell' : 'hl', style: `top:${pct(m.y)};height:${pct(m.h)};left:${pct(m.x)};width:${pct(m.w)}` })));
+  const wrap = h('div', { class: 'sheetwrap', title: 'Clique para abrir a folha inteira e dar zoom' }, inner, h('span', { class: 'lupa', 'aria-hidden': 'true' }, '🔍'), marks.length ? h('span', { class: 'focushint' }, 'Parte marcada ampliada · clique para ver a folha inteira') : null);
+  // zoom the preview into the marked rows (with a row or two of context) so the handwriting can be read without opening the viewer
+  const fit = () => {
+    const Ww = wrap.clientWidth, Hw = wrap.clientHeight;
+    if (!Ww || !Hw || !img.naturalWidth) return;
+    let x0 = 0, y0 = 0, x1 = 1, y1 = 1;
+    if (marks.length) {
+      const rowH = Math.max(...marks.map((m) => m.h));
+      x0 = Math.max(0, Math.min(...marks.map((m) => m.x)) - 0.01); x1 = Math.min(1, Math.max(...marks.map((m) => m.x + m.w)) + 0.01);
+      y0 = Math.max(0, Math.min(...marks.map((m) => m.y)) - rowH * 1.5); y1 = Math.min(1, Math.max(...marks.map((m) => m.y + m.h)) + rowH * 1.5);
+    }
+    const bw = x1 - x0, bh = y1 - y0, ar = img.naturalHeight / img.naturalWidth;
+    const iw = Math.min(Ww / bw, Hw / (bh * ar)), ih = iw * ar;
+    inner.style.width = `${iw}px`; inner.style.height = `${ih}px`;
+    const place = (box, view, size, from) => { const at = (view - box * size) / 2 - from * size; return size >= view ? Math.min(0, Math.max(view - size, at)) : (view - size) / 2; }; // fill the area when the sheet is bigger than it
+    inner.style.left = `${place(bw, Ww, iw, x0)}px`; inner.style.top = `${place(bh, Hw, ih, y0)}px`;
+  };
+  img.addEventListener('load', fit);
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fit).observe(wrap);
   return wrap;
 }
 

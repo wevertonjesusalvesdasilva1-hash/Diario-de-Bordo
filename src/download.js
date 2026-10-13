@@ -25,9 +25,9 @@ async function markedCanvas(card, page) {
   g.drawImage(img, 0, bar);
   for (const m of cardMarks(card, page)) {
     const x = m.x * W, y = bar + m.y * H, w = m.w * W, h = m.h * H;
-    g.fillStyle = m.kind === 'cell' ? 'rgba(255,59,59,.38)' : 'rgba(255,59,59,.16)';
-    g.fillRect(x, y, w, h);
-    g.strokeStyle = '#e11d1d'; g.lineWidth = m.kind === 'cell' ? 4 : 3;
+    if (m.kind === 'cell') { g.fillStyle = 'rgba(255,59,59,.14)'; g.fillRect(x, y, w, h); }
+    g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 6; g.strokeRect(x, y, w, h); // white halo so the line shows on dark ink
+    g.strokeStyle = '#e11d1d'; g.lineWidth = 3;
     g.strokeRect(x, y, w, h);
   }
   return c;

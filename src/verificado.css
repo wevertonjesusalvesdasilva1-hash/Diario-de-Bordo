@@ -6,7 +6,7 @@
 .checkbtn:hover { background: color-mix(in srgb, #4ade80 30%, transparent); }
 .checkbtn.on { border-color: var(--line2); background: transparent; color: var(--muted); }
 #cardmodal .front .ffoot { margin-top: auto; }
-.sheetwrap .hl.cell, .hl.cell, .svcanvas .hl.cell { border: 2px solid #e11d1d; background: rgb(255 59 59 / .38); }
+.sheetwrap .hl.cell, .hl.cell, .svcanvas .hl.cell { border: 2px solid #e11d1d; background: rgb(255 59 59 / .14); }
 .dlwrap { position: relative; display: inline-flex; }
 .dlwrap .dlmain { border-radius: 10px 0 0 10px; }
 .dlwrap .dlarrow { border-radius: 0 10px 10px 0; border-left: 0; padding-inline: 10px; }
