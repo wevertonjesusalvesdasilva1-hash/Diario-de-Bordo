@@ -1390,8 +1390,12 @@ $('camlabel').addEventListener('click', (e) => {
 
 // botão "voltar ao topo": aparece depois de rolar a página
 const toTop = $('totop');
-const syncTop = () => { toTop.hidden = window.scrollY < 400; };
+const toBottom = $('tobottom');
+const syncTop = () => { toTop.hidden = window.scrollY < 400; toBottom.hidden = window.scrollY + window.innerHeight > document.documentElement.scrollHeight - 300; };
 window.addEventListener('scroll', syncTop, { passive: true });
+window.addEventListener('resize', syncTop);
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(syncTop).observe(document.body); // the page grows when sheets are read
+toBottom.addEventListener('click', () => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
 toTop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
 syncTop();
 

@@ -713,3 +713,6 @@ td.auto.edited::after { content: "editado"; }
 .wcvideo { width: 100%; max-height: 70vh; background: #000; border-radius: 10px; object-fit: contain; }
 .wcbtns { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .wcshoot { font-weight: 700; padding: 10px 22px; }
+
+.tobottom { bottom: 170px; }
+@media (max-width: 640px) { .tobottom { bottom: 208px; } }
