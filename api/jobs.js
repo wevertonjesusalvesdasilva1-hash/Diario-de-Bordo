@@ -6,7 +6,7 @@
 //   GET  ?job=ID&page=N          → the raw answers of one sheet
 import { accessRequired, checkAccess } from './_auth.js';
 import { getStore } from './_store.js';
-import { JOB_RE, jobStatus } from './_worker.js';
+import { JOB_RE, jobStatus, setActive } from './_worker.js';
 import { kick, HOST_RE } from './_kick.js';
 
 const send = (res, status, body) => res.status(status).setHeader('Cache-Control', 'no-store').json(body);
@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     const { op, job, n, part, data, total } = req.body ?? {};
     if (!JOB_RE.test(String(job))) return send(res, 400, { error: 'job inválido' });
     if (op === 'kick') { await kick(job, host); return send(res, 200, { ok: true }); }
-    if (op === 'cancel') { await store.write(`jobs/${job}/cancel.json`, JSON.stringify({ at: Date.now() })); return send(res, 200, { ok: true }); }
+    if (op === 'cancel') { await store.write(`jobs/${job}/cancel.json`, JSON.stringify({ at: Date.now() })); await setActive(job, false); return send(res, 200, { ok: true }); }
     if (!Number.isInteger(n) || n < 1 || n > 200) return send(res, 400, { error: 'página inválida' });
     if (op === 'part') {
       if (!PARTS.has(part) || data === undefined) return send(res, 400, { error: 'parte inválida' });
@@ -48,6 +48,7 @@ export default async function handler(req, res) {
       const metaPath = `jobs/${job}/meta.json`;
       if (!(await store.read(metaPath))) await store.write(metaPath, JSON.stringify({ total: Number(total) || null, at: Date.now(), host }));
       await store.write(`jobs/${job}/in/${n}.ready.json`, JSON.stringify({ at: Date.now() }));
+      await setActive(job, true);
       await kick(job, host);
       return send(res, 200, { ok: true });
     }

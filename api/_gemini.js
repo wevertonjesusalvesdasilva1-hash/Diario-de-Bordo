@@ -34,7 +34,7 @@ export async function gemini(models, key, parts, schema, { deadlineMs = DEADLINE
       const t0 = Date.now();
       try {
         const out = await once(model, key, parts, schema, left);
-        trace.push({ model, status: out.ok ? 200 : out.status, ms: Date.now() - t0, ...(out.ok ? {} : { why: String(out.text).replace(/\s+/g, ' ').slice(0, 220) }) });
+        trace.push({ model, status: out.ok ? 200 : out.status, ms: Date.now() - t0, ...(out.ok ? {} : { why: String(out.text).replace(/\s+/g, ' ').slice(0, 600) }) });
         if (out.ok) return { data: out.data, model, trace };
         last = out;
         if (out.status === 400 || out.status === 401 || out.status === 403) { const e = new Error(`Gemini ${out.status}: ${out.text}`); e.status = out.status; throw e; }

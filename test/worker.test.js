@@ -86,3 +86,19 @@ test('leitura em segundo plano: envio cancelado não é lido', async () => {
   const r = await processJob(job);
   assert.equal(r.more, false); assert.equal(calls, 0);
 });
+
+test('leitura em segundo plano: limite diário estaciona o envio e explica o motivo', async () => {
+  const st = mem(); useStore(st); const job = 'job00007';
+  upload(st, job, 1);
+  useGemini(async () => { throw Object.assign(new Error('Gemini 429'), { status: 429, trace: [{ model: 'gemini-flash-latest', status: 429, why: '{"error":{"code":429,"message":"Quota exceeded for metric: GenerateRequestsPerDayPerProjectPerModel-FreeTier"}}' }, { model: 'gemini-flash-lite-latest', status: 429, why: 'quota PerDay' }] }); });
+  const r = await processJob(job);
+  assert.equal(r.parked, true); assert.equal(r.more, false);
+  const s = await jobStatus(job);
+  assert.equal(s.quota.kind, 'dia'); assert.deepEqual(s.quota.models, ['gemini-flash-latest', 'gemini-flash-lite-latest']);
+  assert.equal(s.done.length, 0); assert.ok(JSON.parse(st.m.get('jobs/_active.json')).includes(job), 'continua na lista do trabalho diário');
+  // the quota is back (next day): the sweep wakes it and it finishes
+  useGemini(async () => answer(sheet('7910')));
+  const r2 = await processJob(job);
+  assert.equal(r2.more, false); assert.deepEqual((await jobStatus(job)).done, [1]); assert.equal((await jobStatus(job)).quota, null);
+  assert.deepEqual(JSON.parse(st.m.get('jobs/_active.json')), []);
+});

@@ -221,6 +221,7 @@ function finishFromServer(p, out) {
   const sec = secrets.get(p.id);
   if (!sec) return false;
   try {
+    showModel(out.models?.at(-1), out.primary);
     const grp = listGroup(sec.bubble || normMachine((out.A ?? out.B)?.maquina));
     setActiveGroup(grp);
     const single = !!out.single;
@@ -286,6 +287,36 @@ function markDuplicates() {
   state.pages.forEach((p) => { if (p.status === 'ok') renderPage(p); });
 }
 
+
+// ---------------------------------------------------------------- modelo em uso e aviso de cota
+const MODEL_NAMES = { 'gemini-flash-latest': 'Gemini Flash', 'gemini-3.8-flash': 'Gemini 3.8 Flash', 'gemini-flash-lite-latest': 'Gemini Flash-Lite', 'gemini-2.5-flash': 'Gemini 2.5 Flash' };
+const modelLabel = (m) => MODEL_NAMES[m] ?? String(m).replace(/^gemini-/, 'Gemini ').replace(/-latest$/, '');
+function showModel(used, primary) {
+  if (!used) return;
+  try { localStorage.setItem('mt-model', JSON.stringify({ used, primary: primary ?? null })); } catch { /* private mode */ }
+  const pill = $('modelpill'); pill.hidden = false;
+  const reserve = primary && used !== primary;
+  pill.dataset.kind = reserve ? 'reserve' : 'main';
+  $('model-text').textContent = `${modelLabel(used)}${reserve ? ' (reserva)' : ''}`;
+  pill.title = reserve ? `O modelo principal (${modelLabel(primary)}) não respondeu; esta folha foi lida pelo modelo reserva, que pode ser mais lento e menos preciso.` : 'Modelo do Gemini que leu a última folha';
+}
+window.addEventListener('gemini-model', (e) => showModel(e.detail?.used, null));
+try { const last = JSON.parse(localStorage.getItem('mt-model') || 'null'); if (last?.used) showModel(last.used, last.primary); } catch { /* ignore */ }
+
+const QUOTA_TEXT = {
+  dia: (q) => `O limite DIÁRIO do plano gratuito do Gemini acabou${q.models?.length ? ` para ${q.models.map(modelLabel).join(' e ')}` : ''}. Ele se renova sozinho todo dia (por volta das 4h da manhã, horário de Brasília). O servidor continua tentando e termina a leitura quando voltar.`,
+  minuto: () => 'O limite por minuto do Gemini foi atingido. O servidor espera um pouco e tenta de novo sozinho.',
+  cota: (q) => `Todos os modelos do Gemini estão sem cota agora${q.models?.length ? ` (${q.models.map(modelLabel).join(', ')})` : ''}. O servidor continua tentando sozinho. Detalhe: ${q.detail}`,
+  ocupado: () => 'O Gemini está sobrecarregado agora (erro 503). O servidor tenta de novo sozinho; pode demorar.',
+};
+function showQuotaWarn(q) {
+  const box = $('quotabanner');
+  if (!q) { if (!state.quotaHit) box.hidden = true; return; }
+  box.querySelector('strong').textContent = q.kind === 'ocupado' ? 'Gemini sobrecarregado' : 'Gemini sem cota';
+  $('quotamsg').textContent = (QUOTA_TEXT[q.kind] ?? QUOTA_TEXT.cota)(q);
+  $('resume').hidden = true; box.hidden = false;
+}
+
 // Background reading: after the upload the server reads the sheets, with this tab open or not.
 let trackToken = 0;
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -299,6 +330,7 @@ async function trackJob(job) {
     if (document.hidden) { await new Promise((r) => document.addEventListener('visibilitychange', r, { once: true })); continue; }
     const s = await jobStatus(job);
     if (s) {
+      showModel(s.lastModel, s.primary); showQuotaWarn(s.quota);
       for (const p of waiting) {
         if (s.failed?.[p.jobN]) { p.status = 'erro'; p.error = s.failed[p.jobN]; renderPage(p); persist(); }
         else if (s.done?.includes(p.jobN)) { const out = await jobResult(job, p.jobN); if (out && token === trackToken) finishFromServer(p, out); }
@@ -312,7 +344,7 @@ async function trackJob(job) {
     await sleepMs(10_000);
   }
   if (token === trackToken) {
-    st.hidden = true; await clearQueue(); updateQuotaUi();
+    st.hidden = true; showQuotaWarn(null); await clearQueue(); updateQuotaUi();
     if (state.pages.some((p) => p.jobN)) toast('Leitura concluída. Confira as células destacadas.');
   }
 }

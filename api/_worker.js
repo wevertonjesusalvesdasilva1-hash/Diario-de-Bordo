@@ -8,13 +8,14 @@
 //   jobs/<job>/err/<n>.json         { error }
 //   jobs/<job>/status.json          { ready, done, failed, working, wait, updated } — what the browser polls
 import { getStore } from './_store.js';
-import { readPass } from './_read.js';
+import { readPass, modelChain } from './_read.js';
 import { reconcile, alignJson, collectAsk } from '../src/core/rows.js';
 import { setActiveGroup, groupOf } from '../src/core/lists.js';
 import { normMachine } from '../src/core/rows.js';
 
 export const JOB_RE = /^[a-z0-9]{8,24}$/;
-const MAX_AGE_MS = 12 * 3600_000; // a job nobody could read in 12 hours is given up
+const MAX_AGE_MS = 48 * 3600_000; // a job nobody could read in 48 hours is given up (the daily quota renews meanwhile)
+const PARK_AFTER_MS = 30 * 60_000; // out of quota for this long: stop retrying every few minutes, the daily sweep (api/sweep.js) or the next visit resumes it
 const LEASE_MS = 290_000;
 const PASS_DEADLINE = 70_000; // one pass; a sheet takes at most A/B (70 s) + C (70 s), so a batch started before 90 s ends before 240 s
 const FATAL = new Set([400, 401, 403]);
@@ -72,8 +73,19 @@ async function readOnePage(job, n) {
       }
     }
   }
-  return { A: got.A ?? null, B: got.B ?? null, C, ask: askCount, single, models };
+  return { A: got.A ?? null, B: got.B ?? null, C, ask: askCount, single, models, primary: modelChain(false)[0] };
 }
+
+// the list of jobs still being read, so the daily sweep knows what to wake up
+const ACTIVE = 'jobs/_active.json';
+export async function setActive(job, on) {
+  const list = (await readJson(ACTIVE)) ?? [];
+  const has = list.includes(job);
+  if (on === has) return;
+  await writeJson(ACTIVE, on ? [...list, job] : list.filter((j) => j !== job));
+}
+export const activeJobs = async () => (await readJson(ACTIVE)) ?? [];
+export const jobMeta = (job) => readJson(path(job, 'meta.json'));
 
 const retriable = (e) => !FATAL.has(e?.status) && !e?.config;
 
@@ -91,21 +103,23 @@ export async function processJob(job, { budgetMs = 90_000 } = {}) {
     const meta = (await readJson(path(job, 'meta.json'))) ?? {};
     const expired = meta.at && t0 - meta.at > MAX_AGE_MS;
     let s = await scan(job);
+    const prevStatus = (await readJson(path(job, 'status.json'))) ?? {};
+    let quota = prevStatus.quota ?? null, quotaSince = prevStatus.quotaSince ?? null, lastModel = prevStatus.lastModel ?? null, primary = prevStatus.primary ?? null;
     const failed = {};
     for (const n of s.failed) failed[n] = (await readJson(path(job, 'err', `${n}.json`)))?.error ?? 'Erro';
     const pending = () => s.ready.filter((n) => !s.done.includes(n) && !s.failed.includes(n));
-    const save = (working) => writeJson(path(job, 'status.json'), { total: meta.total ?? null, ready: s.ready, done: s.done, failed, working, wait, updated: Date.now() });
+    const save = (working) => writeJson(path(job, 'status.json'), { total: meta.total ?? null, ready: s.ready, done: s.done, failed, working, wait, quota, quotaSince, lastModel, primary, updated: Date.now() });
     await save(true);
     while (pending().length && Date.now() - t0 < budgetMs && !wait && !(await readJson(path(job, 'cancel.json')))) {
       const batch = pending().slice(0, 2);
       await Promise.all(batch.map(async (n) => {
         try {
-          if (expired) throw Object.assign(new Error('A leitura não terminou em 12 horas. Envie o arquivo de novo.'), { status: 400 });
+          if (expired) throw Object.assign(new Error('A leitura não terminou em 48 horas. Envie o arquivo de novo.'), { status: 400 });
           const out = await readOnePage(job, n);
           await writeJson(path(job, 'out', `${n}.json`), out);
-          s.done.push(n);
+          s.done.push(n); lastModel = out.models?.at(-1) ?? lastModel; primary = out.primary ?? primary; quota = null; quotaSince = null;
         } catch (e) {
-          if (retriable(e)) wait = Math.max(wait, e.status === 429 ? 300 : 90);
+          if (retriable(e)) { wait = Math.max(wait, e.status === 429 ? 300 : 90); quota = quotaInfo(e) ?? quota; if (quota && !quotaSince) quotaSince = Date.now(); }
           else { failed[n] = String(e.message).slice(0, 200); await writeJson(path(job, 'err', `${n}.json`), { error: failed[n] }); s.failed.push(n); }
         }
       }));
@@ -113,10 +127,25 @@ export async function processJob(job, { budgetMs = 90_000 } = {}) {
     }
     const fresh = await scan(job); // pages uploaded while we were reading
     s = { ready: fresh.ready, done: [...new Set([...s.done, ...fresh.done])], failed: [...new Set([...s.failed, ...fresh.failed])] };
-    const more = pending().length > 0;
+    const left = pending().length > 0;
+    // out of quota for the day (or for a long time): park the job instead of retrying every few minutes
+    const parked = left && quota && (quota.kind === 'dia' || (quota.kind === 'cota' && quotaSince && Date.now() - quotaSince > PARK_AFTER_MS));
     await save(false);
-    return { more, wait };
+    await setActive(job, left);
+    return { more: left && !parked, wait, parked: !!parked };
   } finally {
     await writeJson(path(job, 'lease.json'), { until: 0 });
   }
+}
+
+// What the Gemini answers say when no model could read: is it the daily limit, the per-minute one, or just overload?
+export function quotaInfo(e) {
+  const t = e?.trace ?? [];
+  const q = t.filter((x) => x.status === 429);
+  if (!q.length) return t.some((x) => x.status === 503) ? { kind: 'ocupado', detail: 'O Gemini está sobrecarregado (erro 503).' } : null;
+  const text = q.map((x) => x.why ?? '').join(' ');
+  const metric = text.match(/quotaId\W+([\w-]+)/)?.[1] ?? text.match(/metric:?\s*([\w./-]+)/)?.[1] ?? '';
+  const day = /PerDay|per day|daily/i.test(text) || /PerDay/i.test(metric);
+  const minute = /PerMinute|per minute/i.test(text) || /PerMinute/i.test(metric);
+  return { kind: day ? 'dia' : minute ? 'minuto' : 'cota', detail: metric || 'Limite de uso do plano gratuito do Gemini atingido.', models: [...new Set(q.map((x) => x.model))] };
 }
