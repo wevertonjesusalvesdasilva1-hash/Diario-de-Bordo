@@ -178,3 +178,6 @@ No cabeçalho de cada folha da conferência há o botão **👁 Ver folha inteir
 
 ### Aviso de versão nova
 Se o app ficar aberto numa aba enquanto uma versão nova é publicada, aparece no alto uma faixa roxa "Há uma versão nova do app" com o botão **Atualizar agora**. O app só pergunta e nunca recarrega sozinho (a leitura fica salva no navegador). A conferência é feita ao voltar para a aba e a cada 3 minutos.
+
+### Resumo e botões de exportar
+O resumo (folhas, linhas de produção, paradas e o que está pendente) e os botões **Copiar PRODUÇÃO**, **Copiar PARADAS** e **Baixar Excel** ficam dentro do cartão "Entrada de folhas", logo abaixo dos arquivos enviados, e rolam junto com a página. Não há mais barra fixa no rodapé cobrindo o conteúdo.

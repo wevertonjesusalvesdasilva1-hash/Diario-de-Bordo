@@ -91,6 +91,17 @@
       </div>
       <div id="filelist" class="filelist" hidden></div>
       <p class="note">PDF ou foto. Cada folha é lida duas vezes e as dúvidas ficam marcadas. Enviar de novo num lado troca só a leitura daquele lado.</p>
+      <div class="bar inline" id="exportbar" hidden>
+    <div id="summary"></div>
+    <div class="actions">
+      <button id="copyprod" type="button">Copiar PRODUÇÃO</button>
+      <button id="copystop" type="button">Copiar PARADAS</button>
+      <button id="xlsx" type="button" class="primary">Baixar Excel (selecionadas)</button>
+      <button id="xlsxall" type="button" class="primary">Baixar Excel com todas</button>
+      <button id="xlsxraw" type="button" class="primary" hidden>Excel só RAW</button>
+      <button id="xlsxusi" type="button" class="primary" hidden>Excel só usinagem</button>
+    </div>
+  </div>
       <p class="note" id="sheetsleft"></p>
       <label class="row">Ano das datas
         <input id="year" type="number" min="2000" max="2100" style="width:6rem">
@@ -174,17 +185,6 @@
     </section>
   </main>
 
-  <footer class="bar" id="exportbar" hidden>
-    <div id="summary"></div>
-    <div class="actions">
-      <button id="copyprod" type="button">Copiar PRODUÇÃO</button>
-      <button id="copystop" type="button">Copiar PARADAS</button>
-      <button id="xlsx" type="button" class="primary">Baixar Excel (selecionadas)</button>
-      <button id="xlsxall" type="button" class="primary">Baixar Excel com todas</button>
-      <button id="xlsxraw" type="button" class="primary" hidden>Excel só RAW</button>
-      <button id="xlsxusi" type="button" class="primary" hidden>Excel só usinagem</button>
-    </div>
-  </footer>
   <div id="qr" hidden role="dialog" aria-modal="true" aria-labelledby="qrtitle">
     <div class="card qrbox">
       <header class="qrhead"><strong id="qrtitle">Revisão rápida</strong><span id="qrcount" class="sel"></span><button id="qrclose" type="button" class="ghost">Fechar (Esc)</button></header>
