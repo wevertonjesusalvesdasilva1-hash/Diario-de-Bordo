@@ -60,7 +60,8 @@ export default async function handler(req, res) {
       const { baseRev, state } = req.body ?? {};
       if (!state || typeof state !== 'object' || !Array.isArray(state.pages)) return send(res, 400, { error: 'Estado inválido' });
       const cur = await readState();
-      if (Number(baseRev) !== cur.rev) return send(res, 409, cur);
+      // an empty room has nothing to protect: whoever saves first fills it, whatever revision they knew
+      if (Number(baseRev) !== cur.rev && (cur.state?.pages?.length ?? 0) > 0) return send(res, 409, cur);
       const next = { rev: cur.rev + 1, state, at: new Date().toISOString() };
       await store.write(STATE, JSON.stringify(next));
       store.prune?.(new Set(state.pages.map((p) => p.sid).filter(Boolean))).catch(() => {});

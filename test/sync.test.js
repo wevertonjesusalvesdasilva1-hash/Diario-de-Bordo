@@ -36,6 +36,10 @@ test('sincronização: salva, devolve só quando mudou e recusa gravação em ci
   r = await run({ method: 'PUT', body: { baseRev: 0, state: s1 } });
   assert.equal(r.code, 409); assert.equal(r.body.rev, 1);
   assert.equal((await run({ method: 'PUT', body: { baseRev: 1, state: { x: 1 } } })).code, 400);
+  // empty room: a stale revision still saves
+  useStore(mem());
+  await run({ method: 'PUT', body: { baseRev: 0, state: { pages: [] } } });
+  assert.equal((await run({ method: 'PUT', body: { baseRev: 0, state: s1 } })).code, 200);
 });
 
 test('sincronização: imagens da folha vão e voltam; nome inválido é recusado', async () => {

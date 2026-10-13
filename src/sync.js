@@ -67,7 +67,8 @@ export function createSync(h) {
       await uploadAssets(assets);
       const r = await apiSend('PUT', '/api/sync', { baseRev: rev, state: { pages: lite, ...h.getMeta() } });
       const body = await r.json().catch(() => ({}));
-      if (r.status === 409) {
+      if (r.status === 409 && !(body.state?.pages?.length) && lite.length) { rev = body.rev; dirty = true; } // empty room: never wipe our sheets
+      else if (r.status === 409) {
         await applyRemote(body.state ?? { pages: [] }, body.rev);
         h.toast('Um colega salvou ao mesmo tempo. Atualizei com a versão dele; se sua última alteração sumiu, refaça.');
       } else if (!r.ok) { h.status('warn', body.error || `Erro ${r.status}`); return; }
