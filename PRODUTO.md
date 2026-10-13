@@ -145,3 +145,6 @@ Validado com folhas reais (UMC 01, UMC 02, HMC 16, NCBZ, RAW05) e com a planilha
 
 ## Fotografar folha
 O botão **Fotografar folha** abre a câmera. No computador, abre uma janela com a imagem da webcam e o botão "Tirar foto" (o navegador pede permissão da câmera na primeira vez; há também "Escolher arquivo"). No celular ou tablet, abre direto o aplicativo de câmera do aparelho. A foto entra na leitura atual, sem apagar o que já foi lido.
+
+## Entrada de folhas: lado RAW e lado usinagem
+A caixa de envio tem dois lados: **RAW** (robôs RAW05 a RAW12) e **Usinagem** (UMC 01, UMC 02, HMC 16, NCBZ). Cada lado tem o seu "escolha" e o seu "Fotografar folha". O lado diz ao app, antes da leitura, qual lista de chapas, peças e modelos usar e o que esperar do cabeçalho (bolinha ou nome escrito). Enviar de novo num lado troca só a leitura daquele lado; o outro fica como estava, e a análise cobre os dois. Se a máquina lida for do outro grupo, a folha ganha o aviso "Enviada no lado X, mas a máquina lida é Y": o app só avisa, quem decide é você. Enquanto uma leitura está em andamento, o envio do outro lado espera.

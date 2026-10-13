@@ -30,6 +30,6 @@ async function get(key) {
 export const saveState = (value) => put(KEY, value);
 export const loadState = () => get(KEY);
 // The files being read: if the tab is closed or reloaded in the middle, the reading resumes from them.
-export const saveQueue = (files, job = null) => put(QUEUE, { files, job });
+export const saveQueue = (files, job = null, group = null) => put(QUEUE, { files, job, group });
 export const loadQueue = () => get(QUEUE);
 export const clearQueue = () => put(QUEUE, null);

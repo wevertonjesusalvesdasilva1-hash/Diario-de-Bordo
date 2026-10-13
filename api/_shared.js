@@ -50,11 +50,12 @@ const list = (v, fallback) => (Array.isArray(v) && v.length ? v.slice(0, 80).map
 
 export function buildPrompt(pass, hints = {}) {
   const chapas = list(hints.chapas, CHAPAS), pecas = list(hints.pecas, PECAS), modelos = list(hints.modelos, MODELOS);
+  const side = hints.group === 'usi' ? '\nESTA FOLHA É DE USINAGEM (UMC 01, UMC 02, HMC 16 ou NCBZ): o nome da máquina vem escrito ou impresso; não há bolinhas.\n' : hints.group === 'raw' ? '\nESTA FOLHA É DE ROBÔ RAW: a máquina é a bolinha preenchida (05, 06, 09, 10, 11 ou 12).\n' : '';
   const how = pass === 'B'
     ? 'Você recebe somente as ampliações das duas tabelas. Leia cada linha de forma independente: primeiro a coluna CHAPA inteira, dígito por dígito, depois os horários.'
     : 'A primeira imagem é a folha inteira, já na posição correta; as seguintes são ampliações da tabela 1 e da tabela 2.';
   return `Você transcreve folhas manuscritas "DIÁRIO DE BORDO – PRODUÇÃO E PARADAS" (Komatsu, robôs de solda RAW). ${how}
-
+${side}
 CABEÇALHO: MÁQUINA e DATA (dd/mm). Nas folhas RAW há bolinhas (05, 06, 09, 10, 11, 12): a preenchida dá RAW05…RAW12. Nas folhas de usinagem o nome vem escrito ou impresso depois de "MÁQUINA:" (UMC 01, UMC 02, HMC 16 ou NCBZ; pode estar como UMC-01). Devolva o nome da máquina; se não conseguir ler, null.
 
 TABELA 1 – REGISTRO DE PRODUÇÃO (até 10 linhas): N°, DATA, PEÇA, MODELO e, para cada turno (1º, 2º, 3º), CHAPA, INÍCIO e FIM; depois TURNO QUE FINALIZOU (1, 2 ou 3) e OBSERVAÇÕES. Transcreva só as linhas que têm escrita.

@@ -64,7 +64,7 @@ function persist(delay = 400) {
   clearTimeout(saveTimer);
   sync?.changed();
   saveTimer = setTimeout(() => {
-    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo, markAdj }) => ({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo, markAdj }));
+    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo, markAdj, group }) => ({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo, markAdj, group }));
     saveState({ dismissed: [...state.dismissed], checked: [...state.checked], pages: keep, nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig, ai: Array.isArray(state.ai) ? state.ai : null });
   }, delay);
 }
@@ -138,7 +138,7 @@ async function resumeQueue() {
   if (!q?.files?.length) return;
   const skip = new Set(state.pages.map((p) => `${p.file}|${Number(String(p.label).split('pág. ')[1])}`));
   toast('A leitura foi interrompida. Continuando de onde parou…');
-  await processFiles(q.files, { append: true, skip, job: q.job ?? null });
+  await processFiles(q.files, { append: true, skip, job: q.job ?? null, group: q.group ?? null });
 }
 
 // ---------------------------------------------------------------- reading a page
@@ -198,20 +198,24 @@ function prepare(imageIn, { photo = false } = {}) {
   };
 }
 
-function hints() {
+function hints(group) {
+  if (group) setActiveGroup(group); // the sheet's own lists (RAW or usinagem)
   const { chapas, pecas, modelos } = getLists();
-  return { chapas, pecas, modelos };
+  return { chapas, pecas, modelos, ...(group ? { group } : {}) };
 }
+const GROUP_NAME = { raw: 'RAW', usi: 'usinagem' };
 
 // the readings are in: build the rows of the sheet (same for a reading made here or by the server)
 function completePage(p, sec, { json, single, grp }) {
   setActiveGroup(grp); // other sheets are read meanwhile: put this sheet's lists back
-  const built = buildPage(json, { year: Number($('year').value) || new Date().getFullYear(), meta: { machineFromBubble: sec.bubble } });
+  const built = buildPage(json, { year: Number($('year').value) || new Date().getFullYear(), meta: { machineFromBubble: sec.bubble, group: p.group } });
   const rowWarns = alignRows(built, sec.rowInk);
   applyInkMotivo(built, sec.inkMotivo);
   applyKeywords(built);
   sheetRead();
   Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk, rowWarn: rowWarns.join('; '), crop: sec.crop, sheet: sec.sheet, sheetGeo: sec.sheetGeo });
+  // sent on the wrong side? only flag it (the person decides); never change the machine by itself
+  if (p.group && p.machine && listGroup(p.machine) !== p.group) p.machineFlag = `Enviada no lado ${GROUP_NAME[p.group]}, mas a máquina lida é ${p.machine} (${GROUP_NAME[listGroup(p.machine)]})`;
   for (const r of p.prod) r.strip = sec.strips.prod[r.linha - 1];
   for (const r of p.stops) r.strip = sec.strips.stops[r.linha - 1];
   p.include = true;
@@ -225,7 +229,8 @@ function finishFromServer(p, out) {
   if (!sec) return false;
   try {
     showModel(out.models?.at(-1), out.primary);
-    const grp = listGroup(sec.bubble || normMachine((out.A ?? out.B)?.maquina));
+    const seen = sec.bubble || normMachine((out.A ?? out.B)?.maquina);
+    const grp = seen ? listGroup(seen) : (p.group ?? 'raw');
     setActiveGroup(grp);
     const single = !!out.single;
     const json = single ? (out.A ?? out.B) : reconcile(out.A, out.B);
@@ -242,11 +247,12 @@ async function readPage(p) {
   if (!sec) { p.status = 'erro'; p.error = 'Envie o arquivo de novo para ler esta folha'; renderPage(p); return; }
   try {
     const [a, b] = await Promise.allSettled([
-      readSheet({ images: sec.A, pass: 'A', hints: hints() }),
-      readSheet({ images: sec.B, pass: 'B', hints: hints() }),
+      readSheet({ images: sec.A, pass: 'A', hints: hints(p.group) }),
+      readSheet({ images: sec.B, pass: 'B', hints: hints(p.group) }),
     ]);
     if (a.status === 'rejected' && b.status === 'rejected') throw a.reason;
-    const grp = listGroup(sec.bubble || normMachine((a.value ?? b.value)?.maquina));
+    const seen = sec.bubble || normMachine((a.value ?? b.value)?.maquina);
+    const grp = seen ? listGroup(seen) : (p.group ?? 'raw');
     setActiveGroup(grp);
     const single = a.status === 'rejected' || b.status === 'rejected';
     const json = single ? (a.status === 'fulfilled' ? a.value : b.value) : reconcile(a.value, b.value);
@@ -259,7 +265,7 @@ async function readPage(p) {
       if (withStrip.length) {
         try {
           const images = withStrip.map((x) => (x.tabela === 'prod' ? sec.strips.prod : sec.strips.stops)[x.linha - 1].split(',')[1]);
-          const c = await readSheet({ images, pass: 'C', hints: hints(), extra: { ask: withStrip } });
+          const c = await readSheet({ images, pass: 'C', hints: hints(p.group), extra: { ask: withStrip } });
           applyThirdReading(json, c.respostas);
           p.third = withStrip.length;
         } catch (e) { /* the two readings stand; the divergences stay flagged */ if (e.quota) state.quotaHit = true; }
@@ -353,22 +359,28 @@ async function trackJob(job) {
 }
 
 const PARALLEL = 3; // sheets read at once when the server is not used
-async function processFiles(files, { append = false, skip = null, job: resumeJob = null } = {}) {
+async function processFiles(files, { append = false, skip = null, job: resumeJob = null, group = null } = {}) {
   if (state.busy) return toast('Aguarde a leitura atual terminar');
+  if (group && !skip && state.pages.some((p) => p.status === 'lendo')) return toast('Aguarde a leitura que está em andamento terminar antes de enviar o outro lado');
   state.busy = true;
   trackToken++; // a new upload ends the follow-up of the previous one
   // Only the file being uploaded now is analysed: whatever was loaded before is removed.
   state.quotaHit = false;
   if (state.pages.length && !append) {
-    for (const p of state.pages) secrets.delete(p.id);
-    state.pages = []; state.dismissed.clear(); state.checked.clear(); $('pages').replaceChildren();
-    toast('Leitura anterior removida. A análise vale só para o arquivo que você enviou agora.');
+    // with two sides, sending to one side replaces only that side's earlier reading; the other side stays
+    const gone = group ? state.pages.filter((p) => (p.group ?? (p.machine ? listGroup(p.machine) : 'raw')) === group) : state.pages;
+    if (gone.length) {
+      for (const p of gone) secrets.delete(p.id);
+      state.pages = state.pages.filter((p) => !gone.includes(p));
+      state.dismissed.clear(); state.checked.clear(); rebuildDom();
+      toast(group ? `Leitura anterior de ${GROUP_NAME[group]} removida. O outro lado ficou como estava.` : 'Leitura anterior removida. A análise vale só para o arquivo que você enviou agora.');
+    }
   }
   discardUndo(); resetReview();
   if (!append) { const prev = await loadQueue(); if (prev?.job) cancelJob(prev.job); } // the old upload is replaced: stop its reading
   const useServer = await jobsAvailable();
   const jobId = useServer ? (resumeJob ?? newJobId()) : null;
-  if (!skip) await saveQueue(files, jobId);
+  if (!skip) await saveQueue(files, jobId, group);
   let uploaded = new Set();
   if (useServer && resumeJob) uploaded = new Set((await jobStatus(resumeJob))?.ready ?? []);
   const st = $('status');
@@ -385,7 +397,7 @@ async function processFiles(files, { append = false, skip = null, job: resumeJob
       await new Promise((r) => setTimeout(r)); // let the browser paint
       const prep = prepare(item.image, { photo: !!item.photo });
       if (item.page === 1 && !skip) state.batch++;
-      const p = { id: state.nextId++, sid: newSid(), batch: state.batch, file: item.name, label: `${item.name} · pág. ${item.page}`, status: 'lendo', error: '', machine: '', date: '', include: false, prod: [], stops: [], ...(useServer ? { jobN: seq } : {}) };
+      const p = { id: state.nextId++, sid: newSid(), batch: state.batch, ...(group ? { group } : {}), file: item.name, label: `${item.name} · pág. ${item.page}`, status: 'lendo', error: '', machine: '', date: '', include: false, prod: [], stops: [], ...(useServer ? { jobN: seq } : {}) };
       secrets.set(p.id, prep);
       state.pages.push(p);
       $('pages').append(h('section', { class: 'card page', id: `page-${p.id}` }));
@@ -393,7 +405,7 @@ async function processFiles(files, { append = false, skip = null, job: resumeJob
         renderPage(p);
         if (!uploaded.has(seq)) {
           while (uploads.size >= 2) await Promise.race(uploads);
-          const up = uploadSheet(jobId, seq, item.total, prep, hints())
+          const up = uploadSheet(jobId, seq, item.total, prep, hints(group))
             .catch((e) => { p.status = 'erro'; p.error = `Não consegui enviar a folha ao servidor: ${e.message}`; renderPage(p); })
             .finally(() => uploads.delete(up));
           uploads.add(up);
@@ -1116,8 +1128,8 @@ $('dellast').addEventListener('click', () => {
   if (!g.length || state.busy) return state.busy ? toast('Aguarde a leitura terminar') : undefined;
   removePages(g, `Leitura de ${g[0].file} zerada. Pronto para o próximo arquivo.`);
   $('upload').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  $('drop').classList.add('over');
-  setTimeout(() => $('drop').classList.remove('over'), 1800);
+  dropZones.forEach((z) => z.classList.add('over'));
+  setTimeout(() => dropZones.forEach((z) => z.classList.remove('over')), 1800);
 });
 $('undo').addEventListener('click', () => {
   if (!state.undo) return;
@@ -1135,11 +1147,15 @@ $('clear').addEventListener('click', () => {
   updateSummary(); persist();
 });
 
-const drop = $('drop');
-['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
-['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
-drop.addEventListener('drop', (e) => processFiles([...e.dataTransfer.files]));
-$('files').addEventListener('change', (e) => { processFiles([...e.target.files]); e.target.value = ''; });
+// two drop zones: RAW and usinagem. The side tells the app which lists (and prompt) to use.
+const dropZones = [...document.querySelectorAll('#drop .zone')];
+for (const zone of dropZones) {
+  const group = zone.dataset.group;
+  ['dragenter', 'dragover'].forEach((ev) => zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.remove('over'); }));
+  zone.addEventListener('drop', (e) => processFiles([...e.dataTransfer.files], { group }));
+  $(`files-${group}`).addEventListener('change', (e) => { processFiles([...e.target.files], { group }); e.target.value = ''; });
+}
 
 // ---------------------------------------------------------------- revisão rápida
 const CELLCOL = {
@@ -1349,15 +1365,15 @@ $('limit').addEventListener('change', () => setLimit($('limit').value));
 updateUsage();
 
 // photo straight from the phone camera: added to the current reading (not replacing it)
-$('camera').addEventListener('change', (e) => { processFiles([...e.target.files], { append: true }); e.target.value = ''; });
+for (const g of ['raw', 'usi']) $(`camera-${g}`).addEventListener('change', (e) => { processFiles([...e.target.files], { append: true, group: g }); e.target.value = ''; });
 
 // On a computer the file input would open the file manager, so "Fotografar folha" opens the webcam here instead.
 // On a phone (touch screen) the input's own camera is better: it uses the full camera app.
 let camStream = null;
 function closeWebcam() { camStream?.getTracks().forEach((t) => t.stop()); camStream = null; $('webcam')?.remove(); document.removeEventListener('keydown', onWebcamKey); }
 function onWebcamKey(e) { if (e.key === 'Escape') closeWebcam(); }
-async function openWebcam() {
-  if (!navigator.mediaDevices?.getUserMedia) return $('camera').click();
+async function openWebcam(group) {
+  if (!navigator.mediaDevices?.getUserMedia) return $(`camera-${group}`).click();
   try { camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1920 } }, audio: false }); }
   catch (err) {
     toast(err?.name === 'NotAllowedError' ? 'O navegador bloqueou a câmera. Clique no cadeado ao lado do endereço e permita a câmera.' : 'Não achei uma câmera neste computador.');
@@ -1372,21 +1388,23 @@ async function openWebcam() {
     h('div', { class: 'wcbox' }, video, h('p', { class: 'note' }, 'Enquadre a folha inteira, de frente e bem iluminada.'), h('div', { class: 'wcbtns' }, cancel, file, shoot)));
   document.body.append(box); document.addEventListener('keydown', onWebcamKey);
   cancel.addEventListener('click', closeWebcam);
-  file.addEventListener('click', () => { closeWebcam(); $('camera').removeAttribute('capture'); $('camera').click(); $('camera').setAttribute('capture', 'environment'); });
+  file.addEventListener('click', () => { closeWebcam(); const inp = $(`camera-${group}`); inp.removeAttribute('capture'); inp.click(); inp.setAttribute('capture', 'environment'); });
   shoot.addEventListener('click', () => {
     if (!video.videoWidth) return;
     const c = document.createElement('canvas'); c.width = video.videoWidth; c.height = video.videoHeight;
     c.getContext('2d').drawImage(video, 0, 0);
     c.toBlob((blob) => {
       closeWebcam();
-      if (blob) processFiles([new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })], { append: true });
+      if (blob) processFiles([new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })], { append: true, group });
     }, 'image/jpeg', 0.92);
   });
 }
-$('camlabel').addEventListener('click', (e) => {
-  if (window.matchMedia('(pointer: coarse)').matches) return; // phone or tablet: the native camera
-  e.preventDefault(); openWebcam();
-});
+for (const g of ['raw', 'usi']) {
+  $(`camlabel-${g}`).addEventListener('click', (e) => {
+    if (window.matchMedia('(pointer: coarse)').matches) return; // phone or tablet: the native camera
+    e.preventDefault(); openWebcam(g);
+  });
+}
 
 // botão "voltar ao topo": aparece depois de rolar a página
 const toTop = $('totop');
@@ -1428,14 +1446,15 @@ menuEl.addEventListener('click', (e) => {
 });
 
 // the drop zone tilts a little with the pointer (3D); skipped for reduced motion
-const dropEl = $('drop');
 if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-  dropEl.addEventListener('pointermove', (e) => {
-    const r = dropEl.getBoundingClientRect();
-    dropEl.style.setProperty('--ry', `${(((e.clientX - r.left) / r.width) - 0.5) * 18}deg`);
-    dropEl.style.setProperty('--rx', `${(0.5 - ((e.clientY - r.top) / r.height)) * 12}deg`);
-  });
-  dropEl.addEventListener('pointerleave', () => { dropEl.style.setProperty('--ry', '0deg'); dropEl.style.setProperty('--rx', '0deg'); });
+  for (const dropEl of dropZones) {
+    dropEl.addEventListener('pointermove', (e) => {
+      const r = dropEl.getBoundingClientRect();
+      dropEl.style.setProperty('--ry', `${(((e.clientX - r.left) / r.width) - 0.5) * 10}deg`);
+      dropEl.style.setProperty('--rx', `${(0.5 - ((e.clientY - r.top) / r.height)) * 7}deg`);
+    });
+    dropEl.addEventListener('pointerleave', () => { dropEl.style.setProperty('--ry', '0deg'); dropEl.style.setProperty('--rx', '0deg'); });
+  }
 }
 // first visit: show the help once
 try { if (!localStorage.getItem('mt-help') && $('lock').hidden) setTimeout(() => { if ($('lock').hidden) openHelp(); }, 600); } catch { /* ignore */ }

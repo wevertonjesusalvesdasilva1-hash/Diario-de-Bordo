@@ -69,12 +69,21 @@
 
     <section class="card" id="upload">
       <h2 class="ptitle">Entrada de folhas</h2>
-      <div id="drop" class="drop" tabindex="0">
-        <div class="orb" aria-hidden="true"><i></i><i></i><i></i></div>
-        <p class="big">Arraste os arquivos ou <label class="link">escolha<input id="files" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
-        <p><label class="camera" id="camlabel">Fotografar folha<input id="camera" type="file" accept="image/*" capture="environment" hidden></label></p>
-        <p class="note">PDF ou foto. Cada folha é lida duas vezes e as dúvidas ficam marcadas.</p>
+      <div id="drop" class="drops">
+        <div class="drop zone" id="drop-raw" data-group="raw" tabindex="0">
+          <h3 class="ztitle">RAW</h3>
+          <p class="zsub">Robôs de solda · RAW05 a RAW12</p>
+          <p class="big">Arraste os PDFs ou <label class="link">escolha<input id="files-raw" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
+          <p><label class="camera" id="camlabel-raw">Fotografar folha<input id="camera-raw" type="file" accept="image/*" capture="environment" hidden></label></p>
+        </div>
+        <div class="drop zone" id="drop-usi" data-group="usi" tabindex="0">
+          <h3 class="ztitle">Usinagem</h3>
+          <p class="zsub">UMC 01 · UMC 02 · HMC 16 · NCBZ</p>
+          <p class="big">Arraste os PDFs ou <label class="link">escolha<input id="files-usi" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
+          <p><label class="camera" id="camlabel-usi">Fotografar folha<input id="camera-usi" type="file" accept="image/*" capture="environment" hidden></label></p>
+        </div>
       </div>
+      <p class="note">PDF ou foto. Cada folha é lida duas vezes e as dúvidas ficam marcadas. Enviar de novo num lado troca só a leitura daquele lado.</p>
       <p class="note" id="sheetsleft"></p>
       <label class="row">Ano das datas
         <input id="year" type="number" min="2000" max="2100" style="width:6rem">

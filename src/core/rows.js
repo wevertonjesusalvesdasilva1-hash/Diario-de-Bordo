@@ -160,7 +160,7 @@ function learned(kind, raw, row, key) {
 
 export function buildPage(json, { year, meta = {} }) {
   // RAW and usinagem sheets are checked against their own lists
-  setActiveGroup(groupOf(meta.machineFromBubble || normMachine(json.maquina)));
+  { const seen = meta.machineFromBubble || normMachine(json.maquina); setActiveGroup(seen ? groupOf(seen) : (meta.group ?? 'raw')); }
   const prod = [];
   for (const r of json.producao ?? []) {
     const d = new Set(r.duvidas ?? []);
