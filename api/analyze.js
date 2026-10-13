@@ -40,7 +40,7 @@ export default async function handler(req, res) {
   const { resumo } = req.body ?? {};
   const text = JSON.stringify(resumo ?? '');
   if (!resumo || typeof resumo !== 'object' || text.length > 24_000) return send(res, 400, { error: 'Resumo inválido ou grande demais' });
-  const models = [...new Set([process.env.GEMINI_MODEL || 'gemini-flash-latest', ...(process.env.GEMINI_FALLBACK_MODELS || 'gemini-2.5-flash,gemini-flash-lite-latest').split(',').map((m) => m.trim()).filter(Boolean)])];
+  const models = [...new Set([process.env.GEMINI_MODEL || 'gemini-flash-latest', ...(process.env.GEMINI_FALLBACK_MODELS || 'gemini-3.8-flash,gemini-flash-lite-latest').split(',').map((m) => m.trim()).filter(Boolean)])];
   try {
     const { data } = await gemini(models, key, [{ text: `${PROMPT}\n\nRESUMO:\n${text}` }], SCHEMA);
     const out = data?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';

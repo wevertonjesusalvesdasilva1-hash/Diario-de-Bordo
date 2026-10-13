@@ -55,8 +55,8 @@ test('503 de um modelo passa para o modelo reserva', async () => {
   };
   const r = mkRes(); await handler(req({ headers: { host: 'app.test', 'x-forwarded-for': '7.7.7.7' } }), r);
   assert.equal(r.code, 200);
-  assert.deepEqual(used, ['gemini-flash-latest', 'gemini-2.5-flash']);
-  assert.equal(r.body.model, 'gemini-2.5-flash');
+  assert.deepEqual(used, ['gemini-flash-latest', 'gemini-3.8-flash']);
+  assert.equal(r.body.model, 'gemini-3.8-flash');
 });
 
 test('modelo que recusa thinkingConfig é repetido sem ele', async () => {
