@@ -22,6 +22,8 @@ import { saveState, loadState, saveQueue, loadQueue, clearQueue } from './store.
 import { createSync, syncWanted } from './sync.js';
 import { jobsAvailable, uploadSheet, jobStatus, jobResult, kickJob, newJobId, cancelJob } from './jobs.js';
 import { newSid } from './core/share.js';
+import { cardMarks } from './core/marks.js';
+import { downloadControl } from './download.js';
 import { MOTIVOS, MOTIVOS_ALL, MAQUINAS } from './data/vocab.js';
 
 const $ = (id) => document.getElementById(id);
@@ -816,11 +818,7 @@ function sheetView(c) {
   const p = pageOf(c.page);
   if (!p?.sheet) return h('p', { class: 'note nosheet' }, 'A imagem desta folha não foi guardada. Envie o arquivo de novo para vê-la aqui.');
   const wrap = h('div', { class: 'sheetwrap', title: 'Clique para abrir a folha e dar zoom' }, h('img', { src: p.sheet, alt: `Folha ${p.label}` }), h('span', { class: 'lupa', 'aria-hidden': 'true' }, '🔍'));
-  for (const r of c.refs ?? []) {
-    const g = p.sheetGeo?.[r.table]; const n = (r.linha || 0) - 1;
-    if (!g || n < 0 || n + 1 >= g.y.length) continue;
-    wrap.append(h('i', { class: 'hl', style: `top:${(g.y[n] * 100).toFixed(2)}%;height:${((g.y[n + 1] - g.y[n]) * 100).toFixed(2)}%;left:${(g.x0 * 100).toFixed(2)}%;width:${((g.x1 - g.x0) * 100).toFixed(2)}%` }));
-  }
+  for (const m of cardMarks(c, p)) wrap.append(h('i', { class: m.kind === 'cell' ? 'hl cell' : 'hl', style: `top:${(m.y * 100).toFixed(2)}%;height:${(m.h * 100).toFixed(2)}%;left:${(m.x * 100).toFixed(2)}%;width:${(m.w * 100).toFixed(2)}%` }));
   return wrap;
 }
 
@@ -853,7 +851,7 @@ function flipCard(c) {
     h('button', { type: 'button', class: `checkbtn${state.checked.has(c.key) ? ' on' : ''}`, dataset: { check: c.key } }, state.checked.has(c.key) ? '↩ Desmarcar verificado' : '✓ Marcar como verificado'));
   const back = h('div', { class: 'face back' },
     sheetView(c),
-    h('div', { class: 'fbtns' }, goBtn(c), h('button', { type: 'button', class: 'ghost ok', dataset: { dismiss: c.key }, title: 'A folha está certa: tira este aviso' }, 'Anotação correta ✓'), h('button', { type: 'button', class: 'ghost', dataset: { flip: '1' } }, 'Voltar ↻')));
+    h('div', { class: 'fbtns' }, goBtn(c), pageOf(c.page)?.sheet ? downloadControl(c, pageOf(c.page), h) : null, h('button', { type: 'button', class: 'ghost ok', dataset: { dismiss: c.key }, title: 'A folha está certa: tira este aviso' }, 'Anotação correta ✓'), h('button', { type: 'button', class: 'ghost', dataset: { flip: '1' } }, 'Voltar ↻')));
   return h('article', { class: `flip ${c.sev}`, style: `--kc:${c.color}`, tabindex: '0', 'aria-pressed': 'false', 'aria-label': `${c.machine}: ${c.title}` }, h('div', { class: 'flip-in' }, front, back));
 }
 

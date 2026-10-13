@@ -18,27 +18,32 @@ function pageRecords(p) {
   p.prod.forEach((r, ri) => {
     for (const n of [1, 2, 3]) {
       if (!r[`ini${n}`] && !r[`fim${n}`]) continue;
-      recs.push({ table: 'prod', ri, linha: r.linha, chapa: r[`chapa${n}`], ini: r[`ini${n}`], fim: r[`fim${n}`], data: r.data });
+      recs.push({ table: 'prod', ri, linha: r.linha, chapa: r[`chapa${n}`], ini: r[`ini${n}`], fim: r[`fim${n}`], data: r.data, f: { chapa: `chapa${n}`, ini: `ini${n}`, fim: `fim${n}`, data: 'data' } });
     }
   });
   p.stops.forEach((r, ri) => {
     if (!r.ini && !r.fim && !r.chapa) return;
-    recs.push({ table: 'stops', ri, linha: r.linha, chapa: r.chapa, ini: r.ini, fim: r.fim, data: r.data, motivo: r.motivo, stop: true });
+    recs.push({ table: 'stops', ri, linha: r.linha, chapa: r.chapa, ini: r.ini, fim: r.fim, data: r.data, motivo: r.motivo, stop: true, f: { chapa: 'chapa', ini: 'ini', fim: 'fim', data: 'data', motivo: 'motivo' } });
   });
   return recs;
 }
 
 function handwriting(p) {
   let filled = 0, bad = 0;
-  for (const r of [...p.prod, ...p.stops]) {
-    for (const [k, v] of Object.entries(r)) {
-      if (['flags', 'raw', 'learned', 'alt', 'votos', 'strip', 'linha', 'rowFlag'].includes(k)) continue;
-      if (v !== '' && v != null && typeof v !== 'object') filled++;
+  const cells = []; // the hard-to-read cells, to outline them on the sheet
+  for (const [table, rows] of [['prod', p.prod], ['stops', p.stops]]) {
+    for (const r of rows) {
+      for (const [k, v] of Object.entries(r)) {
+        if (['flags', 'raw', 'learned', 'alt', 'votos', 'strip', 'linha', 'rowFlag'].includes(k)) continue;
+        if (v !== '' && v != null && typeof v !== 'object') filled++;
+      }
+      const fields = [];
+      for (const [f, msg] of Object.entries(r.flags ?? {})) if (READ.test(msg) && !NOT_READ.test(msg)) { bad++; fields.push(f); }
+      if (r.rowFlag && /só uma/.test(r.rowFlag)) bad++;
+      if (fields.length || (r.rowFlag && /só uma/.test(r.rowFlag))) cells.push({ table, linha: r.linha, fields });
     }
-    for (const msg of Object.values(r.flags ?? {})) if (READ.test(msg) && !NOT_READ.test(msg)) bad++;
-    if (r.rowFlag && /só uma/.test(r.rowFlag)) bad++;
   }
-  return { filled, bad };
+  return { filled, bad, cells };
 }
 
 export function buildQuality(pages) {
@@ -47,10 +52,10 @@ export function buildQuality(pages) {
   for (const p of pages) { const k = p.machine || 'SEM MÁQUINA'; if (!byMachine.has(k)) byMachine.set(k, []); byMachine.get(k).push(p); }
 
   const problems = [
-    { kind: 'sem chapa', test: (r) => !r.chapa, what: 'a chapa', verb: 'não preenche', why: 'Sem a chapa não dá para saber quem operou a máquina nem conferir a leitura contra a lista de chapas.' },
-    { kind: 'sem motivo', test: (r) => r.stop && !r.motivo, what: 'o motivo da parada', verb: 'não marca', only: 'stop', why: 'Parada sem motivo não entra na análise de por que a máquina parou.' },
-    { kind: 'horário incompleto', test: (r) => !!r.ini !== !!r.fim, what: 'o horário completo (início e fim)', verb: 'não anota', why: 'Com só um dos horários não dá para calcular a duração nem cruzar produção com parada.' },
-    { kind: 'sem data', test: (r) => !r.data, what: 'a data', verb: 'não preenche', why: 'Sem data o registro fica fora do cruzamento de horários.' },
+    { kind: 'sem chapa', cells: (f) => [f.chapa], test: (r) => !r.chapa, what: 'a chapa', verb: 'não preenche', why: 'Sem a chapa não dá para saber quem operou a máquina nem conferir a leitura contra a lista de chapas.' },
+    { kind: 'sem motivo', cells: (f) => [f.motivo], test: (r) => r.stop && !r.motivo, what: 'o motivo da parada', verb: 'não marca', only: 'stop', why: 'Parada sem motivo não entra na análise de por que a máquina parou.' },
+    { kind: 'horário incompleto', cells: (f) => [f.ini, f.fim], test: (r) => !!r.ini !== !!r.fim, what: 'o horário completo (início e fim)', verb: 'não anota', why: 'Com só um dos horários não dá para calcular a duração nem cruzar produção com parada.' },
+    { kind: 'sem data', cells: (f) => [f.data], test: (r) => !r.data, what: 'a data', verb: 'não preenche', why: 'Sem data o registro fica fora do cruzamento de horários.' },
   ];
 
   for (const [machine, ps] of byMachine) {
@@ -71,7 +76,7 @@ export function buildQuality(pages) {
         chips: [`Folhas: ${days.join(', ')}`, ...(pr.kind === 'sem chapa' ? [`Chapas que aparecem: ${uniq(pool.map((r) => r.chapa).filter(Boolean)).slice(0, 4).join(', ') || 'nenhuma'}`] : [])],
         why: pr.why, meter: { part: bad.length, total: pool.length, label: pr.kind }, who: pr.kind === 'sem chapa' ? '' : whoText(bad.map((r) => r.chapa)), people: pr.kind === 'sem chapa' ? [] : peopleOf(bad.map((r) => r.chapa)),
         brief: `${pr.kind === 'sem chapa' ? 'Chapa em branco' : pr.kind === 'sem motivo' ? 'Parada sem motivo' : pr.kind === 'horário incompleto' ? 'Horário incompleto' : 'Data em branco'} em ${bad.length} de ${pool.length} registros`,
-        refs: bad.filter((r) => r.p.id === first.p.id).slice(0, 8).map((r) => ({ table: r.table, linha: r.linha })),
+        refs: bad.filter((r) => r.p.id === first.p.id).slice(0, 40).map((r) => ({ table: r.table, linha: r.linha, fields: pr.cells(r.f) })),
       });
     }
   }
@@ -86,7 +91,7 @@ export function buildQuality(pages) {
       const first = list[0];
       cards.push({ sev, kind: 'preenchimento', problem, machine, page: first.p.id, label: first.p.label, day: day(first.p), table: first.table, ri: first.ri, linha: first.r.linha,
         headline, text: headline, who: whoText(list.map((x) => x.r.chapa ?? x.r.chapa3 ?? x.r.chapa2 ?? x.r.chapa1)), people: peopleOf(list.map((x) => x.r.chapa ?? x.r.chapa3 ?? x.r.chapa2 ?? x.r.chapa1)), brief: problem === 'turno em branco' ? `Turno em branco em ${list.length} de ${all.length} linhas (preenchido pelo app)` : problem === 'turno incerto' ? `Turno incerto em ${list.length} linha(s)` : `Turno não bate com o horário em ${list.length} linha(s)`,
-        refs: list.filter((x) => x.p.id === first.p.id).slice(0, 8).map((x) => ({ table: x.table, linha: x.r.linha })), chips: [`Folhas: ${uniq(list.map((x) => day(x.p))).join(', ')}`], why, meter: { part: list.length, total: all.length, label: problem } });
+        refs: list.filter((x) => x.p.id === first.p.id).slice(0, 40).map((x) => ({ table: x.table, linha: x.r.linha, fields: ['turno'] })), chips: [`Folhas: ${uniq(list.map((x) => day(x.p))).join(', ')}`], why, meter: { part: list.length, total: all.length, label: problem } });
     };
     if (blank.length - unsure.length >= 2) {
       const n = blank.length - unsure.length;
@@ -99,7 +104,7 @@ export function buildQuality(pages) {
   }
 
   for (const p of pages) {
-    const { filled, bad } = handwriting(p);
+    const { filled, bad, cells } = handwriting(p);
     if (bad < HARD_CELLS || !filled || bad / filled < HARD_SHARE) continue;
     const share = bad / filled;
     cards.push({
@@ -108,7 +113,7 @@ export function buildQuality(pages) {
       headline: `${p.machine || 'Folha'} · folha do dia ${day(p)}: letra difícil de ler. ${bad} de ${filled} células preenchidas (${pct(bad, filled)} %) ficaram ilegíveis, com leituras diferentes ou fora do esperado.`,
       text: `Folha do dia ${day(p)}: ${bad} de ${filled} células de leitura difícil`,
       chips: [`Folha ${p.label}`], why: 'Essas folhas dão mais trabalho na extração. Vale conferir célula a célula e pedir letra mais legível ao colaborador.',
-      meter: { part: bad, total: filled, label: 'células difíceis' }, who: whoText([...p.prod.flatMap((r) => [r.chapa1, r.chapa2, r.chapa3]), ...p.stops.map((r) => r.chapa)]), people: peopleOf([...p.prod.flatMap((r) => [r.chapa1, r.chapa2, r.chapa3]), ...p.stops.map((r) => r.chapa)]), brief: `${bad} de ${filled} células difíceis de ler`, refs: [],
+      meter: { part: bad, total: filled, label: 'células difíceis' }, who: whoText([...p.prod.flatMap((r) => [r.chapa1, r.chapa2, r.chapa3]), ...p.stops.map((r) => r.chapa)]), people: peopleOf([...p.prod.flatMap((r) => [r.chapa1, r.chapa2, r.chapa3]), ...p.stops.map((r) => r.chapa)]), brief: `${bad} de ${filled} células difíceis de ler`, refs: cells.slice(0, 60),
     });
   }
   const RANK = { alta: 0, media: 1 };

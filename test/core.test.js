@@ -83,3 +83,24 @@ test('imagens pesadas são reduzidas até caber em uma requisição', () => {
   // impossible budget: stops at the floor instead of looping forever
   assert.ok(fitToBudget(() => ['z'.repeat(9_000_000)], { q: 0.9 })[0].length === 9_000_000);
 });
+
+import { jpegToPdf } from '../src/core/pdfimg.js';
+import { cardMarks } from '../src/core/marks.js';
+test('PDF de uma imagem: cabeçalho, tabela de posições e fim corretos', () => {
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
+  const pdf = jpegToPdf(jpeg, 1800, 1300);
+  const txt = new TextDecoder('latin1').decode(pdf);
+  assert.ok(txt.startsWith('%PDF-1.4') && txt.trimEnd().endsWith('%%EOF') && txt.includes('/DCTDecode') && txt.includes('/Width 1800'));
+  const start = Number(txt.match(/startxref\n(\d+)/)[1]);
+  assert.equal(txt.slice(start, start + 4), 'xref');
+  const offs = [...txt.matchAll(/(\d{10}) 00000 n/g)].map((m) => Number(m[1]));
+  offs.forEach((o, i) => assert.equal(txt.slice(o, o + 7), `${i + 1} 0 obj`));
+});
+test('marcações do card: linha inteira e células pedidas', () => {
+  const page = { sheetGeo: { prod: { y: [0.1, 0.2, 0.3], x0: 0.1, x1: 0.9 } }, crop: { prod: { cols: [[0, 0.1], [0.1, 0.3], [0.3, 0.5], [0.5, 0.6], [0.6, 0.7]] } } };
+  const marks = cardMarks({ refs: [{ table: 'prod', linha: 2, fields: ['chapa1', 'zzz'] }] }, page);
+  assert.equal(marks.length, 2);
+  assert.equal(marks[0].kind, 'row'); assert.ok(Math.abs(marks[0].y - 0.2) < 1e-9);
+  assert.equal(marks[1].kind, 'cell'); assert.ok(marks[1].x > 0.1 && marks[1].w < 0.8);
+  assert.deepEqual(cardMarks({ refs: [{ table: 'stops', linha: 1 }] }, page), []);
+});
