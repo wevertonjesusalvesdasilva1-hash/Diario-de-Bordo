@@ -22,13 +22,94 @@ const sv = (tag, attrs, ...kids) => build(true, tag, attrs, kids);
 const HOURS = Array.from({ length: 24 }, (_, i) => (i + 4) % 24); // the working day starts at 04:00
 const hh = (n) => `${String(n).padStart(2, '0')}h`;
 
-// selection: { t: 'motivo' | 'machine' | 'turno' | 'hour' | 'cell', v, m? }
-let sel = null;
+// Each chart fills its OWN details table (so one click never replaces another chart's table):
+//   motivo → the card beside the donut · cell → under the heat map · machine / turno → under their row · hour → under the area chart
+const SLOTS = ['motivo', 'cell', 'machine', 'turno', 'hour'];
+const sels = Object.fromEntries(SLOTS.map((k) => [k, null]));
 const keyOf = (s) => (s ? [s.t, s.m ?? '', s.v].join('|') : '');
+let last = null;       // { P, ctx } of the last render, to reopen the big table
+let maxKey = null;     // which table is maximized
 
-export function resetPanelSelection() { sel = null; }
+export function resetPanelSelection() { for (const k of SLOTS) sels[k] = null; closePanelMax(); }
+export const panelMaxKey = () => maxKey;
+export function closePanelMax() { document.getElementById('pn-max')?.remove(); document.removeEventListener('keydown', onMaxKey); maxKey = null; }
+export function reopenPanelMax(key) { if (last && sels[key]) openMax(key, last.P, last.ctx); }
+function onMaxKey(e) { if (e.key === 'Escape') closePanelMax(); }
+
+const hourOf = (s) => (s.t === 'hour' || s.t === 'cell');
+function stopsFor(P, s) {
+  if (!s) return [];
+  const list = P.all.filter((x) => (s.t === 'motivo' ? x.motivo === s.v : s.t === 'machine' ? x.machine === s.v : s.t === 'turno' ? x.turno === s.v
+    : s.t === 'hour' ? (x.perHour[s.v] ?? 0) > 0 : x.machine === s.m && (x.perHour[s.v] ?? 0) > 0));
+  return list.map((x) => ({ ...x, inHour: hourOf(s) ? x.perHour[s.v] : 0 })).sort((a, b) => (hourOf(s) ? b.inHour - a.inHour : b.min - a.min));
+}
+const titleOf = (s) => (s.t === 'motivo' ? `Motivo: ${s.v}` : s.t === 'machine' ? `Máquina: ${s.v}` : s.t === 'turno' ? (s.v === '?' ? 'Paradas sem turno' : `Turno ${s.v}`)
+  : s.t === 'hour' ? `Paradas às ${hh(s.v)}` : `${s.m} às ${hh(s.v)}`);
+
+// the table (compact inside the cards, complete when maximized)
+function tableFor(list, s, ctx, full, sort) {
+  const { fmtDur, motColor, who } = ctx;
+  const inHour = hourOf(s);
+  const cols = full
+    ? [['dia', 'Dia'], ['folha', 'Folha'], ['machine', 'Máquina'], ['motivo', 'Motivo'], ['clock', 'Início'], ['fim', 'Fim'], ['min', 'Duração'], ['turno', 'Turno'], ['op', 'Operador'], ['desc', 'Observação'], ['', '']]
+    : [['machine', 'Máquina'], ['motivo', 'Motivo'], ['clock', 'Início'], ['min', 'Duração'], ['op', 'Operador'], ['desc', 'Observação'], ['', '']];
+  const head = h('div', { class: 'pn-tr pn-th', role: 'row' }, cols.map(([k, t]) => (full && k && sort
+    ? h('button', { type: 'button', class: `pn-sort c-${k}${sort.col === k ? ' on' : ''}`, onclick: () => sort.change(k) }, t, sort.col === k ? (sort.dir > 0 ? ' ▲' : ' ▼') : '')
+    : h('span', { class: `c-${k}` }, t))));
+  const goto = (x) => h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: x.page, k: x.table, r: x.ri }, title: 'Ir para a linha desta parada na folha' }, 'Ir para a linha');
+  const rows = list.map((x, i) => {
+    const op = who(x.chapa);
+    const cell = {
+      dia: h('span', {}, x.day ? x.day.slice(0, 5) : '—'), folha: h('span', { class: 'pn-f' }, (x.folha || '').replace(/^.*· /, '') || '—'),
+      machine: h('span', { class: 'pn-m' }, x.machine), motivo: h('span', { class: 'pn-dm' }, h('i', { style: `background:${motColor(x.motivo)}` }), x.motivo),
+      clock: h('span', {}, x.clock), fim: h('span', {}, x.fim), turno: h('span', {}, x.turno === '?' ? '—' : x.turno),
+      min: h('span', { class: 'pn-d' }, fmtDur(x.min), inHour ? h('small', {}, `${x.inHour} min na hora`) : null),
+      op: h('span', { class: 'pn-op' }, op || '—', full && x.chapa && op && !op.startsWith('chapa ') ? h('small', {}, `chapa ${x.chapa}`) : null),
+      desc: h('span', { class: `pn-desc${x.desc ? '' : ' none'}` }, x.desc || '—'), '': goto(x),
+    };
+    return h('div', { class: 'pn-tr', role: 'row', style: `--d:${Math.min(i, 14) * 28}ms` }, cols.map(([k]) => { cell[k].classList.add(`c-${k}`); return cell[k]; }));
+  });
+  return h('div', { class: `pn-table${full ? ' full' : ''}`, role: 'table', style: `--cols:${full ? '64px 150px 90px 170px 64px 64px 96px 56px 190px minmax(240px, 1fr) 128px' : '84px 150px 56px 92px 170px minmax(200px, 1fr) 128px'}` }, head, rows);
+}
+const textOf = (x, who) => [x.day, x.folha, x.machine, x.motivo, x.clock, x.fim, who(x.chapa), x.chapa, x.desc, x.turno].join(' ').toLowerCase();
+const sortVal = { dia: (x) => x.day, folha: (x) => x.folha, machine: (x) => x.machine, motivo: (x) => x.motivo, clock: (x) => x.clock, fim: (x) => x.fim, min: (x) => x.min, turno: (x) => x.turno, op: (x, who) => who(x.chapa) || x.chapa || '', desc: (x) => x.desc || '' };
+
+// the big, complete table (search, sort, totals, copy)
+function openMax(key, P, ctx) {
+  closePanelMax(); maxKey = key;
+  const s = sels[key]; if (!s) return;
+  const { fmtDur, who } = ctx;
+  const base = stopsFor(P, s), inHour = hourOf(s);
+  let q = '', sort = { col: inHour ? 'min' : 'min', dir: -1, change: (c) => { sort.dir = sort.col === c ? -sort.dir : (c === 'min' ? -1 : 1); sort.col = c; draw(); } };
+  const body = h('div', { class: 'pn-max-body' }), foot = h('div', { class: 'pn-max-foot' }), search = h('input', { type: 'search', class: 'pn-search', placeholder: 'Filtrar por máquina, motivo, operador, observação…', 'aria-label': 'Filtrar a tabela' });
+  const visible = () => {
+    let l = base.filter((x) => !q || textOf(x, who).includes(q));
+    const f = sortVal[sort.col];
+    l = [...l].sort((a, b) => { const va = f(a, who), vb = f(b, who); return (typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'pt-BR', { numeric: true })) * sort.dir; });
+    return l;
+  };
+  function draw() {
+    const l = visible(), tot = l.reduce((a, x) => a + (inHour ? x.inHour : x.min), 0);
+    body.replaceChildren(l.length ? tableFor(l, s, ctx, true, sort) : h('p', { class: 'note' }, 'Nenhuma parada com esse filtro.'));
+    foot.textContent = `${l.length} parada${l.length === 1 ? '' : 's'}${q ? ` (de ${base.length})` : ''} · ${fmtDur(tot)}${inHour ? ' dentro desta hora' : ' no total'}`;
+  }
+  const copy = () => {
+    const l = visible(), tsv = [['Dia', 'Folha', 'Máquina', 'Motivo', 'Início', 'Fim', 'Duração (min)', 'Turno', 'Operador', 'Chapa', 'Observação'].join('\t'),
+      ...l.map((x) => [x.day, x.folha, x.machine, x.motivo, x.clock, x.fim, x.min, x.turno === '?' ? '' : x.turno, who(x.chapa), x.chapa, (x.desc || '').replace(/\s+/g, ' ')].join('\t'))].join('\n');
+    (navigator.clipboard?.writeText(tsv) ?? Promise.reject()).then(() => ctx.toast?.('Tabela copiada. Cole no Excel.'), () => ctx.toast?.('Não consegui copiar.'));
+  };
+  search.addEventListener('input', () => { q = search.value.trim().toLowerCase(); draw(); });
+  const box = h('div', { id: 'pn-max', role: 'dialog', 'aria-modal': 'true', 'aria-label': titleOf(s), dataset: { slot: key } },
+    h('div', { class: 'pn-max-box' },
+      h('div', { class: 'pn-max-head' }, h('div', {}, h('b', {}, titleOf(s)), h('small', {}, 'Tabela completa. Clique no título de uma coluna para ordenar.')), search,
+        h('button', { type: 'button', class: 'ghost', onclick: copy }, '⧉ Copiar'), h('button', { type: 'button', class: 'pn-x', 'aria-label': 'Fechar', title: 'Fechar (Esc)', onclick: closePanelMax }, '✕')),
+      body, foot));
+  box.addEventListener('click', (e) => { if (e.target === box) closePanelMax(); });
+  document.body.append(box); document.addEventListener('keydown', onMaxKey); draw(); search.focus({ preventScroll: true });
+}
 
 export function renderPanelUI(root, P, ctx) {
+  last = { P, ctx };
   const { fmtDur, motColor, who } = ctx;
   const ui = h('div', { class: 'pn' });
   let n = 0;
@@ -46,55 +127,48 @@ export function renderPanelUI(root, P, ctx) {
   });
   ui.addEventListener('pointerleave', () => { tip.hidden = true; });
 
-  // ---- selection and the details table
-  const drill = h('div', { class: 'pn-drill-body' });
-  const pick = (s) => { sel = keyOf(s) === keyOf(sel) ? null : s; paintSel(); drawDrill(true); };
+  // ---- selection and the details tables (one per chart)
+  const slotEls = {};
+  const slotOf = (t) => (t === 'cell' ? 'cell' : t);
+  const pick = (s) => { const k = slotOf(s.t); sels[k] = keyOf(s) === keyOf(sels[k]) ? null : s; paintSel(); drawSlot(k, true); };
   const paintSel = () => {
-    ui.dataset.selt = sel?.t ?? '';
-    const k = keyOf(sel);
-    for (const el of ui.querySelectorAll('[data-sel]')) el.classList.toggle('on', el.dataset.sel === k);
+    for (const k of SLOTS) ui.toggleAttribute(`data-selt-${k}`, !!sels[k]);
+    for (const el of ui.querySelectorAll('[data-sel]')) { const k = slotOf(el.dataset.sel.split('|')[0]); el.classList.toggle('on', el.dataset.sel === keyOf(sels[k])); }
   };
-  const stopsFor = (s) => {
-    if (!s) return [];
-    const hourMin = (x) => (s.t === 'hour' ? x.perHour[s.v] : s.t === 'cell' ? x.perHour[s.v] : 0);
-    const list = P.all.filter((x) => (s.t === 'motivo' ? x.motivo === s.v : s.t === 'machine' ? x.machine === s.v : s.t === 'turno' ? x.turno === s.v
-      : s.t === 'hour' ? (x.perHour[s.v] ?? 0) > 0 : x.machine === s.m && (x.perHour[s.v] ?? 0) > 0));
-    return list.map((x) => ({ ...x, inHour: hourMin(x) || 0 })).sort((a, b) => (s.t === 'hour' || s.t === 'cell' ? b.inHour - a.inHour : b.min - a.min));
-  };
-  const titleOf = (s) => (s.t === 'motivo' ? `Motivo: ${s.v}` : s.t === 'machine' ? `Máquina: ${s.v}` : s.t === 'turno' ? (s.v === '?' ? 'Paradas sem turno' : `Turno ${s.v}`)
-    : s.t === 'hour' ? `Paradas às ${hh(s.v)}` : `${s.m} às ${hh(s.v)}`);
-  function drawDrill(animate) {
-    const body = drill;
+  function drawSlot(k, animate) {
+    const el = slotEls[k], s = sels[k], body = el.body;
+    if (k !== 'motivo') el.card.hidden = !s;
     body.classList.remove('in'); void body.offsetWidth;
-    if (!sel) {
+    if (!s) {
       body.replaceChildren(h('div', { class: 'pn-hint' }, h('div', { class: 'pn-hint-ic' }, '☝'), h('b', {}, 'Escolha algo no gráfico'),
-        h('p', {}, 'Clique numa fatia, numa máquina, num turno, numa hora ou numa célula do mapa de calor. A lista das paradas aparece aqui.')));
+        h('p', {}, 'Clique numa fatia da rosca. A lista das paradas aparece aqui.')));
+      el.tools.hidden = true;
       if (animate) body.classList.add('in');
       return;
     }
-    const list = stopsFor(sel), inHour = sel.t === 'hour' || sel.t === 'cell';
+    const list = stopsFor(P, s), inHour = hourOf(s);
     const total = list.reduce((a, x) => a + (inHour ? x.inHour : x.min), 0);
     const share = P.stopMin ? Math.round((total / P.stopMin) * 100) : 0;
+    el.tools.hidden = false;
     body.replaceChildren(
-      h('div', { class: 'pn-dhead' }, h('div', {}, h('b', { class: 'pn-dtitle' }, titleOf(sel)),
-        h('small', {}, `${list.length} parada${list.length === 1 ? '' : 's'} · ${fmtDur(total)}${inHour ? ' dentro desta hora' : ''} · ${share} % do tempo parado`)),
-        h('button', { type: 'button', class: 'pn-x', 'aria-label': 'Limpar seleção', title: 'Limpar', onclick: () => pick(sel) }, '✕')),
+      h('div', { class: 'pn-dhead' }, h('div', {}, h('b', { class: 'pn-dtitle' }, titleOf(s)),
+        h('small', {}, `${list.length} parada${list.length === 1 ? '' : 's'} · ${fmtDur(total)}${inHour ? ' dentro desta hora' : ''} · ${share} % do tempo parado`))),
       h('div', { class: 'pn-bar' }, h('i', { style: `--w:${Math.min(100, share)}%` })),
-      list.length ? h('div', { class: 'pn-table', role: 'table' },
-        h('div', { class: 'pn-tr pn-th', role: 'row' }, ...['Máquina', 'Motivo', 'Início', 'Duração', 'Operador', ''].map((c) => h('span', {}, c))),
-        list.map((x, i) => h('div', { class: 'pn-tr', role: 'row', style: `--d:${Math.min(i, 14) * 28}ms` },
-          h('span', { class: 'pn-m' }, x.machine), h('span', { class: 'pn-dm' }, h('i', { style: `background:${motColor(x.motivo)}` }), x.motivo),
-          h('span', {}, x.clock), h('span', { class: 'pn-d' }, fmtDur(x.min), inHour ? h('small', {}, `${x.inHour} min na hora`) : null),
-          h('span', {}, who(x.chapa) || '—'),
-          h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: x.page, k: x.table, r: x.ri }, title: x.desc || 'Ir para a linha na folha' }, 'Ir para a linha'))))
-        : h('p', { class: 'note' }, 'Nenhuma parada.'));
+      list.length ? h('div', { class: 'pn-scroll' }, tableFor(list, s, ctx, false)) : h('p', { class: 'note' }, 'Nenhuma parada.'));
     body.classList.add('in');
-    if (animate) {
-      const box = drill.closest('.pn-card');
-      const r = box?.getBoundingClientRect();
-      if (r && (r.top < 0 || r.top > innerHeight * 0.6)) box.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'center' });
-    }
+    if (animate && k !== 'motivo') el.card.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' });
+    else if (animate) { const r = el.card.getBoundingClientRect(); if (r.top < 0 || r.top > innerHeight * 0.6) el.card.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'center' }); }
   }
+  // a details card: title, maximize and clear buttons, and the table body
+  const slot = (k, title, cls = '') => {
+    const body = h('div', { class: 'pn-drill-body' });
+    const tools = h('div', { class: 'pn-tools', hidden: true },
+      h('button', { type: 'button', class: 'pn-x wide', title: 'Maximizar a tabela para ler com calma', 'aria-label': 'Maximizar a tabela', onclick: () => openMax(k, P, ctx) }, '⤢ Maximizar'),
+      h('button', { type: 'button', class: 'pn-x', 'aria-label': 'Limpar seleção', title: 'Fechar esta tabela', onclick: () => { sels[k] = null; paintSel(); drawSlot(k, true); } }, '✕'));
+    const c = h('section', { class: `pn-card pn-slot ${cls}`, style: `--i:${n++}`, dataset: { slot: k }, hidden: k !== 'motivo' }, h('div', { class: 'pn-slot-h' }, h('h3', {}, title), tools), body);
+    slotEls[k] = { card: c, body, tools };
+    return c;
+  };
 
   // ---- numbers that count up
   const counters = [];
@@ -147,7 +221,7 @@ export function renderPanelUI(root, P, ctx) {
   const legend = h('div', { class: 'pn-legend' }, P.byMotivo.map((x) => h('button', { type: 'button', class: 'pn-lrow', dataset: { sel: keyOf({ t: 'motivo', v: x.motivo }) }, onclick: () => pick({ t: 'motivo', v: x.motivo }) },
     h('i', { style: `background:${motColor(x.motivo)}` }), h('span', { class: 'ln' }, x.motivo), h('span', { class: 'lp' }, `${P.stopMin ? Math.round((x.min / P.stopMin) * 100) : 0} %`), h('span', { class: 'lt' }, `${fmtDur(x.min)} · ${x.count}×`))));
   const cardMot = card('pn-mot', h('h3', {}, 'Tempo parado por motivo'), P.byMotivo.length ? h('div', { class: 'pn-mot-in' }, donut, legend) : h('p', { class: 'note' }, 'Nenhuma parada registrada.'));
-  const cardDrill = card('pn-drill', h('h3', {}, 'Detalhes'), drill);
+  const cardDrill = slot('motivo', 'Detalhes', 'pn-drill');
 
   // ---- heat map: machine × hour of the day
   const heatMax = Math.max(1, ...P.heat.flatMap((r) => r.hours));
@@ -214,9 +288,12 @@ export function renderPanelUI(root, P, ctx) {
     h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: t.page, k: t.table, r: t.ri } }, 'Ir para a linha')))) : h('p', { class: 'note' }, 'Nenhuma parada registrada.'));
 
   ui.append(card('pn-head', h('h2', { class: 'ptitle' }, 'Painel · tempo parado'), filters, ctx.note ?? ''), kpis,
-    h('div', { class: 'pn-grid2' }, cardMot, cardDrill), heat, h('div', { class: 'pn-grid3' }, machines, cardGauge, shifts), cardArea, top, tip);
+    h('div', { class: 'pn-grid2' }, cardMot, cardDrill), heat, slot('cell', 'Detalhes do mapa de calor'),
+    h('div', { class: 'pn-grid3' }, machines, cardGauge, shifts),
+    h('div', { class: 'pn-pair' }, slot('machine', 'Detalhes da máquina'), slot('turno', 'Detalhes do turno')),
+    cardArea, slot('hour', 'Detalhes da hora'), top, tip);
   root.replaceChildren(ui);
-  paintSel(); drawDrill(false);
+  paintSel(); for (const k of SLOTS) drawSlot(k, false);
 
   // entrance: bars grow, the donut draws itself, numbers count up
   const go = () => {

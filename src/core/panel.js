@@ -40,7 +40,7 @@ export function buildPanel(pages, { group = 'all', day = 'all' } = {}) {
       byHour[hr] += next - t; row[hr] += next - t; perHour[hr] = (perHour[hr] ?? 0) + (next - t);
       t = next;
     }
-    stops.push({ machine: e.machine, motivo: mot, min: dur, ini: e.start, clock: clockOf(e.start), turno: e.turno || '?', chapa: e.chapa || '', day: e.day || '', perHour, page: e.page, table: e.table, ri: e.ri, linha: e.linha, desc: e.desc });
+    stops.push({ machine: e.machine, motivo: mot, min: dur, ini: e.start, clock: clockOf(e.start), fim: clockOf(e.end), folha: e.label || '', turno: e.turno || '?', chapa: e.chapa || '', day: e.day || '', perHour, page: e.page, table: e.table, ri: e.ri, linha: e.linha, desc: e.desc });
   }
   const byMachine = [...machines.values()].map((m) => ({ ...m, motivos: [...m.motivos].map(([motivo, min]) => ({ motivo, min })).sort((a, b) => b.min - a.min),
     pct: m.prodMin + m.stopMin ? Math.round((m.stopMin / (m.prodMin + m.stopMin)) * 100) : 0 })).sort((a, b) => b.stopMin - a.stopMin);

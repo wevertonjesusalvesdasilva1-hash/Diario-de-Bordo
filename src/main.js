@@ -1,6 +1,6 @@
 import './verificado.css';
 import './panel.css';
-import { renderPanelUI, resetPanelSelection } from './panelui.js';
+import { renderPanelUI, resetPanelSelection, panelMaxKey, closePanelMax, reopenPanelMax } from './panelui.js';
 import { readFiles, toCanvas, jpegB64, jpegUrl, shrinkCanvas } from './files.js';
 import { fitToBudget } from './core/fit.js';
 import { analyze, detectMachine } from './core/layout.js';
@@ -685,11 +685,10 @@ document.addEventListener('click', (e) => {
   if (!b) return;
   const { act, p: pid, k, r } = b.dataset;
   const p = pageOf(pid);
-  if (act === 'goto') return goToRow(pid, k, r);
+  if (act === 'goto') return goToRowFrom(pid, k, r);
   if (act === 'rm') { recordRemoval(p, k, p[k][Number(r)], Number(r)); p[k].splice(Number(r), 1); renderPage(p); updateSummary(); persist(); }
   if (act === 'add') { p[k].push({ linha: 0, flags: {}, raw: {}, learned: {}, added: true }); renderPage(p); updateSummary(); persist(); }
   if (act === 'retry') readPage(p);
-  if (act === 'goto') goToRow(pid, k, r);
   if (act === 'delpage') removePages([p], `Folha ${p.label} excluída.`);
 });
 
@@ -810,6 +809,26 @@ function giveOk() {
   updateReviewUi(); showTab('analysis'); persist(0);
 }
 
+// "Ir para a linha" leaves a way back: a floating button returns to the tab, the card or the table the person came from
+let origin = null, openCardKey = null;
+function goToRowFrom(pid, table, ri) {
+  const o = { tab: state.tab, y: window.scrollY, card: openCardKey, max: panelMaxKey() };
+  const label = o.max ? 'a tabela do painel' : o.card ? 'o card' : { panel: 'o painel', analysis: 'a análise', read: 'a conferência' }[o.tab] ?? 'onde eu estava';
+  closeCardModal(); closePanelMax();
+  goToRow(pid, table, ri);
+  origin = o; $('backgo').textContent = `↩ Voltar para ${label}`; $('backbtn').hidden = false;
+}
+function goBack() {
+  const o = origin; origin = null; $('backbtn').hidden = true;
+  if (!o) return;
+  showTab(o.tab);
+  if (o.card) openCardModal(o.card);
+  if (o.max) reopenPanelMax(o.max);
+  setTimeout(() => window.scrollTo({ top: o.y, behavior: 'auto' }), 80);
+}
+$('backgo').addEventListener('click', goBack);
+$('backx').addEventListener('click', () => { origin = null; $('backbtn').hidden = true; });
+
 function goToRow(pid, table, ri) {
   showTab('read');
   $('onlyflags').checked = false; $('pages').classList.remove('onlyflags');
@@ -895,7 +914,7 @@ function flipCard(c) {
   return h('article', { class: `flip ${c.sev}`, style: `--kc:${c.color}`, tabindex: '0', 'aria-pressed': 'false', 'aria-label': `${c.machine}: ${c.title}` }, h('div', { class: 'flip-in' }, front, back));
 }
 
-function closeCardModal() { selectMark(null); const m = $('cardmodal'); if (m) { m.classList.add('out'); setTimeout(() => m.remove(), 180); } document.removeEventListener('keydown', onCardKey); }
+function closeCardModal() { openCardKey = null; selectMark(null); const m = $('cardmodal'); if (m) { m.classList.add('out'); setTimeout(() => m.remove(), 180); } document.removeEventListener('keydown', onCardKey); }
 function onCardKey(e) { if (e.key === 'Escape' && !$('sheetviewer')) { if (selMark) selectMark(null); else closeCardModal(); } }
 
 // A box on the sheet can be picked with a click and nudged with the arrow keys (1 px of the sheet per press, Shift = 5 px).
@@ -934,7 +953,7 @@ document.addEventListener('dblclick', (e) => { const mk = e.target.closest?.('#c
 function openCardModal(key) {
   const c = (state.analysis?.report ?? []).find((x) => x.key === key);
   if (!c) return;
-  $('cardmodal')?.remove();
+  $('cardmodal')?.remove(); openCardKey = key;
   const m = h('div', { id: 'cardmodal', role: 'dialog', 'aria-modal': 'true', 'aria-label': `${c.machine}: ${c.title}`, style: `--kc:${c.color}` },
     h('div', { class: 'cmstage' }, flipCard(c)),
     h('button', { type: 'button', class: 'svx cmx', 'aria-label': 'Fechar o card', title: 'Fechar (Esc)', dataset: { closecard: '1' } }, '✕'));
@@ -1099,7 +1118,7 @@ function renderPanel() {
       h('p', { class: 'note' }, 'Sem horários válidos para este filtro.')));
     return;
   }
-  renderPanelUI(root, P, { fmtDur, motColor, who: (c) => (c ? operatorName(c) || `chapa ${c}` : ''), note,
+  renderPanelUI(root, P, { fmtDur, motColor, toast, who: (c) => (c ? operatorName(c) || `chapa ${c}` : ''), note,
     filters: { groups, days: P.days, opt: panelOpt, onChange: (o) => { Object.assign(panelOpt, o); resetPanelSelection(); renderPanel(); } } });
 }
 $('tab-panel').addEventListener('click', () => showTab('panel'));

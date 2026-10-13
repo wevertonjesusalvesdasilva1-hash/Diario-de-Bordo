@@ -47,3 +47,9 @@ test('painel: lista completa das paradas, mapa de calor e disponibilidade batem 
   const x = P.all.find((y) => y.machine === 'UMC 01');
   assert.equal(x.clock, '10:00'); assert.equal(x.chapa, '7910'); assert.equal(x.turno, '1');
 });
+
+test('painel: cada parada traz hora de fim, folha e observação para a tabela de detalhes', () => {
+  const P = buildPanel([{ id: 9, label: 'f9 · pág. 1', machine: 'RAW05', prod: [], stops: [{ ...stop(1, '02/10/2026', '09:00', '09:45', 'SET-UP'), desc: 'Trocar bico' }] }]);
+  const x = P.all[0];
+  assert.equal(x.clock, '09:00'); assert.equal(x.fim, '09:45'); assert.equal(x.folha, 'f9 · pág. 1'); assert.equal(x.desc, 'Trocar bico');
+});
