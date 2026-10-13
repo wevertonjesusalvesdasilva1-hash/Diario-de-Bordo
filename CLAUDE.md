@@ -61,7 +61,7 @@ Teste de navegador: `playwright-core` com o Chromium já instalado em `/opt/pw-b
 ## Publicar
 
 1. Commit na branch de trabalho e push também para `main`.
-2. Deploy de produção no projeto Vercel `diario-de-bordo` a partir de `main` (o repositório ainda não está ligado ao Git da Vercel; o deploy é disparado pela API/ferramenta).
+2. O projeto Vercel `diario-de-bordo` está ligado a este repositório: todo push em `main` publica sozinho em produção. (Se precisar forçar um deploy, dá para disparar pela API/ferramenta com `gitSource` do `main`.)
 3. Confirme que o novo `index-*.js` está no ar e que o login responde.
 4. Mudou variável de ambiente? É preciso um novo deploy para valer.
 
