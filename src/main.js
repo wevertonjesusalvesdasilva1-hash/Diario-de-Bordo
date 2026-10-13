@@ -112,7 +112,7 @@ function applyShared({ pages, meta }) {
 }
 const syncPill = $('syncpill');
 function setSyncStatus(kind, text) {
-  syncPill.hidden = kind === 'off' && !sync?.on && !syncWanted();
+  syncPill.hidden = kind === 'off';
   syncPill.dataset.kind = kind; $('sync-text').textContent = text; syncPill.title = text;
   const btn = document.querySelector('[data-menu="sync"]'); if (btn) btn.textContent = sync?.on ? 'Parar de sincronizar' : 'Sincronizar com a equipe';
 }
@@ -1192,7 +1192,7 @@ menuEl.addEventListener('click', (e) => {
   if (act === 'help') openHelp();
   if (act === 'lists' || act === 'limit') { $('listsbox').open = true; $('listsbox').scrollIntoView({ behavior: 'smooth', block: 'center' }); if (act === 'limit') setTimeout(() => $('limit').focus(), 400); }
   if (act === 'clear') $('clear').click();
-  if (act === 'sync') { if (sync.on) sync.stop(); else sync.start().then((ok) => ok && toast('Sincronização ligada: o que você mexer aparece no PC do colega.')); }
+  if (act === 'sync') { if (sync.on) sync.stop(); else sync.start().then((ok) => toast(ok ? 'Sincronização ligada: o que você mexer aparece no PC do colega em até 30 segundos.' : `Não deu para sincronizar: ${$('sync-text').textContent}`)); }
   if (act === 'logout') { try { localStorage.removeItem('mt-code'); } catch { /* ignore */ } location.reload(); }
 });
 

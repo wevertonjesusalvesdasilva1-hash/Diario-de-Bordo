@@ -5,7 +5,11 @@ import { apiGet, apiSend } from './api.js';
 import { splitForShare, mergeRemote, missingAssets } from './core/share.js';
 
 const KEY = 'mt-sync';
-export const syncWanted = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
+// The shared store counts every read against a monthly free allowance, so we look for news every 30 s.
+const POLL_MS = 30000;
+export const syncWanted = () => { try { return localStorage.getItem(KEY) !== '0'; } catch { return true; } };
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
 const remember = (on) => { try { localStorage.setItem(KEY, on ? '1' : '0'); } catch { /* private mode */ } };
 
 // h = { getPages(), getMeta(), apply({ pages, meta }), status(kind, text), toast(text), ask(text) → boolean }
@@ -29,7 +33,7 @@ export function createSync(h) {
 
   async function applyRemote(state, newRev) {
     keepLocal();
-    rev = newRev;
+    rev = newRev; lsSet('mt-sync-rev', String(rev)); lsSet('mt-sync-dirty', '0');
     applying = true;
     try {
       let pages = mergeRemote(state.pages ?? [], cache);
@@ -67,7 +71,8 @@ export function createSync(h) {
         await applyRemote(body.state ?? { pages: [] }, body.rev);
         h.toast('Um colega salvou ao mesmo tempo. Atualizei com a versão dele; se sua última alteração sumiu, refaça.');
       } else if (!r.ok) { h.status('warn', body.error || `Erro ${r.status}`); return; }
-      else rev = body.rev;
+      else { rev = body.rev; lsSet('mt-sync-rev', String(rev)); }
+      if (!dirty) lsSet('mt-sync-dirty', '0');
       h.status('ok', 'Sincronizado');
     } catch (e) { h.status('warn', e.message); } finally { working = false; if (dirty) schedulePush(); }
   }
@@ -84,14 +89,14 @@ export function createSync(h) {
         }
       } catch { h.status('warn', 'Sem conexão'); }
     }
-    pollT = setTimeout(poll, document.hidden ? 15000 : 3500);
+    pollT = setTimeout(poll, document.hidden ? 120000 : POLL_MS);
   }
 
   return {
     get on() { return on; },
     get applying() { return applying; },
     // called whenever the local state is saved
-    changed() { if (on && !applying) { dirty = true; schedulePush(); } },
+    changed() { if (!applying) { lsSet('mt-sync-dirty', '1'); if (on) { dirty = true; schedulePush(); } } },
     async start() {
       if (on) return;
       h.status('busy', 'Conectando…');
@@ -99,8 +104,12 @@ export function createSync(h) {
       if (unavailable(r, body)) return false;
       on = true; remember(true);
       const local = h.getPages().filter((p) => p.status === 'ok' || p.status === 'erro').length;
+      const saved = lsGet('mt-sync-rev'), unsent = lsGet('mt-sync-dirty') === '1';
       if (body.state && body.state.pages?.length) {
-        if (!local || h.ask(`Já existe uma leitura da equipe (${body.state.pages.length} folha(s)). Usar a da equipe? Isso substitui o que está na sua tela. Cancelar envia a sua.`)) await applyRemote(body.state, body.rev);
+        const same = saved !== null && Number(saved) === body.rev;
+        if (!local || !unsent) await applyRemote(body.state, body.rev);
+        else if (same) { rev = body.rev; dirty = true; await push(); }
+        else if (h.ask(`Já existe uma leitura da equipe (${body.state.pages.length} folha(s)) e você tem alterações que ainda não foram enviadas. Usar a da equipe? Isso substitui o que está na sua tela. Cancelar envia a sua.`)) await applyRemote(body.state, body.rev);
         else { rev = body.rev; dirty = true; await push(); }
       } else { rev = body.rev ?? 0; if (local) { dirty = true; await push(); } }
       h.status('ok', 'Sincronizado'); poll();
