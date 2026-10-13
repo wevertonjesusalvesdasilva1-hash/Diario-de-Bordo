@@ -1,5 +1,5 @@
 // Keeps the reviewed sheets across reloads (IndexedDB: the row crops are too big for localStorage).
-const DB = 'diario-raw', STORE = 'estado', KEY = 'paginas';
+const DB = 'diario-raw', STORE = 'estado', KEY = 'paginas', QUEUE = 'fila';
 
 function open() {
   return new Promise((resolve, reject) => {
@@ -10,19 +10,26 @@ function open() {
   });
 }
 
-export async function saveState(value) {
+async function put(key, value) {
   try {
     const db = await open();
-    await new Promise((res, rej) => { const tx = db.transaction(STORE, 'readwrite'); tx.objectStore(STORE).put(value, KEY); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    await new Promise((res, rej) => { const tx = db.transaction(STORE, 'readwrite'); tx.objectStore(STORE).put(value, key); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
     db.close();
   } catch { /* private mode / blocked storage: the app still works, just without memory */ }
 }
 
-export async function loadState() {
+async function get(key) {
   try {
     const db = await open();
-    const v = await new Promise((res, rej) => { const r = db.transaction(STORE).objectStore(STORE).get(KEY); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    const v = await new Promise((res, rej) => { const r = db.transaction(STORE).objectStore(STORE).get(key); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
     db.close();
     return v ?? null;
   } catch { return null; }
 }
+
+export const saveState = (value) => put(KEY, value);
+export const loadState = () => get(KEY);
+// The files being read: if the tab is closed or reloaded in the middle, the reading resumes from them.
+export const saveQueue = (files) => put(QUEUE, { files });
+export const loadQueue = () => get(QUEUE);
+export const clearQueue = () => put(QUEUE, null);

@@ -16,7 +16,7 @@ import { recordEdit, recordRemoval, describeEdit } from './core/edits.js';
 import { buildPanel } from './core/panel.js';
 import { allRows, toTSV, workbookBytes } from './core/export.js';
 import { getLists, saveGroupLists, learnAlias, resetLists, setActiveGroup, groupOf as listGroup } from './core/lists.js';
-import { saveState, loadState } from './store.js';
+import { saveState, loadState, saveQueue, loadQueue, clearQueue } from './store.js';
 import { MOTIVOS, MOTIVOS_ALL, MAQUINAS } from './data/vocab.js';
 
 const $ = (id) => document.getElementById(id);
@@ -61,6 +61,9 @@ function persist(delay = 400) {
   }, delay);
 }
 
+let restored = Promise.resolve(), resumed = false;
+const maybeResume = () => restored.then(() => { if (!resumed && $('lock').hidden) { resumed = true; resumeQueue(); } });
+
 async function restore() {
   const saved = await loadState();
   if (!saved?.pages?.length) return;
@@ -81,6 +84,15 @@ async function restore() {
     state.analysis.ai = Array.isArray(saved.ai) ? saved.ai : null; state.ai = state.analysis.ai;
   }
   updateSummary();
+}
+
+// The tab was closed or reloaded while a file was being read: pick up where it stopped.
+async function resumeQueue() {
+  const q = await loadQueue();
+  if (!q?.files?.length) return;
+  const skip = new Set(state.pages.map((p) => `${p.file}|${Number(String(p.label).split('pág. ')[1])}`));
+  toast('A leitura foi interrompida. Continuando de onde parou…');
+  await processFiles(q.files, { append: true, skip });
 }
 
 // ---------------------------------------------------------------- reading a page
@@ -206,7 +218,7 @@ function markDuplicates() {
   state.pages.forEach((p) => { if (p.status === 'ok') renderPage(p); });
 }
 
-async function processFiles(files, { append = false } = {}) {
+async function processFiles(files, { append = false, skip = null } = {}) {
   if (state.busy) return toast('Aguarde a leitura atual terminar');
   state.busy = true;
   // Only the file being uploaded now is analysed: whatever was loaded before is removed.
@@ -217,17 +229,19 @@ async function processFiles(files, { append = false } = {}) {
     toast('Leitura anterior removida. A análise vale só para o arquivo que você enviou agora.');
   }
   discardUndo(); resetReview();
+  if (!skip) await saveQueue(files);
   const st = $('status');
   st.hidden = false;
   let n = 0;
   try {
     for await (const item of readFiles(files)) {
+      if (skip?.has(`${item.name}|${item.page}`)) continue;
       n++;
       if (item.page === 1 && getLimit() && item.total > sheetsLeft()) toast(`Este arquivo tem ${item.total} folha(s) e cabem só cerca de ${sheetsLeft()} hoje pela cota estimada. A leitura continua e, se a cota acabar, você retoma depois.`);
       st.replaceChildren(h('div', {}, `Lendo ${item.name}, página ${item.page}${item.total > 1 ? ` de ${item.total}` : ''}… não feche esta aba.`), h('progress', { max: item.total, value: item.page - 1 }));
       await new Promise((r) => setTimeout(r)); // let the browser paint
       const prep = prepare(item.image, { photo: !!item.photo });
-      if (item.page === 1) state.batch++;
+      if (item.page === 1 && !skip) state.batch++;
       const p = { id: state.nextId++, batch: state.batch, file: item.name, label: `${item.name} · pág. ${item.page}`, status: 'lendo', error: '', machine: '', date: '', include: false, prod: [], stops: [] };
       secrets.set(p.id, prep);
       state.pages.push(p);
@@ -238,6 +252,7 @@ async function processFiles(files, { append = false } = {}) {
         renderPage(p); persist();
       } else await readPage(p);
     }
+    await clearQueue();
     updateQuotaUi();
     toast(state.quotaHit ? 'A cota do Gemini acabou no meio da leitura. O que faltou ficou aguardando: use "Retomar leitura" quando ela voltar.' : n ? 'Leitura concluída. Confira as células destacadas.' : 'Nenhuma página encontrada nos arquivos');
   } catch (e) {
@@ -1065,10 +1080,10 @@ function showLock(msg) {
 $('lockform').addEventListener('submit', async (e) => {
   e.preventDefault();
   const r = await login($('lockcode').value.trim());
-  if (r.ok) { $('lock').hidden = true; $('lockcode').value = ''; loadOperators(); } else showLock(r.error || 'Código inválido');
+  if (r.ok) { $('lock').hidden = true; $('lockcode').value = ''; loadOperators(); maybeResume(); } else showLock(r.error || 'Código inválido');
 });
 window.addEventListener('need-login', () => showLock('Digite o código de acesso'));
-checkLogin().then((st) => { if (st.required && !st.ok) showLock(); else loadOperators(); });
+checkLogin().then((st) => { if (st.required && !st.ok) showLock(); else { loadOperators(); maybeResume(); } });
 
 function updateUsage() {
   $('usage-text').textContent = usageText();
@@ -1115,7 +1130,7 @@ syncTop();
 $('year').value = store.get('year') || new Date().getFullYear();
 $('year').addEventListener('change', () => store.set('year', $('year').value));
 fillLists();
-restore();
+restored = restore();
 
 // ---------------------------------------------------------------- ajuda, menu e efeito 3D
 const helpEl = $('help');
