@@ -706,3 +706,10 @@ td.auto.edited::after { content: "editado"; }
 .modelpill i { width: 9px; height: 9px; border-radius: 50%; background: #4ade80; flex: none; }
 .modelpill[data-kind="reserve"] { border-color: #facc15; }
 .modelpill[data-kind="reserve"] i { background: #facc15; }
+
+/* webcam to photograph a sheet (computer) */
+#webcam { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / .86); }
+.wcbox { width: min(900px, 100%); display: grid; gap: 10px; padding: 14px; border-radius: 16px; background: var(--panel, #16161a); border: 1px solid var(--line2); }
+.wcvideo { width: 100%; max-height: 70vh; background: #000; border-radius: 10px; object-fit: contain; }
+.wcbtns { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.wcshoot { font-weight: 700; padding: 10px 22px; }

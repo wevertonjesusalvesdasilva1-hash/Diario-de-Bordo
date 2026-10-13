@@ -1351,6 +1351,43 @@ updateUsage();
 // photo straight from the phone camera: added to the current reading (not replacing it)
 $('camera').addEventListener('change', (e) => { processFiles([...e.target.files], { append: true }); e.target.value = ''; });
 
+// On a computer the file input would open the file manager, so "Fotografar folha" opens the webcam here instead.
+// On a phone (touch screen) the input's own camera is better: it uses the full camera app.
+let camStream = null;
+function closeWebcam() { camStream?.getTracks().forEach((t) => t.stop()); camStream = null; $('webcam')?.remove(); document.removeEventListener('keydown', onWebcamKey); }
+function onWebcamKey(e) { if (e.key === 'Escape') closeWebcam(); }
+async function openWebcam() {
+  if (!navigator.mediaDevices?.getUserMedia) return $('camera').click();
+  try { camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1920 } }, audio: false }); }
+  catch (err) {
+    toast(err?.name === 'NotAllowedError' ? 'O navegador bloqueou a câmera. Clique no cadeado ao lado do endereço e permita a câmera.' : 'Não achei uma câmera neste computador.');
+    return;
+  }
+  const video = h('video', { class: 'wcvideo', autoplay: '', playsinline: '', muted: '' });
+  video.srcObject = camStream;
+  const shoot = h('button', { type: 'button', class: 'wcshoot' }, '📷 Tirar foto');
+  const file = h('button', { type: 'button', class: 'ghost' }, 'Escolher arquivo');
+  const cancel = h('button', { type: 'button', class: 'ghost' }, 'Cancelar');
+  const box = h('div', { id: 'webcam', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Fotografar folha' },
+    h('div', { class: 'wcbox' }, video, h('p', { class: 'note' }, 'Enquadre a folha inteira, de frente e bem iluminada.'), h('div', { class: 'wcbtns' }, cancel, file, shoot)));
+  document.body.append(box); document.addEventListener('keydown', onWebcamKey);
+  cancel.addEventListener('click', closeWebcam);
+  file.addEventListener('click', () => { closeWebcam(); $('camera').removeAttribute('capture'); $('camera').click(); $('camera').setAttribute('capture', 'environment'); });
+  shoot.addEventListener('click', () => {
+    if (!video.videoWidth) return;
+    const c = document.createElement('canvas'); c.width = video.videoWidth; c.height = video.videoHeight;
+    c.getContext('2d').drawImage(video, 0, 0);
+    c.toBlob((blob) => {
+      closeWebcam();
+      if (blob) processFiles([new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })], { append: true });
+    }, 'image/jpeg', 0.92);
+  });
+}
+$('camlabel').addEventListener('click', (e) => {
+  if (window.matchMedia('(pointer: coarse)').matches) return; // phone or tablet: the native camera
+  e.preventDefault(); openWebcam();
+});
+
 // botão "voltar ao topo": aparece depois de rolar a página
 const toTop = $('totop');
 const syncTop = () => { toTop.hidden = window.scrollY < 400; };
