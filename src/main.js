@@ -521,6 +521,8 @@ function renderPage(p) {
       p.status === 'ok'
         ? h('label', {}, h('input', { type: 'checkbox', checked: p.include, dataset: { p: p.id, act: 'include' } }), ' incluir na exportação')
         : null,
+      // the whole sheet being checked, to read what the strips below do not show
+      p.status === 'ok' ? h('button', { type: 'button', class: 'ghost', disabled: !p.sheet, title: p.sheet ? 'Abrir a folha inteira, com zoom' : 'A imagem desta folha não está neste computador', onclick: () => openSheetViewer(h('div', {}, h('img', { src: p.sheet, alt: `Folha ${p.label}` }))) }, '👁 Ver folha inteira') : null,
       h('button', { type: 'button', class: 'ghost rm', title: 'Excluir esta folha', dataset: { act: 'delpage', p: p.id } }, 'Excluir folha')));
   const bodyKids = [];
   if (p.status === 'lendo') bodyKids.push(h('p', {}, p.jobN ? 'Na fila de leitura do servidor… pode fechar esta aba, a leitura continua.' : 'Lendo esta página (duas leituras)…'));

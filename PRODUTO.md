@@ -172,3 +172,6 @@ A aba **3 · Painel** mostra o tempo parado em gráficos animados e clicáveis. 
 - A tabela mostra máquina, motivo, início, duração, operador e **observação** (a descrição que o operador escreveu na parada). As colunas ficam alinhadas com o cabeçalho.
 - **⤢ Maximizar** abre a tabela completa em tela cheia: dia, folha, máquina, motivo, início, fim, duração, turno, operador (nome e chapa) e observação, com busca, ordenação ao clicar no título da coluna, total no rodapé e "Copiar" (cola direto no Excel).
 - **Voltar:** ao clicar em "Ir para a linha" (no painel, na tabela maximizada ou num card), aparece perto das setas um botão roxo "↩ Voltar para o painel / o card / a tabela do painel / a análise". Ele devolve você à aba, à rolagem e ao card ou à tabela de onde saiu. O ✕ ao lado dispensa o atalho.
+
+### Ver a folha inteira na conferência
+No cabeçalho de cada folha da conferência há o botão **👁 Ver folha inteira**, que abre a imagem completa da folha que está sendo conferida (com zoom e arrastar). Fica desativado se a imagem não estiver neste computador.
