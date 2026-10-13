@@ -111,3 +111,16 @@ test('marcações: o ajuste feito com as setas desloca só a caixa escolhida', (
   const other = cardMarks({ refs: [{ table: 'prod', linha: 1 }] }, page)[0];
   assert.ok(Math.abs(other.x - 0.1) < 1e-9 && Math.abs(other.y - 0.1) < 1e-9);
 });
+import { jpegsToPdf } from '../src/core/pdfimg.js';
+test('PDF de várias folhas: uma página por imagem e tabela de posições correta', () => {
+  const j = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+  const pdf = jpegsToPdf([{ jpeg: j, w: 1800, h: 1300 }, { jpeg: j, w: 1800, h: 1350 }, { jpeg: j, w: 1800, h: 1300 }]);
+  const txt = new TextDecoder('latin1').decode(pdf);
+  assert.match(txt, /\/Count 3/);
+  assert.equal((txt.match(/\/Type \/Page /g) ?? []).length, 3);
+  const start = Number(txt.match(/startxref\n(\d+)/)[1]);
+  assert.equal(txt.slice(start, start + 4), 'xref');
+  const offs = [...txt.matchAll(/(\d{10}) 00000 n/g)].map((m) => Number(m[1]));
+  assert.equal(offs.length, 11);
+  offs.forEach((o, i) => assert.equal(txt.slice(o, o + `${i + 1} 0 obj`.length), `${i + 1} 0 obj`));
+});

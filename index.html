@@ -82,7 +82,14 @@
           <p class="big">Arraste os PDFs ou <label class="link">escolha<input id="files-usi" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
           <p><label class="camera" id="camlabel-usi">Fotografar folha<input id="camera-usi" type="file" accept="image/*" capture="environment" hidden></label></p>
         </div>
+        <div class="drop zone mix" id="drop-mix" data-group="mix" tabindex="0">
+          <h3 class="ztitle">Duas máquinas no mesmo PDF</h3>
+          <p class="zsub">RAW e usinagem misturados: cada folha é classificada pela máquina que aparece nela. Pede confirmação antes de anexar.</p>
+          <p class="big">Arraste o PDF ou <label class="link">escolha<input id="files-mix" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
+          <p><label class="camera" id="camlabel-mix">Fotografar folha<input id="camera-mix" type="file" accept="image/*" capture="environment" hidden></label></p>
+        </div>
       </div>
+      <div id="filelist" class="filelist" hidden></div>
       <p class="note">PDF ou foto. Cada folha é lida duas vezes e as dúvidas ficam marcadas. Enviar de novo num lado troca só a leitura daquele lado.</p>
       <p class="note" id="sheetsleft"></p>
       <label class="row">Ano das datas

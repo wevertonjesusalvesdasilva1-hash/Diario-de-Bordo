@@ -182,3 +182,20 @@ test('listas por grupo: usinagem tem chapas e peças próprias, RAW continua com
   setActiveGroup('raw'); assert.ok(getLists().chapas.includes('7910'));
   resetLists();
 });
+
+test('lado do envio: RAW só aceita máquina RAW e usinagem só aceita usinagem', () => {
+  const json = { maquina: 'UMC 01', data: '02/10', producao: [], paradas: [] };
+  const raw = buildPage(json, { year: 2026, meta: { group: 'raw' } });
+  assert.equal(raw.machine, '');
+  assert.match(raw.machineFlag, /viu UMC 01.*lado RAW/);
+  const usi = buildPage(json, { year: 2026, meta: { group: 'usi' } });
+  assert.equal(usi.machine, 'UMC 01'); assert.equal(usi.machineFlag, null);
+  // a bolinha RAW lida numa folha enviada no lado da usinagem não vira máquina
+  const bubble = buildPage({ maquina: null, data: '02/10', producao: [], paradas: [] }, { year: 2026, meta: { group: 'usi', machineFromBubble: 'RAW05' } });
+  assert.equal(bubble.machine, ''); assert.match(bubble.machineFlag, /viu RAW05.*lado usinagem/);
+  // a leitura da IA de outro grupo não vira nem aviso quando a bolinha já deu a máquina do lado certo
+  assert.equal(buildPage(json, { year: 2026, meta: { group: 'raw', machineFromBubble: 'RAW05' } }).machineFlag, null);
+  // sem lado (PDF com as duas máquinas) nada muda
+  assert.equal(buildPage(json, { year: 2026, meta: {} }).machine, 'UMC 01');
+  assert.equal(buildPage({ maquina: 'RAW06', data: '02/10', producao: [], paradas: [] }, { year: 2026, meta: { group: 'raw' } }).machine, 'RAW06');
+});

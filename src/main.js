@@ -18,6 +18,7 @@ import { recordEdit, recordRemoval, describeEdit } from './core/edits.js';
 import { buildPanel } from './core/panel.js';
 import { allRows, toTSV, workbookBytes } from './core/export.js';
 import { getLists, saveGroupLists, learnAlias, resetLists, setActiveGroup, groupOf as listGroup } from './core/lists.js';
+import { jpegsToPdf } from './core/pdfimg.js';
 import { saveState, loadState, saveQueue, loadQueue, clearQueue } from './store.js';
 import { createSync, syncWanted } from './sync.js';
 import { jobsAvailable, uploadSheet, jobStatus, jobResult, kickJob, newJobId, cancelJob } from './jobs.js';
@@ -214,8 +215,6 @@ function completePage(p, sec, { json, single, grp }) {
   applyKeywords(built);
   sheetRead();
   Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk, rowWarn: rowWarns.join('; '), crop: sec.crop, sheet: sec.sheet, sheetGeo: sec.sheetGeo });
-  // sent on the wrong side? only flag it (the person decides); never change the machine by itself
-  if (p.group && p.machine && listGroup(p.machine) !== p.group) p.machineFlag = `Enviada no lado ${GROUP_NAME[p.group]}, mas a máquina lida é ${p.machine} (${GROUP_NAME[listGroup(p.machine)]})`;
   for (const r of p.prod) r.strip = sec.strips.prod[r.linha - 1];
   for (const r of p.stops) r.strip = sec.strips.stops[r.linha - 1];
   p.include = true;
@@ -230,7 +229,7 @@ function finishFromServer(p, out) {
   try {
     showModel(out.models?.at(-1), out.primary);
     const seen = sec.bubble || normMachine((out.A ?? out.B)?.maquina);
-    const grp = seen ? listGroup(seen) : (p.group ?? 'raw');
+    const grp = p.group ?? (seen ? listGroup(seen) : 'raw');
     setActiveGroup(grp);
     const single = !!out.single;
     const json = single ? (out.A ?? out.B) : reconcile(out.A, out.B);
@@ -252,7 +251,7 @@ async function readPage(p) {
     ]);
     if (a.status === 'rejected' && b.status === 'rejected') throw a.reason;
     const seen = sec.bubble || normMachine((a.value ?? b.value)?.maquina);
-    const grp = seen ? listGroup(seen) : (p.group ?? 'raw');
+    const grp = p.group ?? (seen ? listGroup(seen) : 'raw');
     setActiveGroup(grp);
     const single = a.status === 'rejected' || b.status === 'rejected';
     const json = single ? (a.status === 'fulfilled' ? a.value : b.value) : reconcile(a.value, b.value);
@@ -494,6 +493,9 @@ function countFlags(p) {
   return [...p.prod, ...p.stops].reduce((n, r) => n + Object.keys(r.flags ?? {}).length + (r.rowFlag ? 1 : 0), 0);
 }
 
+// a sheet sent on one side is only offered that side's machines
+const machinesFor = (p) => (p.group ? MAQUINAS.filter((m) => listGroup(m) === p.group) : MAQUINAS);
+
 function renderPage(p) {
   const root = $(`page-${p.id}`);
   if (!root) return;
@@ -502,8 +504,8 @@ function renderPage(p) {
   const header = h('header', {},
     h('h2', {}, p.label,
       p.status === 'ok' ? h('select', { dataset: { p: p.id, act: 'machine' } },
-        h('option', { value: '' }, 'máquina?'), MAQUINAS.map((m) => h('option', { value: m, selected: m === p.machine }, m)),
-        p.machine && !MAQUINAS.includes(p.machine) ? h('option', { value: p.machine, selected: true }, p.machine) : null) : null,
+        h('option', { value: '' }, 'máquina?'), machinesFor(p).map((m) => h('option', { value: m, selected: m === p.machine }, m)),
+        p.machine && !machinesFor(p).includes(p.machine) ? h('option', { value: p.machine, selected: true }, p.machine) : null) : null,
       p.status === 'ok' && p.date ? h('span', { class: 'meta' }, p.date.slice(0, 5)) : null,
       p.machineFlag ? h('span', { class: 'tag bad' }, p.machineFlag) : null,
       p.single ? h('span', { class: 'tag bad' }, 'só 1 leitura (a outra falhou)') : null,
@@ -544,6 +546,7 @@ function updateSummary() {
   const inc = includedPages();
   const { prod, stops } = allRows(inc);
   const flags = inc.reduce((n, p) => n + countFlags(p), 0);
+  renderFiles();
   const last = lastGroup();
   $('dellast').hidden = !last.length;
   $('dellast').textContent = last.length ? `Zerar última leitura (${last[0].file}) e subir novo arquivo` : 'Zerar última leitura';
@@ -1147,14 +1150,72 @@ $('clear').addEventListener('click', () => {
   updateSummary(); persist();
 });
 
-// two drop zones: RAW and usinagem. The side tells the app which lists (and prompt) to use.
+// three drop zones: RAW, usinagem, and one PDF holding both machines (asks first). The side tells the app which
+// lists, prompt and machines to use, so a RAW upload never suggests a machining machine and the other way round.
+const SIDES = ['raw', 'usi', 'mix'];
+function sendToSide(files, side, opts = {}) {
+  if (!files.length) return;
+  if (side === 'mix' && !opts.append) {
+    const ok = window.confirm(`Anexar "${files.map((f) => f.name).join('", "')}" como PDF escaneado com as DUAS máquinas (RAW e usinagem)?\n\nCada folha será classificada pela máquina que aparece nela.${state.pages.length ? '\n\nA leitura atual (RAW e usinagem) será substituída.' : ''}`);
+    if (!ok) return;
+  }
+  return processFiles(files, { ...opts, group: side === 'mix' ? null : side });
+}
 const dropZones = [...document.querySelectorAll('#drop .zone')];
 for (const zone of dropZones) {
-  const group = zone.dataset.group;
+  const side = zone.dataset.group;
   ['dragenter', 'dragover'].forEach((ev) => zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.add('over'); }));
   ['dragleave', 'drop'].forEach((ev) => zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.remove('over'); }));
-  zone.addEventListener('drop', (e) => processFiles([...e.dataTransfer.files], { group }));
-  $(`files-${group}`).addEventListener('change', (e) => { processFiles([...e.target.files], { group }); e.target.value = ''; });
+  zone.addEventListener('drop', (e) => sendToSide([...e.dataTransfer.files], side));
+  $(`files-${side}`).addEventListener('change', (e) => { const f = [...e.target.files]; e.target.value = ''; sendToSide(f, side); });
+}
+
+// ---------------------------------------------------------------- arquivos enviados: ver e baixar o PDF
+// The original file is not kept; the sheets' images are (and travel with the sync), so the PDF is rebuilt from them.
+function sentFiles() {
+  const by = new Map();
+  for (const p of state.pages) { const k = `${p.batch ?? ''}|${p.file}`; if (!by.has(k)) by.set(k, { file: p.file, group: p.group, pages: [] }); by.get(k).pages.push(p); }
+  return [...by.values()];
+}
+const sideLabel = (g) => (g === 'raw' ? 'RAW' : g === 'usi' ? 'Usinagem' : 'RAW e usinagem');
+function renderFiles() {
+  const list = sentFiles(), box = $('filelist');
+  box.hidden = !list.length;
+  box.replaceChildren(...(list.length ? [h('h4', {}, 'Arquivos enviados')] : []), ...list.map((f) => h('div', { class: 'fitem' },
+    h('span', { class: 'fname' }, f.file), h('span', { class: 'fmeta' }, `${f.pages.length} folha${f.pages.length === 1 ? '' : 's'} · ${sideLabel(f.group)}`),
+    h('button', { type: 'button', class: 'ghost', onclick: () => viewFile(f) }, '👁 Ver'),
+    h('button', { type: 'button', class: 'ghost', onclick: () => downloadFilePdf(f) }, '⤓ Baixar PDF'))));
+}
+function viewFile(f) {
+  $('fileview')?.remove();
+  const close = () => { box.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape' && !$('sheetviewer')) close(); };
+  const box = h('div', { id: 'fileview', role: 'dialog', 'aria-modal': 'true', 'aria-label': `Arquivo ${f.file}` },
+    h('div', { class: 'fvbox' },
+      h('div', { class: 'fvhead' }, h('strong', {}, f.file), h('button', { type: 'button', class: 'ghost', onclick: () => downloadFilePdf(f) }, '⤓ Baixar PDF'), h('button', { type: 'button', class: 'svx2', 'aria-label': 'Fechar', onclick: close }, '✕')),
+      h('p', { class: 'note' }, 'Clique numa folha para ampliar. Estas são as imagens das folhas que o app guardou.'),
+      h('div', { class: 'fvgrid' }, f.pages.map((p) => (p.sheet
+        ? h('figure', { onclick: () => openSheetViewer(h('div', {}, h('img', { src: p.sheet, alt: p.label }))) }, h('img', { src: p.sheet, alt: p.label }), h('figcaption', {}, p.label.split(' · ').pop()))
+        : h('figure', { class: 'nosheet' }, h('p', {}, `${p.label.split(' · ').pop()}: a imagem ainda não chegou a este computador`)))))));
+  box.addEventListener('click', (e) => { if (e.target === box) close(); });
+  document.body.append(box); document.addEventListener('keydown', onKey);
+}
+async function downloadFilePdf(f) {
+  const have = f.pages.filter((p) => p.sheet);
+  if (!have.length || have.length < f.pages.length) return toast('As imagens deste arquivo ainda não chegaram a este computador. Espere a sincronização e tente de novo.');
+  try {
+    const pages = await Promise.all(have.map(async (p) => {
+      const im = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = p.sheet; });
+      const bin = atob(p.sheet.split(',')[1]), jpeg = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) jpeg[i] = bin.charCodeAt(i);
+      return { jpeg, w: im.naturalWidth, h: im.naturalHeight };
+    }));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([jpegsToPdf(pages)], { type: 'application/pdf' }));
+    a.download = `${String(f.file).replace(/\.[^.]+$/, '')}.pdf`;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch { toast('Não consegui montar o PDF deste arquivo.'); }
 }
 
 // ---------------------------------------------------------------- revisão rápida
@@ -1365,7 +1426,7 @@ $('limit').addEventListener('change', () => setLimit($('limit').value));
 updateUsage();
 
 // photo straight from the phone camera: added to the current reading (not replacing it)
-for (const g of ['raw', 'usi']) $(`camera-${g}`).addEventListener('change', (e) => { processFiles([...e.target.files], { append: true, group: g }); e.target.value = ''; });
+for (const g of SIDES) $(`camera-${g}`).addEventListener('change', (e) => { const f = [...e.target.files]; e.target.value = ''; sendToSide(f, g, { append: true }); });
 
 // On a computer the file input would open the file manager, so "Fotografar folha" opens the webcam here instead.
 // On a phone (touch screen) the input's own camera is better: it uses the full camera app.
@@ -1395,11 +1456,11 @@ async function openWebcam(group) {
     c.getContext('2d').drawImage(video, 0, 0);
     c.toBlob((blob) => {
       closeWebcam();
-      if (blob) processFiles([new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })], { append: true, group });
+      if (blob) sendToSide([new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })], group, { append: true });
     }, 'image/jpeg', 0.92);
   });
 }
-for (const g of ['raw', 'usi']) {
+for (const g of SIDES) {
   $(`camlabel-${g}`).addEventListener('click', (e) => {
     if (window.matchMedia('(pointer: coarse)').matches) return; // phone or tablet: the native camera
     e.preventDefault(); openWebcam(g);

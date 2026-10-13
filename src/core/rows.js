@@ -205,9 +205,16 @@ export function buildPage(json, { year, meta = {} }) {
     if (!row.data && headerDate) { row.data = headerDate; row.flags.data = 'data do cabeçalho'; }
   }
   // the filled bubble is measured from the pixels, so it wins over the model's reading
+  // a sheet sent on the RAW side only gets RAW machines, one sent on the usinagem side only usinagem ones
   const aiMachine = normMachine(json.maquina);
-  const machine = meta.machineFromBubble || aiMachine;
-  const machineFlag = meta.machineFromBubble && aiMachine && meta.machineFromBubble !== aiMachine ? `IA leu ${aiMachine}` : (machine ? null : 'máquina não identificada');
+  const fits = (m) => !meta.group || (m ? groupOf(m) === meta.group : false);
+  const bubble = fits(meta.machineFromBubble) ? meta.machineFromBubble : '';
+  const ai = fits(aiMachine) ? aiMachine : '';
+  const machine = bubble || ai;
+  const other = !machine && (meta.machineFromBubble || aiMachine) && !fits(meta.machineFromBubble || aiMachine) ? (meta.machineFromBubble || aiMachine) : '';
+  const sideName = meta.group === 'usi' ? 'usinagem' : 'RAW';
+  const machineFlag = other ? `a leitura viu ${other}, mas o arquivo foi enviado no lado ${sideName}: escolha a máquina ou envie no lado certo`
+    : bubble && ai && bubble !== ai ? `IA leu ${ai}` : (machine ? null : 'máquina não identificada');
   const page = { machine, machineFlag, date: headerDate, prod, stops };
   runChecks(page);
   return page;
