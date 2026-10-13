@@ -1434,42 +1434,56 @@ updateUsage();
 // photo straight from the phone camera: added to the current reading (not replacing it)
 for (const g of SIDES) $(`camera-${g}`).addEventListener('change', (e) => { const f = [...e.target.files]; e.target.value = ''; sendToSide(f, g, { append: true }); });
 
-// On a computer the file input would open the file manager, so "Fotografar folha" opens the webcam here instead.
-// On a phone (touch screen) the input's own camera is better: it uses the full camera app.
-let camStream = null;
-function closeWebcam() { camStream?.getTracks().forEach((t) => t.stop()); camStream = null; $('webcam')?.remove(); document.removeEventListener('keydown', onWebcamKey); }
-function onWebcamKey(e) { if (e.key === 'Escape') closeWebcam(); }
+// "Fotografar folha" opens the camera here (the file input would open the file manager on a computer),
+// so several photos can be taken and sent together.
+let camStream = null, camShots = [];
+function closeWebcam() { camStream?.getTracks().forEach((t) => t.stop()); camStream = null; camShots.forEach((x) => URL.revokeObjectURL(x.url)); camShots = []; $('webcam')?.remove(); document.removeEventListener('keydown', onWebcamKey); }
+// leaving with photos already taken asks first (they would be lost)
+function leaveWebcam() { if (!camShots.length || window.confirm(`Descartar ${camShots.length === 1 ? 'a foto tirada' : `as ${camShots.length} fotos tiradas`}?`)) closeWebcam(); }
+function onWebcamKey(e) { if (e.key === 'Escape') leaveWebcam(); }
+// Several sheets in one go (e.g. three sheets of the same machine on the same day): take all the photos, then send them together.
 async function openWebcam(group) {
   if (!navigator.mediaDevices?.getUserMedia) return $(`camera-${group}`).click();
   try { camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1920 } }, audio: false }); }
   catch (err) {
-    toast(err?.name === 'NotAllowedError' ? 'O navegador bloqueou a câmera. Clique no cadeado ao lado do endereço e permita a câmera.' : 'Não achei uma câmera neste computador.');
+    toast(err?.name === 'NotAllowedError' ? 'O navegador bloqueou a câmera. Clique no cadeado ao lado do endereço e permita a câmera.' : 'Não achei uma câmera neste aparelho.');
     return;
   }
   const video = h('video', { class: 'wcvideo', autoplay: '', playsinline: '', muted: '' });
   video.srcObject = camStream;
   const shoot = h('button', { type: 'button', class: 'wcshoot' }, '📷 Tirar foto');
-  const file = h('button', { type: 'button', class: 'ghost' }, 'Escolher arquivo');
+  const send = h('button', { type: 'button', class: 'wcsend', disabled: true }, 'Enviar');
+  const native = h('button', { type: 'button', class: 'ghost' }, 'Usar a câmera do aparelho');
   const cancel = h('button', { type: 'button', class: 'ghost' }, 'Cancelar');
+  const strip = h('div', { class: 'wcstrip' });
+  const note = h('p', { class: 'note' }, 'Enquadre a folha inteira, de frente e bem iluminada. Dá para tirar várias fotos e enviar todas juntas.');
   const box = h('div', { id: 'webcam', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Fotografar folha' },
-    h('div', { class: 'wcbox' }, video, h('p', { class: 'note' }, 'Enquadre a folha inteira, de frente e bem iluminada.'), h('div', { class: 'wcbtns' }, cancel, file, shoot)));
+    h('div', { class: 'wcbox' }, video, strip, note, h('div', { class: 'wcbtns' }, cancel, native, shoot, send)));
   document.body.append(box); document.addEventListener('keydown', onWebcamKey);
-  cancel.addEventListener('click', closeWebcam);
-  file.addEventListener('click', () => { closeWebcam(); const inp = $(`camera-${group}`); inp.removeAttribute('capture'); inp.click(); inp.setAttribute('capture', 'environment'); });
+  const redraw = () => {
+    strip.replaceChildren(...camShots.map((x, i) => h('figure', {}, h('img', { src: x.url, alt: `Foto ${i + 1}` }), h('figcaption', {}, `Folha ${i + 1}`),
+      h('button', { type: 'button', class: 'wcx', title: 'Apagar esta foto', 'aria-label': `Apagar a foto ${i + 1}`, onclick: () => { URL.revokeObjectURL(x.url); camShots.splice(i, 1); redraw(); } }, '✕'))));
+    send.disabled = !camShots.length;
+    send.textContent = camShots.length ? `Enviar ${camShots.length} foto${camShots.length === 1 ? '' : 's'}` : 'Enviar';
+  };
+  cancel.addEventListener('click', leaveWebcam);
+  native.addEventListener('click', () => { closeWebcam(); const inp = $(`camera-${group}`); inp.click(); });
   shoot.addEventListener('click', () => {
     if (!video.videoWidth) return;
     const c = document.createElement('canvas'); c.width = video.videoWidth; c.height = video.videoHeight;
     c.getContext('2d').drawImage(video, 0, 0);
-    c.toBlob((blob) => {
-      closeWebcam();
-      if (blob) sendToSide([new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })], group, { append: true });
-    }, 'image/jpeg', 0.92);
+    c.toBlob((blob) => { if (blob) { camShots.push({ blob, url: URL.createObjectURL(blob) }); redraw(); } }, 'image/jpeg', 0.92);
+  });
+  send.addEventListener('click', () => {
+    const stamp = Date.now();
+    const files = camShots.map((x, i) => new File([x.blob], `foto-${stamp}-${i + 1}.jpg`, { type: 'image/jpeg' }));
+    closeWebcam();
+    sendToSide(files, group, { append: true });
   });
 }
 for (const g of SIDES) {
   $(`camlabel-${g}`).addEventListener('click', (e) => {
-    if (window.matchMedia('(pointer: coarse)').matches) return; // phone or tablet: the native camera
-    e.preventDefault(); openWebcam(g);
+    e.preventDefault(); openWebcam(g); // the in-app camera (several photos); "Usar a câmera do aparelho" falls back to the native one
   });
 }
 
