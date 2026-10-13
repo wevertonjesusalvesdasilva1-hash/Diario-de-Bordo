@@ -6,3 +6,10 @@
 .checkbtn:hover { background: color-mix(in srgb, #4ade80 30%, transparent); }
 .checkbtn.on { border-color: var(--line2); background: transparent; color: var(--muted); }
 #cardmodal .front .ffoot { margin-top: auto; }
+.sheetwrap .hl.cell, .hl.cell, .svcanvas .hl.cell { border: 2px solid #e11d1d; background: rgb(255 59 59 / .38); }
+.dlwrap { position: relative; display: inline-flex; }
+.dlwrap .dlmain { border-radius: 10px 0 0 10px; }
+.dlwrap .dlarrow { border-radius: 0 10px 10px 0; border-left: 0; padding-inline: 10px; }
+.dlmenu { position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 5; min-width: 170px; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel2); box-shadow: 0 14px 40px rgb(0 0 0 / .45); }
+.dlmenu[hidden] { display: none !important; }
+.dlmenu button { display: block; width: 100%; text-align: left; border: 0; border-radius: 8px; padding: 10px 12px; }
