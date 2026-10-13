@@ -12,7 +12,7 @@ Ele **documenta** o funcionamento do app; não substitui a avaliação do juríd
 | Máquina, peça, modelo, motivo da parada | Não | Dados de processo. |
 | Comentários escritos à mão (descrição, observações) | Pode ser | Dependendo do que o colaborador escreveu. |
 
-Os **nomes** dos operadores ficam numa variável protegida do projeto na Vercel (`OPERADORES_JSON`), **fora do repositório**. O servidor só os entrega a quem tem o código de acesso, e o navegador os guarda localmente para mostrar nos cards. Eles nunca vão ao Gemini. Para atualizar a lista, troque o valor da variável (ou importe a aba REFERENCIAS em Listas de conferência → Operadores). A tabela chapa → turno (sem nomes) faz parte do código.
+Os **nomes** dos operadores ficam numa variável protegida do projeto na Vercel (`OPERADORES_JSON` para o robô e `OPERADORES_USINAGEM_JSON` para a usinagem), **fora do repositório**. O servidor só os entrega a quem tem o código de acesso, e o navegador os guarda localmente para mostrar nos cards. Eles nunca vão ao Gemini. Para atualizar a lista, troque o valor da variável (ou importe a aba REFERENCIAS em Listas de conferência → Operadores). A tabela chapa → turno (sem nomes) faz parte do código.
 
 ## Caminho dos dados
 

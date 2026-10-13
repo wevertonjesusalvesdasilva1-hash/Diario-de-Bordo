@@ -53,7 +53,7 @@ Teste de navegador: `playwright-core` com o Chromium já instalado em `/opt/pw-b
 
 ## Segredos e segurança
 
-- Variáveis na Vercel: `GEMINI_API_KEY` (sensível), `ACCESS_CODE` (sensível), `BLOB_READ_WRITE_TOKEN` (criada ao ligar o Blob ao projeto; guarda a sala de sincronização), `OPERADORES_JSON` (sensível: chapa → nome e turno, servido por `api/operadores.js` só com o código de acesso; nunca no repositório), `GEMINI_MODEL` e opcionais (`GEMINI_FALLBACK_MODELS`, `GEMINI_PASS_C_MODEL`, `THINKING_BUDGET`).
+- Variáveis na Vercel: `GEMINI_API_KEY` (sensível), `ACCESS_CODE` (sensível), `BLOB_READ_WRITE_TOKEN` (criada ao ligar o Blob ao projeto; guarda a sala de sincronização), `OPERADORES_JSON` (robô) e `OPERADORES_USINAGEM_JSON` (usinagem), ambas sensíveis: chapa → nome e turno, juntadas e servidas por `api/operadores.js` só com o código de acesso; nunca no repositório, `GEMINI_MODEL` e opcionais (`GEMINI_FALLBACK_MODELS`, `GEMINI_PASS_C_MODEL`, `THINKING_BUDGET`).
 - **Nunca** escrever o código de acesso, chaves ou folhas reais no repositório, em commits, issues ou conversas públicas.
 - As APIs checam origem, código de acesso (comparação em tempo constante) e limitam tentativas por IP.
 - Não subir folhas reais nem exemplos com chapas verdadeiras (ver `docs/PRIVACIDADE.md`).

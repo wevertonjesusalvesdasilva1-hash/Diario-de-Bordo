@@ -139,4 +139,6 @@ Validado com folhas reais (UMC 01, UMC 02, HMC 16, NCBZ, RAW05) e com a planilha
 ## Verificar e ordenar os cards
 
 - No card aberto, o botão **✓ Marcar como verificado** (no fim do card) deixa o card escuro na lista e o manda para o fim do seu tipo. Dá para desmarcar. É diferente de "Anotação correta ✓", que tira o aviso da lista. Fica guardado no navegador e na sincronização.
+- **Marcas na folha**: todo card, ao virar para "Ver folha", marca em vermelho as linhas e as células exatas do problema (inclusive a caligrafia difícil). O botão **Baixar** salva a folha marcada em PDF (padrão) ou PNG (seta ▾); a escolha fica lembrada. Em folha sem grade reconhecida, o card fica sem marcação.
+- Os **nomes** dos operadores (robô e usinagem) vêm de variáveis protegidas da Vercel e aparecem nos cards; chapa sem nome mostra "Nome não cadastrado".
 - Dentro de cada tipo, os cards vêm por padrão com o **maior tempo primeiro** (os mais arriscados). A linha **Ordenar** do topo troca para menor tempo primeiro, máquina ou operador. Os tipos continuam na ordem de gravidade.
