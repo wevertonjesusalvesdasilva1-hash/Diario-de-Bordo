@@ -1,6 +1,7 @@
 // GET /api/operadores → { operadores: { "7910": { nome, turno } } }
-// The operators table (chapa → name and shift) lives ONLY in the OPERADORES_JSON variable of the Vercel project:
-// it is not in the repository. Served only to someone who holds the access code (never when no code is configured).
+// The operators table (chapa → name and shift) lives ONLY in the OPERADORES_JSON and OPERADORES_USINAGEM_JSON
+// variables of the Vercel project: it is not in the repository. Served only to someone who holds the access code
+// (never when no code is configured).
 import { accessRequired, checkAccess } from './_auth.js';
 
 const send = (res, status, body) => res.status(status).setHeader('Cache-Control', 'no-store').json(body);
@@ -12,8 +13,11 @@ export default async function handler(req, res) {
   if (!accessRequired()) return send(res, 200, { operadores: {} });
   const auth = checkAccess(req);
   if (!auth.ok) return send(res, auth.status, { error: auth.error });
+  // two variables so each team's list can be changed alone (robot first, machining second); the second wins on a repeated chapa
   let operadores = {};
-  try { operadores = JSON.parse(process.env.OPERADORES_JSON || '{}'); } catch { /* malformed: no names */ }
+  for (const name of ['OPERADORES_JSON', 'OPERADORES_USINAGEM_JSON']) {
+    try { operadores = { ...operadores, ...JSON.parse(process.env[name] || '{}') }; } catch { /* malformed: no names from this variable */ }
+  }
   const clean = {};
   for (const [chapa, o] of Object.entries(operadores)) {
     if (/^\d{3,8}$/.test(chapa) && o && typeof o.nome === 'string') clean[chapa] = { nome: o.nome.slice(0, 80), turno: o.turno === '1' || o.turno === '2' ? o.turno : '' };
