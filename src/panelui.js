@@ -50,6 +50,17 @@ const titleOf = (s) => (s.t === 'motivo' ? `Motivo: ${s.v}` : s.t === 'machine' 
 function tableFor(list, s, ctx, full, sort) {
   const { fmtDur, motColor, who } = ctx;
   const inHour = hourOf(s);
+  if (!full) {
+    // inside the cards: two lines per stop, so it fits any width without sideways scrolling
+    return h('div', { class: 'pn-list' }, list.map((x, i) => {
+      const op = who(x.chapa);
+      return h('div', { class: 'pn-li', style: `--d:${Math.min(i, 14) * 28}ms` },
+        h('div', { class: 'pn-li-top' }, h('b', { class: 'pn-m' }, x.machine), h('span', { class: 'pn-dm' }, h('i', { style: `background:${motColor(x.motivo)}` }), x.motivo),
+          h('span', { class: 'pn-li-t' }, h('b', {}, fmtDur(x.min)), h('small', {}, `${x.clock}–${x.fim}${inHour ? ` · ${x.inHour} min na hora` : ''}`)),
+          h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: x.page, k: x.table, r: x.ri }, title: 'Ir para a linha desta parada na folha' }, 'Ir para a linha')),
+        h('div', { class: 'pn-li-sub' }, h('span', { class: 'pn-op1' }, op || 'sem operador'), h('span', { class: `pn-desc${x.desc ? '' : ' none'}` }, x.desc || 'sem observação')));
+    }));
+  }
   const cols = full
     ? [['dia', 'Dia'], ['folha', 'Folha'], ['machine', 'Máquina'], ['motivo', 'Motivo'], ['clock', 'Início'], ['fim', 'Fim'], ['min', 'Duração'], ['turno', 'Turno'], ['op', 'Operador'], ['desc', 'Observação'], ['', '']]
     : [['machine', 'Máquina'], ['motivo', 'Motivo'], ['clock', 'Início'], ['min', 'Duração'], ['op', 'Operador'], ['desc', 'Observação'], ['', '']];
