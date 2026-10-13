@@ -700,3 +700,12 @@ td.auto.edited::after { content: "editado"; }
 .modelpill i { width: 9px; height: 9px; border-radius: 50%; background: #4ade80; flex: none; }
 .modelpill[data-kind="reserve"] { border-color: #facc15; }
 .modelpill[data-kind="reserve"] i { background: #facc15; }
+
+/* card verificado: escurece; botão de verificar no fim do card aberto */
+.acard.done { opacity: .42; filter: grayscale(.85); background: #0c0c0e; }
+.acard.done:hover { opacity: .8; }
+.acard.done .fhint { color: #4ade80; }
+.checkbtn { width: 100%; padding: 14px 18px; border-radius: 14px; border: 1px solid #4ade80; background: color-mix(in srgb, #4ade80 16%, transparent); color: var(--ink); font: 700 1.1rem var(--f-body); cursor: pointer; }
+.checkbtn:hover { background: color-mix(in srgb, #4ade80 30%, transparent); }
+.checkbtn.on { border-color: var(--line2); background: transparent; color: var(--muted); }
+#cardmodal .front .ffoot { margin-top: auto; }

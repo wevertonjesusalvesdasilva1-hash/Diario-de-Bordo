@@ -84,7 +84,7 @@ export function buildCards(events, pages, offDate = [], doubt = []) {
       add('alta', 'produzindo parado', P,
         `${sheet(P)}: a produção da linha ${P.linha || P.ri + 1} foi anotada das ${range(P)} (${dur(P.end - P.start)}), mas há ${what} dentro desse horário. Máquina parada não produz: nesses ${dur(cut)} ela não estava produzindo.`,
         { story: `O operador anotou ${B(`produção das ${clock(P.start)} às ${clock(P.end)}`)} (linha ${ln(P)}) e ${inside.map((x) => `${B(`parada das ${clock(x.start)} às ${clock(x.end)}`)} (linha ${ln(x)}, ${nome(x.motivo)})`).reduce((acc, t, i, a) => (i ? (i === a.length - 1 ? `${acc} e ${t}` : `${acc}, ${t}`) : t), '')}. Com a máquina parada ela não produz, então esse tempo não é de produção.`, suspects: inside.map(suspect), brief: inside.length === 1 ? `Produção ${range(P)} cobre a parada ${range(inside[0])} (${nome(inside[0].motivo)})` : `Produção ${range(P)} cobre ${inside.length} paradas`,
-          big: dur(cut), bigLabel: 'parado dentro da produção',
+          mins: cut, big: dur(cut), bigLabel: 'parado dentro da produção',
           fix: pieces.length ? `Deveria ser ${andList(pieces.map(([x, y]) => `${clock(x)}–${clock(y)}`))}, que dá ${dur(net)} de produção.` : 'A produção inteira está coberta por paradas: um dos registros está errado.',
           why: 'Ou a produção foi anotada sem descontar a parada, ou o horário de um dos registros está errado. Confira na folha.',
           ...whoOf([P.chapa, ...inside.map((s) => s.chapa)]), lines: [evLine(P), ...inside.map(evLine)], refs: [ref(P), ...inside.map(ref)] });
@@ -101,12 +101,12 @@ export function buildCards(events, pages, offDate = [], doubt = []) {
           if (a.start === b.start && a.end === b.end) {
             // exactly the same time twice: almost always a repeated reading, not a wrong note by the operator
             add('media', 'turnos repetidos', b, `${sheet(b)}: o horário ${range(b)} aparece duas vezes (${a.table === b.table && a.ri === b.ri ? `linha ${b.linha || b.ri + 1}, em dois turnos` : `linhas ${a.linha || a.ri + 1} e ${b.linha || b.ri + 1}`}). Parece leitura repetida: confira na folha.`,
-              { story: `O operador anotou o horário ${B(`${clock(b.start)} às ${clock(b.end)}`)} duas vezes (${a.table === b.table && a.ri === b.ri ? `linha ${ln(b)}, em dois turnos` : `linhas ${ln(a)} e ${ln(b)}`}). Parece a mesma leitura repetida.`, brief: `Horário ${range(b)} repetido ${a.table === b.table && a.ri === b.ri ? `na linha ${b.linha || b.ri + 1}` : `nas linhas ${a.linha || a.ri + 1} e ${b.linha || b.ri + 1}`}`, big: dur(ov), bigLabel: 'repetido', why: 'Provavelmente o horário foi lido duas vezes. Se estiver assim na folha, é anotação errada.', ...whoOf([a.chapa, b.chapa]), lines: [evLine(a), evLine(b)], refs: [ref(a), ref(b)] });
+              { story: `O operador anotou o horário ${B(`${clock(b.start)} às ${clock(b.end)}`)} duas vezes (${a.table === b.table && a.ri === b.ri ? `linha ${ln(b)}, em dois turnos` : `linhas ${ln(a)} e ${ln(b)}`}). Parece a mesma leitura repetida.`, brief: `Horário ${range(b)} repetido ${a.table === b.table && a.ri === b.ri ? `na linha ${b.linha || b.ri + 1}` : `nas linhas ${a.linha || a.ri + 1} e ${b.linha || b.ri + 1}`}`, mins: ov, big: dur(ov), bigLabel: 'repetido', why: 'Provavelmente o horário foi lido duas vezes. Se estiver assim na folha, é anotação errada.', ...whoOf([a.chapa, b.chapa]), lines: [evLine(a), evLine(b)], refs: [ref(a), ref(b)] });
             continue;
           }
           add('alta', 'registros sobrepostos', b,
             `${sheet(b)}: a folha tem duas ${t} no mesmo horário: ${evLine(a).split(' · ').slice(0, 1)[0].toLowerCase()} das ${range(a)} e ${evLine(b).split(' · ').slice(0, 1)[0].toLowerCase()} das ${range(b)}. Elas dividem ${dur(ov)}, e a máquina não faz duas coisas ao mesmo tempo.`,
-            { story: `O operador anotou duas ${t}: ${B(`das ${clock(a.start)} às ${clock(a.end)}`)} (linha ${ln(a)}) e ${B(`das ${clock(b.start)} às ${clock(b.end)}`)} (linha ${ln(b)}). Dois registros no mesmo horário: a máquina não faz duas coisas ao mesmo tempo.`, suspects: [suspect(a), suspect(b)], brief: `Duas ${t}: ${range(a)} e ${range(b)}`, big: dur(ov), bigLabel: 'no mesmo horário', why: 'Um dos dois horários está errado. Confira na folha.', ...whoOf([a.chapa, b.chapa]), lines: [evLine(a), evLine(b)], refs: [ref(a), ref(b)] });
+            { story: `O operador anotou duas ${t}: ${B(`das ${clock(a.start)} às ${clock(a.end)}`)} (linha ${ln(a)}) e ${B(`das ${clock(b.start)} às ${clock(b.end)}`)} (linha ${ln(b)}). Dois registros no mesmo horário: a máquina não faz duas coisas ao mesmo tempo.`, suspects: [suspect(a), suspect(b)], brief: `Duas ${t}: ${range(a)} e ${range(b)}`, mins: ov, big: dur(ov), bigLabel: 'no mesmo horário', why: 'Um dos dois horários está errado. Confira na folha.', ...whoOf([a.chapa, b.chapa]), lines: [evLine(a), evLine(b)], refs: [ref(a), ref(b)] });
         }
       }
     }
@@ -121,7 +121,7 @@ export function buildCards(events, pages, offDate = [], doubt = []) {
       const sev = (quickKind && !desc) || d >= lim * 2 ? 'alta' : 'media';
       add(sev, 'parada longa', s,
         `${sheet(s)}: ${nome(s.motivo)} de ${dur(d)} (${range(s)}); o normal é até ${dur(lim)}. ${desc ? `Ele comentou: "${desc}", mas vale validar se explica todo esse tempo.` : 'Não há comentário explicando.'}`,
-        { story: `O operador anotou ${B(`${nome(s.motivo)} das ${clock(s.start)} às ${clock(s.end)}`)} (linha ${ln(s)}): ${B(dur(d))}. O normal é até ${dur(lim)}. ${desc ? `Ele comentou "${desc}".` : 'Não há comentário explicando.'}`, brief: `${nome(s.motivo)} ${range(s)} · normal até ${dur(lim)} · ${desc ? 'com comentário' : 'sem comentário'}`, big: dur(d), bigLabel: `normal: ${dur(lim)}`,
+        { story: `O operador anotou ${B(`${nome(s.motivo)} das ${clock(s.start)} às ${clock(s.end)}`)} (linha ${ln(s)}): ${B(dur(d))}. O normal é até ${dur(lim)}. ${desc ? `Ele comentou "${desc}".` : 'Não há comentário explicando.'}`, brief: `${nome(s.motivo)} ${range(s)} · normal até ${dur(lim)} · ${desc ? 'com comentário' : 'sem comentário'}`, mins: d, big: dur(d), bigLabel: `normal: ${dur(lim)}`,
           ...whoOf([s.chapa]), lines: [evLine(s)], refs: [ref(s)] });
     }
 
@@ -134,7 +134,7 @@ export function buildCards(events, pages, offDate = [], doubt = []) {
         // a gap across the change of shift is normal: only gaps inside one shift are worth a card
         if (gap >= GAP_MIN && gap <= GAP_MAX && cover.type !== e.type && z(cover.end) === z(e.start) && z(e.start) !== 'x') {
           add('media', 'sem registro', e, `${sheet(e)}: nada foi anotado entre ${clock(cover.end)} e ${clock(e.start)} (${dur(gap)}). Não sabemos se a máquina estava produzindo ou parada; um dos dois horários pode estar errado.`,
-            { story: `O operador anotou ${cover.type === 'prod' ? 'produção' : 'parada'} até ${B(clock(cover.end))} (linha ${ln(cover)}) e só voltou a anotar ${e.type === 'prod' ? 'produção' : 'parada'} às ${B(clock(e.start))} (linha ${ln(e)}). Ficaram ${B(dur(gap))} sem registro.`, brief: `Nada anotado das ${clock(cover.end)} às ${clock(e.start)}`, big: dur(gap), bigLabel: 'sem registro', ...whoOf([cover.chapa, e.chapa]), lines: [evLine(cover), evLine(e)], refs: [ref(cover), ref(e)] });
+            { story: `O operador anotou ${cover.type === 'prod' ? 'produção' : 'parada'} até ${B(clock(cover.end))} (linha ${ln(cover)}) e só voltou a anotar ${e.type === 'prod' ? 'produção' : 'parada'} às ${B(clock(e.start))} (linha ${ln(e)}). Ficaram ${B(dur(gap))} sem registro.`, brief: `Nada anotado das ${clock(cover.end)} às ${clock(e.start)}`, mins: gap, big: dur(gap), bigLabel: 'sem registro', ...whoOf([cover.chapa, e.chapa]), lines: [evLine(cover), evLine(e)], refs: [ref(cover), ref(e)] });
         }
       }
       if (!cover || e.end > cover.end) cover = e;

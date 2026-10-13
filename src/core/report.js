@@ -40,7 +40,7 @@ export function buildReport(a, dismissed = new Set()) {
     if (dismissed.has(key)) { hidden++; return; }
     out.push({
       key, tier, kind, title: KINDS[tier].name, color: KINDS[tier].color, sev: c.sev === 'info' ? 'media' : c.sev, machine: c.machine, day: c.day ?? '', page: c.page, label: c.label,
-      table: c.table, ri: c.ri, linha: c.linha, refs: c.refs ?? [], brief: c.brief ?? c.text, who: c.who ?? '', people: c.people ?? [], story: c.story ?? c.headline ?? c.text ?? '', lines: c.lines ?? [], fix: c.fix ?? '', caution: c.caution ?? '',
+      table: c.table, ri: c.ri, linha: c.linha, refs: c.refs ?? [], brief: c.brief ?? c.text, mins: c.mins ?? 0, who: c.who ?? '', people: c.people ?? [], story: c.story ?? c.headline ?? c.text ?? '', lines: c.lines ?? [], fix: c.fix ?? '', caution: c.caution ?? '',
       text: c.headline ?? c.text, why: c.why ?? '',
       big: c.big ?? (c.meter ? `${Math.round((c.meter.part / c.meter.total) * 100)} %` : ''),
       bigLabel: c.bigLabel ?? (c.meter ? `${c.meter.part} de ${c.meter.total}` : ''),

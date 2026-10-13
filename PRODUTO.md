@@ -134,3 +134,9 @@ Validado com folhas reais (UMC 01, UMC 02, HMC 16, NCBZ, RAW05) e com a planilha
 - Ao enviar um PDF, o app prepara cada folha e a envia ao servidor. **A leitura (Gemini) continua no servidor mesmo com a aba fechada**; ao abrir de novo, as folhas lidas já estão prontas e o app monta as linhas.
 - Se o Gemini estiver ocupado ou sem cota, o servidor espera e tenta de novo sozinho (por até 12 horas). Se o servidor de segundo plano não estiver configurado, o app lê com a aba aberta, como antes.
 - Recarregar a página (F5) não perde nada: o arquivo enviado fica guardado e a leitura é retomada.
+
+
+## Verificar e ordenar os cards
+
+- No card aberto, o botão **✓ Marcar como verificado** (no fim do card) deixa o card escuro na lista e o manda para o fim do seu tipo. Dá para desmarcar. É diferente de "Anotação correta ✓", que tira o aviso da lista. Fica guardado no navegador e na sincronização.
+- Dentro de cada tipo, os cards vêm por padrão com o **maior tempo primeiro** (os mais arriscados). A linha **Ordenar** do topo troca para menor tempo primeiro, máquina ou operador. Os tipos continuam na ordem de gravidade.
