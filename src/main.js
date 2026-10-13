@@ -19,6 +19,7 @@ import { allRows, toTSV, workbookBytes } from './core/export.js';
 import { getLists, saveGroupLists, learnAlias, resetLists, setActiveGroup, groupOf as listGroup } from './core/lists.js';
 import { saveState, loadState, saveQueue, loadQueue, clearQueue } from './store.js';
 import { createSync, syncWanted } from './sync.js';
+import { jobsAvailable, uploadSheet, jobStatus, jobResult, kickJob, newJobId } from './jobs.js';
 import { newSid } from './core/share.js';
 import { MOTIVOS, MOTIVOS_ALL, MAQUINAS } from './data/vocab.js';
 
@@ -134,7 +135,7 @@ async function resumeQueue() {
   if (!q?.files?.length) return;
   const skip = new Set(state.pages.map((p) => `${p.file}|${Number(String(p.label).split('pág. ')[1])}`));
   toast('A leitura foi interrompida. Continuando de onde parou…');
-  await processFiles(q.files, { append: true, skip });
+  await processFiles(q.files, { append: true, skip, job: q.job ?? null });
 }
 
 // ---------------------------------------------------------------- reading a page
@@ -199,6 +200,38 @@ function hints() {
   return { chapas, pecas, modelos };
 }
 
+// the readings are in: build the rows of the sheet (same for a reading made here or by the server)
+function completePage(p, sec, { json, single, grp }) {
+  setActiveGroup(grp); // other sheets are read meanwhile: put this sheet's lists back
+  const built = buildPage(json, { year: Number($('year').value) || new Date().getFullYear(), meta: { machineFromBubble: sec.bubble } });
+  const rowWarns = alignRows(built, sec.rowInk);
+  applyInkMotivo(built, sec.inkMotivo);
+  applyKeywords(built);
+  sheetRead();
+  Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk, rowWarn: rowWarns.join('; '), crop: sec.crop, sheet: sec.sheet, sheetGeo: sec.sheetGeo });
+  for (const r of p.prod) r.strip = sec.strips.prod[r.linha - 1];
+  for (const r of p.stops) r.strip = sec.strips.stops[r.linha - 1];
+  p.include = true;
+  inferTurnos(okPages());
+  markDuplicates();
+}
+
+// the server read this sheet (possibly while the tab was closed): turn its raw answers into the page
+function finishFromServer(p, out) {
+  const sec = secrets.get(p.id);
+  if (!sec) return false;
+  try {
+    const grp = listGroup(sec.bubble || normMachine((out.A ?? out.B)?.maquina));
+    setActiveGroup(grp);
+    const single = !!out.single;
+    const json = single ? (out.A ?? out.B) : reconcile(out.A, out.B);
+    p.third = 0;
+    if (!single) { alignJson(json, sec.rowInk); applyThirdReading(json, out.C ?? []); p.third = out.ask ?? 0; }
+    completePage(p, sec, { json, single, grp });
+  } catch (e) { p.status = 'erro'; p.error = e.message; }
+  renderPage(p); updateSummary(); persist(); return true;
+}
+
 async function readPage(p) {
   p.status = 'lendo'; p.error = ''; p.pending = false; renderPage(p);
   const sec = secrets.get(p.id);
@@ -228,18 +261,7 @@ async function readPage(p) {
         } catch (e) { /* the two readings stand; the divergences stay flagged */ if (e.quota) state.quotaHit = true; }
       }
     }
-    setActiveGroup(grp); // other sheets are read meanwhile: put this sheet's lists back
-    const built = buildPage(json, { year: Number($('year').value) || new Date().getFullYear(), meta: { machineFromBubble: sec.bubble } });
-    const rowWarns = alignRows(built, sec.rowInk);
-    applyInkMotivo(built, sec.inkMotivo);
-    applyKeywords(built);
-    sheetRead();
-    Object.assign(p, built, { status: 'ok', single, geomWarn: !sec.geomOk, rowWarn: rowWarns.join('; '), crop: sec.crop, sheet: sec.sheet, sheetGeo: sec.sheetGeo });
-    for (const r of p.prod) r.strip = sec.strips.prod[r.linha - 1];
-    for (const r of p.stops) r.strip = sec.strips.stops[r.linha - 1];
-    p.include = true;
-    inferTurnos(okPages());
-    markDuplicates();
+    completePage(p, sec, { json, single, grp });
   } catch (e) {
     p.status = 'erro'; p.error = e.message;
     if (e.quota) { state.quotaHit = true; p.pending = true; }
@@ -264,10 +286,42 @@ function markDuplicates() {
   state.pages.forEach((p) => { if (p.status === 'ok') renderPage(p); });
 }
 
-const PARALLEL = 3; // sheets read at once
-async function processFiles(files, { append = false, skip = null } = {}) {
+// Background reading: after the upload the server reads the sheets, with this tab open or not.
+let trackToken = 0;
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+async function trackJob(job) {
+  const token = ++trackToken;
+  const st = $('status');
+  let lastKick = 0;
+  while (token === trackToken) {
+    const waiting = state.pages.filter((p) => p.status === 'lendo' && p.jobN);
+    if (!waiting.length) break;
+    if (document.hidden) { await new Promise((r) => document.addEventListener('visibilitychange', r, { once: true })); continue; }
+    const s = await jobStatus(job);
+    if (s) {
+      for (const p of waiting) {
+        if (s.failed?.[p.jobN]) { p.status = 'erro'; p.error = s.failed[p.jobN]; renderPage(p); persist(); }
+        else if (s.done?.includes(p.jobN)) { const out = await jobResult(job, p.jobN); if (out && token === trackToken) finishFromServer(p, out); }
+      }
+      const total = state.pages.filter((p) => p.jobN).length, left = state.pages.filter((p) => p.status === 'lendo' && p.jobN).length;
+      st.hidden = !left;
+      st.replaceChildren(h('div', {}, `Lendo no servidor: ${total - left} de ${total} folhas prontas. Pode fechar esta aba: a leitura continua e estará pronta quando você voltar.`, s.wait ? ' O Gemini está ocupado ou sem cota agora; o servidor tenta de novo sozinho.' : ''), h('progress', { max: total, value: total - left }));
+      // the worker stopped (a failure on the server): wake it up
+      if (left && !s.working && Date.now() - lastKick > 60_000) { lastKick = Date.now(); kickJob(job); }
+    }
+    await sleepMs(10_000);
+  }
+  if (token === trackToken) {
+    st.hidden = true; await clearQueue(); updateQuotaUi();
+    if (state.pages.some((p) => p.jobN)) toast('Leitura concluída. Confira as células destacadas.');
+  }
+}
+
+const PARALLEL = 3; // sheets read at once when the server is not used
+async function processFiles(files, { append = false, skip = null, job: resumeJob = null } = {}) {
   if (state.busy) return toast('Aguarde a leitura atual terminar');
   state.busy = true;
+  trackToken++; // a new upload ends the follow-up of the previous one
   // Only the file being uploaded now is analysed: whatever was loaded before is removed.
   state.quotaHit = false;
   if (state.pages.length && !append) {
@@ -276,25 +330,39 @@ async function processFiles(files, { append = false, skip = null } = {}) {
     toast('Leitura anterior removida. A análise vale só para o arquivo que você enviou agora.');
   }
   discardUndo(); resetReview();
-  if (!skip) await saveQueue(files);
+  const useServer = await jobsAvailable();
+  const jobId = useServer ? (resumeJob ?? newJobId()) : null;
+  if (!skip) await saveQueue(files, jobId);
+  let uploaded = new Set();
+  if (useServer && resumeJob) uploaded = new Set((await jobStatus(resumeJob))?.ready ?? []);
   const st = $('status');
   st.hidden = false;
-  let n = 0;
-  const running = new Set();
+  let n = 0, seq = 0;
+  const running = new Set(), uploads = new Set();
   try {
     for await (const item of readFiles(files)) {
+      seq++;
       if (skip?.has(`${item.name}|${item.page}`)) continue;
       n++;
       if (item.page === 1 && getLimit() && item.total > sheetsLeft()) toast(`Este arquivo tem ${item.total} folha(s) e cabem só cerca de ${sheetsLeft()} hoje pela cota estimada. A leitura continua e, se a cota acabar, você retoma depois.`);
-      st.replaceChildren(h('div', {}, `Lendo ${item.name}, página ${item.page}${item.total > 1 ? ` de ${item.total}` : ''}… não feche esta aba.`), h('progress', { max: item.total, value: item.page - 1 }));
+      st.replaceChildren(h('div', {}, `${useServer ? 'Preparando e enviando' : 'Lendo'} ${item.name}, página ${item.page}${item.total > 1 ? ` de ${item.total}` : ''}… ${useServer ? 'espere o envio terminar; depois a leitura continua no servidor.' : 'não feche esta aba.'}`), h('progress', { max: item.total, value: item.page - 1 }));
       await new Promise((r) => setTimeout(r)); // let the browser paint
       const prep = prepare(item.image, { photo: !!item.photo });
       if (item.page === 1 && !skip) state.batch++;
-      const p = { id: state.nextId++, sid: newSid(), batch: state.batch, file: item.name, label: `${item.name} · pág. ${item.page}`, status: 'lendo', error: '', machine: '', date: '', include: false, prod: [], stops: [] };
+      const p = { id: state.nextId++, sid: newSid(), batch: state.batch, file: item.name, label: `${item.name} · pág. ${item.page}`, status: 'lendo', error: '', machine: '', date: '', include: false, prod: [], stops: [], ...(useServer ? { jobN: seq } : {}) };
       secrets.set(p.id, prep);
       state.pages.push(p);
       $('pages').append(h('section', { class: 'card page', id: `page-${p.id}` }));
-      if (state.quotaHit) {
+      if (useServer) {
+        renderPage(p);
+        if (!uploaded.has(seq)) {
+          while (uploads.size >= 2) await Promise.race(uploads);
+          const up = uploadSheet(jobId, seq, item.total, prep, hints())
+            .catch((e) => { p.status = 'erro'; p.error = `Não consegui enviar a folha ao servidor: ${e.message}`; renderPage(p); })
+            .finally(() => uploads.delete(up));
+          uploads.add(up);
+        }
+      } else if (state.quotaHit) {
         // the free quota ran out: keep the prepared page and let the person resume later
         p.status = 'erro'; p.pending = true; p.error = 'Aguardando a cota do Gemini voltar. Use "Retomar leitura".';
         renderPage(p); persist();
@@ -305,14 +373,17 @@ async function processFiles(files, { append = false, skip = null } = {}) {
         running.add(job);
       }
     }
-    await Promise.all(running);
-    await clearQueue();
-    updateQuotaUi();
-    toast(state.quotaHit ? 'A cota do Gemini acabou no meio da leitura. O que faltou ficou aguardando: use "Retomar leitura" quando ela voltar.' : n ? 'Leitura concluída. Confira as células destacadas.' : 'Nenhuma página encontrada nos arquivos');
+    await Promise.all([...running, ...uploads]);
+    if (useServer && n) { kickJob(jobId); toast('Folhas enviadas. A leitura continua no servidor, mesmo com a aba fechada.'); trackJob(jobId); }
+    else {
+      await clearQueue();
+      updateQuotaUi();
+      toast(state.quotaHit ? 'A cota do Gemini acabou no meio da leitura. O que faltou ficou aguardando: use "Retomar leitura" quando ela voltar.' : n ? 'Leitura concluída. Confira as células destacadas.' : 'Nenhuma página encontrada nos arquivos');
+    }
   } catch (e) {
     toast(`Erro ao abrir arquivo: ${e.message}`);
   } finally {
-    state.busy = false; st.hidden = true; updateSummary();
+    state.busy = false; st.hidden = !(useServer && state.pages.some((p) => p.status === 'lendo' && p.jobN)); updateSummary();
   }
 }
 
@@ -400,7 +471,7 @@ function renderPage(p) {
         : null,
       h('button', { type: 'button', class: 'ghost rm', title: 'Excluir esta folha', dataset: { act: 'delpage', p: p.id } }, 'Excluir folha')));
   const bodyKids = [];
-  if (p.status === 'lendo') bodyKids.push(h('p', {}, 'Lendo esta página (duas leituras)…'));
+  if (p.status === 'lendo') bodyKids.push(h('p', {}, p.jobN ? 'Na fila de leitura do servidor… pode fechar esta aba, a leitura continua.' : 'Lendo esta página (duas leituras)…'));
   if (p.status === 'erro') bodyKids.push(h('p', { class: 'err' }, `Não consegui ler: ${p.error}`), h('button', { type: 'button', dataset: { act: 'retry', p: p.id } }, 'Tentar de novo'));
   if (p.status === 'ok') {
     if (!p.machine) bodyKids.push(h('p', { class: 'note' }, 'A máquina desta folha não foi identificada. Escolha acima; se deixar em branco, o Excel sai com a coluna ROBÔ vazia.'));

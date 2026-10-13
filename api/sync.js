@@ -4,30 +4,15 @@
 //   GET  /api/sync?asset=ID.sheet|ID.strips        PUT /api/sync?asset=…   → the heavy images of one sheet
 // State and images live in a private Vercel Blob store (variable BLOB_READ_WRITE_TOKEN); without it the
 // function answers 503 and the app simply works alone, as before.
-import { put, get, list, del } from '@vercel/blob';
+import { getStore, useStore } from './_store.js';
 import { accessRequired, checkAccess } from './_auth.js';
 
 const STATE = 'sala/estado.json';
 const ASSET = /^[a-z0-9]{6,24}\.(sheet|strips)$/;
 const send = (res, status, body) => res.status(status).setHeader('Cache-Control', 'no-store').json(body);
 
-// Storage behind a tiny interface so the tests can swap it for memory.
-const blobStore = {
-  ok: () => !!process.env.BLOB_READ_WRITE_TOKEN,
-  async read(path) {
-    const r = await get(path, { access: 'private', useCache: false });
-    if (!r || r.statusCode !== 200) return null;
-    return new Response(r.stream).text();
-  },
-  write: (path, text) => put(path, text, { access: 'private', allowOverwrite: true, addRandomSuffix: false, contentType: 'application/json' }),
-  async prune(keep) {
-    const { blobs } = await list({ prefix: 'sala/a/' });
-    const drop = blobs.filter((b) => !keep.has(b.pathname.slice('sala/a/'.length).split('.')[0])).map((b) => b.url);
-    if (drop.length) await del(drop);
-  },
-};
-let store = blobStore;
-export const useStore = (s) => { store = s ?? blobStore; };
+export { useStore };
+const store = new Proxy({}, { get: (_, k) => getStore()[k] });
 
 async function readState() {
   const text = await store.read(STATE);

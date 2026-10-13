@@ -127,3 +127,10 @@ Validado com folhas reais (UMC 01, UMC 02, HMC 16, NCBZ, RAW05) e com a planilha
 - Vale a última gravação: se duas pessoas salvam ao mesmo tempo, a segunda recebe a versão da primeira e é avisada.
 - Uma leitura nova de arquivo substitui a da sala para todos (como já acontece na tela de cada um).
 - Se a página for recarregada no meio da leitura, ela continua sozinha de onde parou.
+
+
+## Leitura em segundo plano
+
+- Ao enviar um PDF, o app prepara cada folha e a envia ao servidor. **A leitura (Gemini) continua no servidor mesmo com a aba fechada**; ao abrir de novo, as folhas lidas já estão prontas e o app monta as linhas.
+- Se o Gemini estiver ocupado ou sem cota, o servidor espera e tenta de novo sozinho (por até 12 horas). Se o servidor de segundo plano não estiver configurado, o app lê com a aba aberta, como antes.
+- Recarregar a página (F5) não perde nada: o arquivo enviado fica guardado e a leitura é retomada.

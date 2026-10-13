@@ -5,6 +5,9 @@
     },
     "api/analyze.js": {
       "maxDuration": 120
+    },
+    "api/work.js": {
+      "maxDuration": 300
     }
   },
   "headers": [

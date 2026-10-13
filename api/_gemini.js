@@ -23,13 +23,13 @@ async function once(model, key, parts, schema, budgetMs, thinking = true) {
 
 // Tries the configured model, then the fallbacks, cycling until the deadline.
 // 503 ("high demand") and 429 are usually per model, so switching model is the fastest way out.
-export async function gemini(models, key, parts, schema) {
+export async function gemini(models, key, parts, schema, { deadlineMs = DEADLINE_MS } = {}) {
   const start = Date.now();
   const trace = []; // one entry per attempt: which model, what came back, how long it took
   let last = { status: 0, text: 'sem resposta' };
-  for (let round = 0; Date.now() - start < DEADLINE_MS; round++) {
+  for (let round = 0; Date.now() - start < deadlineMs; round++) {
     for (const model of models) {
-      const left = DEADLINE_MS - (Date.now() - start);
+      const left = deadlineMs - (Date.now() - start);
       if (left < 8_000) break;
       const t0 = Date.now();
       try {
