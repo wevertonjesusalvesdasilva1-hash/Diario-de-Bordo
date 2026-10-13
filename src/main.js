@@ -1606,3 +1606,27 @@ $('opfile').addEventListener('change', async (e) => {
 });
 $('opclear').addEventListener('click', () => { clearOperators(); showOperators(); refreshAnalysis(); document.querySelectorAll('.opn').forEach((n) => { n.textContent = ''; }); toast('Nomes apagados deste navegador.'); });
 showOperators();
+
+// A tab left open keeps running the old version: when a newer one is published, offer to reload (nothing is lost:
+// the reading is saved in the browser; it only asks, never reloads by itself).
+(() => {
+  const scriptName = (html) => html.match(/assets\/(index-[\w-]+\.js)/)?.[1] ?? '';
+  const mine = scriptName(document.documentElement.outerHTML);
+  if (!mine) return; // dev server: no hashed file
+  let shown = false;
+  const check = async () => {
+    if (shown || document.hidden) return;
+    try {
+      const html = await (await fetch(`/?v=${Date.now()}`, { cache: 'no-store' })).text();
+      const now = scriptName(html);
+      if (!now || now === mine) return;
+      shown = true;
+      const bar = h('div', { id: 'newver', role: 'status' }, h('span', {}, 'Há uma versão nova do app.'),
+        h('button', { type: 'button', onclick: () => location.reload() }, 'Atualizar agora'), h('button', { type: 'button', class: 'nvx', 'aria-label': 'Depois', onclick: () => bar.remove() }, '✕'));
+      document.body.append(bar);
+    } catch { /* offline: try again later */ }
+  };
+  setInterval(check, 3 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  window.addEventListener('focus', check);
+})();

@@ -175,3 +175,6 @@ A aba **3 · Painel** mostra o tempo parado em gráficos animados e clicáveis. 
 
 ### Ver a folha inteira na conferência
 No cabeçalho de cada folha da conferência há o botão **👁 Ver folha inteira**, que abre a imagem completa da folha que está sendo conferida (com zoom e arrastar). Fica desativado se a imagem não estiver neste computador.
+
+### Aviso de versão nova
+Se o app ficar aberto numa aba enquanto uma versão nova é publicada, aparece no alto uma faixa roxa "Há uma versão nova do app" com o botão **Atualizar agora**. O app só pergunta e nunca recarrega sozinho (a leitura fica salva no navegador). A conferência é feita ao voltar para a aba e a cada 3 minutos.
