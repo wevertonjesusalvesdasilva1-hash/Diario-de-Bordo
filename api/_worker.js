@@ -81,6 +81,7 @@ const retriable = (e) => !FATAL.has(e?.status) && !e?.config;
 export async function processJob(job, { budgetMs = 90_000 } = {}) {
   if (!JOB_RE.test(job)) throw new Error('job inválido');
   const store = getStore();
+  if (await readJson(path(job, 'cancel.json'))) return { more: false, cancelled: true }; // the person replaced or cleared this upload
   const lease = await readJson(path(job, 'lease.json'));
   if (lease && lease.until > Date.now()) return { busy: true, more: false };
   const t0 = Date.now();
@@ -95,7 +96,7 @@ export async function processJob(job, { budgetMs = 90_000 } = {}) {
     const pending = () => s.ready.filter((n) => !s.done.includes(n) && !s.failed.includes(n));
     const save = (working) => writeJson(path(job, 'status.json'), { total: meta.total ?? null, ready: s.ready, done: s.done, failed, working, wait, updated: Date.now() });
     await save(true);
-    while (pending().length && Date.now() - t0 < budgetMs && !wait) {
+    while (pending().length && Date.now() - t0 < budgetMs && !wait && !(await readJson(path(job, 'cancel.json')))) {
       const batch = pending().slice(0, 2);
       await Promise.all(batch.map(async (n) => {
         try {

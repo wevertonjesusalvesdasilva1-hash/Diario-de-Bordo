@@ -33,3 +33,4 @@ export async function jobResult(job, n) {
   return r.ok ? json(r) : null;
 }
 export const kickJob = (job) => apiSend('POST', '/api/jobs', { op: 'kick', job }).catch(() => {});
+export const cancelJob = (job) => apiSend('POST', '/api/jobs', { op: 'cancel', job }).catch(() => {});

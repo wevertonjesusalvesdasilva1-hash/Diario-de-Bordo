@@ -77,3 +77,12 @@ test('leitura em segundo plano: erro definitivo vira aviso da folha; outro leito
   st.m.set(`jobs/${job}/lease.json`, JSON.stringify({ until: Date.now() + 60_000 }));
   assert.equal((await processJob(job)).busy, true);
 });
+
+test('leitura em segundo plano: envio cancelado não é lido', async () => {
+  const st = mem(); useStore(st); const job = 'job00006';
+  upload(st, job, 1);
+  st.m.set(`jobs/${job}/cancel.json`, JSON.stringify({ at: 1 }));
+  let calls = 0; useGemini(async () => { calls++; return answer(sheet('7910')); });
+  const r = await processJob(job);
+  assert.equal(r.more, false); assert.equal(calls, 0);
+});

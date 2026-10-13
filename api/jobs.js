@@ -37,6 +37,7 @@ export default async function handler(req, res) {
     const { op, job, n, part, data, total } = req.body ?? {};
     if (!JOB_RE.test(String(job))) return send(res, 400, { error: 'job inválido' });
     if (op === 'kick') { await kick(job, host); return send(res, 200, { ok: true }); }
+    if (op === 'cancel') { await store.write(`jobs/${job}/cancel.json`, JSON.stringify({ at: Date.now() })); return send(res, 200, { ok: true }); }
     if (!Number.isInteger(n) || n < 1 || n > 200) return send(res, 400, { error: 'página inválida' });
     if (op === 'part') {
       if (!PARTS.has(part) || data === undefined) return send(res, 400, { error: 'parte inválida' });

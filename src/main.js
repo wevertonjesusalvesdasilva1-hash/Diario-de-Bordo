@@ -19,7 +19,7 @@ import { allRows, toTSV, workbookBytes } from './core/export.js';
 import { getLists, saveGroupLists, learnAlias, resetLists, setActiveGroup, groupOf as listGroup } from './core/lists.js';
 import { saveState, loadState, saveQueue, loadQueue, clearQueue } from './store.js';
 import { createSync, syncWanted } from './sync.js';
-import { jobsAvailable, uploadSheet, jobStatus, jobResult, kickJob, newJobId } from './jobs.js';
+import { jobsAvailable, uploadSheet, jobStatus, jobResult, kickJob, newJobId, cancelJob } from './jobs.js';
 import { newSid } from './core/share.js';
 import { MOTIVOS, MOTIVOS_ALL, MAQUINAS } from './data/vocab.js';
 
@@ -330,6 +330,7 @@ async function processFiles(files, { append = false, skip = null, job: resumeJob
     toast('Leitura anterior removida. A análise vale só para o arquivo que você enviou agora.');
   }
   discardUndo(); resetReview();
+  if (!append) { const prev = await loadQueue(); if (prev?.job) cancelJob(prev.job); } // the old upload is replaced: stop its reading
   const useServer = await jobsAvailable();
   const jobId = useServer ? (resumeJob ?? newJobId()) : null;
   if (!skip) await saveQueue(files, jobId);
@@ -1025,6 +1026,7 @@ $('undo').addEventListener('click', () => {
 $('onlyflags').addEventListener('change', (e) => $('pages').classList.toggle('onlyflags', e.target.checked));
 $('clear').addEventListener('click', () => {
   if ($('clear').dataset.sure !== '1') { $('clear').dataset.sure = '1'; $('clear').textContent = 'Clique de novo para apagar tudo'; setTimeout(() => { $('clear').dataset.sure = ''; $('clear').textContent = 'Limpar tudo'; }, 4000); return; }
+  loadQueue().then((q) => { if (q?.job) cancelJob(q.job); clearQueue(); }); trackToken++; $('status').hidden = true;
   state.pages.length = 0; secrets.clear(); state.undo = null; $('pages').replaceChildren(); $('clear').dataset.sure = ''; $('clear').textContent = 'Limpar tudo';
   updateSummary(); persist();
 });
