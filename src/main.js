@@ -941,6 +941,43 @@ function openCardModal(key) {
   m.querySelector('.flip').focus({ preventScroll: true });
 }
 
+// Each type of warning is one row of cards that slides sideways: arrows at the ends, the mouse wheel (up = left,
+// down = right), dragging with the mouse, or the finger on a touch screen. The order follows the chosen sort.
+function carousel(cards) {
+  const track = h('div', { class: 'acards' }, cards);
+  const prev = h('button', { type: 'button', class: 'cbtn prev', 'aria-label': 'Cards anteriores', title: 'Voltar' }, '‹');
+  const next = h('button', { type: 'button', class: 'cbtn next', 'aria-label': 'Próximos cards', title: 'Avançar' }, '›');
+  const wrap = h('div', { class: 'carousel' }, prev, track, next);
+  const max = () => track.scrollWidth - track.clientWidth;
+  const sync = () => { prev.hidden = track.scrollLeft < 8; next.hidden = track.scrollLeft > max() - 8; };
+  const step = () => Math.max(240, track.clientWidth * 0.85);
+  prev.addEventListener('click', () => track.scrollBy({ left: -step(), behavior: 'smooth' }));
+  next.addEventListener('click', () => track.scrollBy({ left: step(), behavior: 'smooth' }));
+  track.addEventListener('scroll', sync, { passive: true });
+  new ResizeObserver(sync).observe(track);
+  // wheel: turns the page's vertical scroll into a sideways one while the row can still move that way
+  track.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    const goingRight = e.deltaY > 0;
+    if (goingRight ? track.scrollLeft >= max() - 1 : track.scrollLeft <= 0) return; // at the end: let the page scroll
+    e.preventDefault();
+    track.scrollLeft += e.deltaY;
+  }, { passive: false });
+  // drag with the mouse (a drag must not open the card it ends on)
+  let down = null, moved = false;
+  track.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button === 0) { down = { x: e.clientX, left: track.scrollLeft }; moved = false; } });
+  window.addEventListener('pointermove', (e) => {
+    if (!down) return;
+    const dx = e.clientX - down.x;
+    if (!moved && Math.abs(dx) > 6) { moved = true; track.classList.add('dragging'); }
+    if (moved) track.scrollLeft = down.left - dx;
+  });
+  window.addEventListener('pointerup', () => { if (down) { down = null; track.classList.remove('dragging'); } });
+  track.addEventListener('click', (e) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+  requestAnimationFrame(sync);
+  return wrap;
+}
+
 function renderAnalysis() {
   const root = $('view-analysis');
   const a = state.analysis;
@@ -974,7 +1011,7 @@ function renderAnalysis() {
   for (const k of KINDS) {
     const list = sortCards(shown.filter((c) => c.kind === k.id));
     if (!list.length) continue;
-    sections.push(h('section', { class: 'tier', style: `--kc:${k.color}` }, h('h3', {}, h('i', { class: 'kdot' }), k.name, h('span', { class: 'tcount' }, String(list.length))), h('p', { class: 'khint' }, k.hint), h('div', { class: 'acards' }, list.map(tile))));
+    sections.push(h('section', { class: 'tier', style: `--kc:${k.color}` }, h('h3', {}, h('i', { class: 'kdot' }), k.name, h('span', { class: 'tcount' }, String(list.length))), h('p', { class: 'khint' }, k.hint), carousel(list.map(tile))));
   }
 
   // what the person changed after the reading (kept as it was)

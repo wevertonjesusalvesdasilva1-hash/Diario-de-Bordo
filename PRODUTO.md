@@ -154,3 +154,6 @@ A caixa de envio tem **três** lugares: **RAW** (RAW05 a RAW12), **Usinagem** (U
 
 ### Fotografar várias folhas de uma vez
 **Fotografar folha** abre a câmera dentro do app (no computador e no celular). A cada "Tirar foto" a foto entra numa fileira de miniaturas, cada uma com um ✕ para apagar; quando acabar, **Enviar N fotos** manda todas juntas para a leitura, cada uma como uma folha (por exemplo, três folhas do mesmo robô no mesmo dia). Cancelar ou Esc com fotos tiradas pergunta antes de descartar. "Usar a câmera do aparelho" abre a câmera nativa do celular (uma foto por vez, melhor qualidade). O lado em que se tirou a foto (RAW, usinagem ou duas máquinas) vale para todas.
+
+## Cards em fileiras que deslizam
+Na aba de análise, cada tipo de aviso é **uma fileira** de cards que desliza para os lados, em vez de uma grade que cresce para baixo. Para andar na fileira: as **setas** nas pontas (somem quando não há mais para onde ir), a **roda do mouse** (para baixo vai para a direita, para cima vai para a esquerda; no fim da fileira a roda volta a rolar a página), **arrastar com o mouse**, ou o dedo no celular. A ordem dentro da fileira segue o "Ordenar" escolhido (por padrão, do maior tempo para o menor, da esquerda para a direita; "Menor tempo" inverte).
