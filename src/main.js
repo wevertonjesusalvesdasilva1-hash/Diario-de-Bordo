@@ -64,7 +64,7 @@ function persist(delay = 400) {
   clearTimeout(saveTimer);
   sync?.changed();
   saveTimer = setTimeout(() => {
-    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo }) => ({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo }));
+    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo, markAdj }) => ({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo, markAdj }));
     saveState({ dismissed: [...state.dismissed], checked: [...state.checked], pages: keep, nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig, ai: Array.isArray(state.ai) ? state.ai : null });
   }, delay);
 }
@@ -652,8 +652,10 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('button[data-closecard]') || (e.target.id === 'cardmodal') || e.target.classList?.contains('cmstage')) { closeCardModal(); return; }
   const tl = e.target.closest('.acard');
   if (tl) { openCardModal(tl.dataset.open); return; }
+  const mk = e.target.closest('#cardmodal .sheetwrap .hl');
+  if (mk) { selectMark(mk); return; }
   const sw = e.target.closest('.sheetwrap');
-  if (sw) { openSheetViewer(sw); return; }
+  if (sw) { selectMark(null); openSheetViewer(sw); return; }
   const to = e.target.closest('button[data-flipto]');
   if (to) { const f = to.closest('.flip'); f.classList.add('flipped'); f.setAttribute('aria-pressed', 'true'); return; }
   if (e.target.closest('button[data-flip]')) { const f = e.target.closest('.flip'); f.classList.remove('flipped'); f.setAttribute('aria-pressed', 'false'); return; }
@@ -820,8 +822,8 @@ function sheetView(c) {
   const marks = cardMarks(c, p);
   const img = h('img', { src: p.sheet, alt: `Folha ${p.label}` });
   const pct = (v) => `${(v * 100).toFixed(2)}%`;
-  const inner = h('div', { class: 'focusin' }, img, marks.map((m) => h('i', { class: m.kind === 'cell' ? 'hl cell' : 'hl', style: `top:${pct(m.y)};height:${pct(m.h)};left:${pct(m.x)};width:${pct(m.w)}` })));
-  const wrap = h('div', { class: 'sheetwrap', title: 'Clique para abrir a folha inteira e dar zoom' }, inner, h('span', { class: 'lupa', 'aria-hidden': 'true' }, '🔍'), marks.length ? h('span', { class: 'focushint' }, 'Parte marcada ampliada · clique para ver a folha inteira') : null);
+  const inner = h('div', { class: 'focusin' }, img, marks.map((m) => h('i', { class: m.kind === 'cell' ? 'hl cell' : 'hl', dataset: { mark: m.id, page: p.id }, title: 'Clique para mexer nesta marcação com as setas', style: `top:${pct(m.y)};height:${pct(m.h)};left:${pct(m.x)};width:${pct(m.w)}` })));
+  const wrap = h('div', { class: 'sheetwrap', title: 'Clique para abrir a folha inteira e dar zoom' }, inner, h('span', { class: 'lupa', 'aria-hidden': 'true' }, '🔍'), marks.length ? h('span', { class: 'focushint', dataset: { hint: 'Parte marcada ampliada · clique para ver a folha inteira' } }, 'Parte marcada ampliada · clique para ver a folha inteira') : null);
   // zoom the preview into the marked rows (with a row or two of context) so the handwriting can be read without opening the viewer
   const fit = () => {
     const Ww = wrap.clientWidth, Hw = wrap.clientHeight;
@@ -876,8 +878,42 @@ function flipCard(c) {
   return h('article', { class: `flip ${c.sev}`, style: `--kc:${c.color}`, tabindex: '0', 'aria-pressed': 'false', 'aria-label': `${c.machine}: ${c.title}` }, h('div', { class: 'flip-in' }, front, back));
 }
 
-function closeCardModal() { const m = $('cardmodal'); if (m) { m.classList.add('out'); setTimeout(() => m.remove(), 180); } document.removeEventListener('keydown', onCardKey); }
-function onCardKey(e) { if (e.key === 'Escape' && !$('sheetviewer')) closeCardModal(); }
+function closeCardModal() { selectMark(null); const m = $('cardmodal'); if (m) { m.classList.add('out'); setTimeout(() => m.remove(), 180); } document.removeEventListener('keydown', onCardKey); }
+function onCardKey(e) { if (e.key === 'Escape' && !$('sheetviewer')) { if (selMark) selectMark(null); else closeCardModal(); } }
+
+// A box on the sheet can be picked with a click and nudged with the arrow keys (1 px of the sheet per press, Shift = 5 px).
+let selMark = null;
+function selectMark(el) {
+  selMark?.classList.remove('sel');
+  const hint = selMark?.closest('.sheetwrap')?.querySelector('.focushint');
+  if (hint) hint.textContent = hint.dataset.hint;
+  selMark = el;
+  if (!el) return;
+  el.classList.add('sel');
+  const t = el.closest('.sheetwrap')?.querySelector('.focushint');
+  if (t) t.textContent = 'Setas ← ↑ ↓ → movem a marcação (Shift: mais rápido) · duplo clique volta ao lugar · Esc sai';
+}
+function nudgeMark(el, dx, dy) {
+  const p = pageOf(+el.dataset.page); if (!p) return;
+  const img = el.closest('.focusin')?.querySelector('img'); if (!img?.naturalWidth) return;
+  const adj = ((p.markAdj ??= {})[el.dataset.mark] ??= [0, 0]);
+  adj[0] += dx / img.naturalWidth; adj[1] += dy / img.naturalHeight;
+  el.style.left = `${(parseFloat(el.style.left) + (dx / img.naturalWidth) * 100).toFixed(3)}%`;
+  el.style.top = `${(parseFloat(el.style.top) + (dy / img.naturalHeight) * 100).toFixed(3)}%`;
+  persist();
+}
+function resetMark(el) {
+  const p = pageOf(+el.dataset.page); const adj = p?.markAdj?.[el.dataset.mark]; if (!adj) return;
+  nudgeMark(el, -adj[0] * (el.closest('.focusin').querySelector('img').naturalWidth), -adj[1] * (el.closest('.focusin').querySelector('img').naturalHeight));
+  delete p.markAdj[el.dataset.mark]; persist();
+}
+document.addEventListener('keydown', (e) => {
+  if (!selMark || !selMark.isConnected || !e.key.startsWith('Arrow') || e.target.closest?.('input, textarea, select')) return;
+  e.preventDefault();
+  const step = e.shiftKey ? 5 : 1;
+  nudgeMark(selMark, e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0, e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0);
+});
+document.addEventListener('dblclick', (e) => { const mk = e.target.closest?.('#cardmodal .sheetwrap .hl'); if (mk) resetMark(mk); });
 function openCardModal(key) {
   const c = (state.analysis?.report ?? []).find((x) => x.key === key);
   if (!c) return;

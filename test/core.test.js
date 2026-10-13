@@ -104,3 +104,10 @@ test('marcações do card: linha inteira e células pedidas', () => {
   assert.equal(marks[1].kind, 'cell'); assert.ok(marks[1].x > 0.1 && marks[1].w < 0.8);
   assert.deepEqual(cardMarks({ refs: [{ table: 'stops', linha: 1 }] }, page), []);
 });
+test('marcações: o ajuste feito com as setas desloca só a caixa escolhida', () => {
+  const page = { sheetGeo: { prod: { y: [0.1, 0.2, 0.3], x0: 0.1, x1: 0.9 } }, markAdj: { 'prod|2|row': [0.01, -0.005] } };
+  const [row] = cardMarks({ refs: [{ table: 'prod', linha: 2 }, { table: 'prod', linha: 1 }] }, page);
+  assert.ok(Math.abs(row.x - 0.11) < 1e-9 && Math.abs(row.y - 0.195) < 1e-9);
+  const other = cardMarks({ refs: [{ table: 'prod', linha: 1 }] }, page)[0];
+  assert.ok(Math.abs(other.x - 0.1) < 1e-9 && Math.abs(other.y - 0.1) < 1e-9);
+});

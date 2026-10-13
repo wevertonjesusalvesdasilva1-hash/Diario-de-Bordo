@@ -5,7 +5,10 @@ const COLS = {
   stops: { data: 1, chapa: 2, ini: 3, fim: 4, turno: 5, motivo: [6, 15], desc: 16 },
 };
 
-// card.refs = [{ table, linha, fields? }]; page = { sheetGeo, crop } → [{ kind: 'row' | 'cell', x, y, w, h }]
+const nudge = (m, page) => { const a = page?.markAdj?.[m.id]; return a ? { ...m, x: m.x + a[0], y: m.y + a[1] } : m; };
+
+// card.refs = [{ table, linha, fields? }]; page = { sheetGeo, crop, markAdj } → [{ id, kind: 'row' | 'cell', x, y, w, h }]
+// page.markAdj[id] = [dx, dy] is the user's nudge of one box (fractions of the image), kept with the sheet.
 export function cardMarks(card, page) {
   const out = [];
   for (const r of card.refs ?? []) {
@@ -13,7 +16,7 @@ export function cardMarks(card, page) {
     const n = (r.linha || 0) - 1;
     if (!g || n < 0 || n + 1 >= g.y.length) continue;
     const y = g.y[n], h = g.y[n + 1] - g.y[n];
-    out.push({ kind: 'row', x: g.x0, y, w: g.x1 - g.x0, h });
+    out.push(nudge({ id: `${r.table}|${r.linha}|row`, kind: 'row', x: g.x0, y, w: g.x1 - g.x0, h }, page));
     const meta = page?.crop?.[r.table];
     if (!meta) continue;
     for (const f of r.fields ?? []) {
@@ -22,7 +25,7 @@ export function cardMarks(card, page) {
       const [c0, c1] = Array.isArray(spec) ? spec : [spec, spec];
       const a = meta.cols[c0]?.[0], b = meta.cols[c1]?.[1];
       if (a == null || b == null) continue;
-      out.push({ kind: 'cell', x: g.x0 + a * (g.x1 - g.x0), y, w: (b - a) * (g.x1 - g.x0), h });
+      out.push(nudge({ id: `${r.table}|${r.linha}|${f}`, kind: 'cell', x: g.x0 + a * (g.x1 - g.x0), y, w: (b - a) * (g.x1 - g.x0), h }, page));
     }
   }
   return out;

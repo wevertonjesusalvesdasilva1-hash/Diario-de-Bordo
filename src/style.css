@@ -579,6 +579,8 @@ td.auto.edited::after { content: "editado"; }
 .sheetwrap img { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; object-fit: contain; }
 .sheetwrap .hl { position: absolute; border: 2px solid #e11d1d; background: transparent; border-radius: 2px; pointer-events: none; box-shadow: 0 0 0 1px rgb(255 255 255 / .85); }
 .sheetwrap { min-height: 170px; }
+#cardmodal .sheetwrap .hl { pointer-events: auto; cursor: pointer; }
+#cardmodal .sheetwrap .hl.sel { border-color: #ff2d2d; border-style: dashed; box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgb(225 29 29 / .55); cursor: move; z-index: 2; }
 .sheetwrap .focusin { position: absolute; }
 .sheetwrap .focusin img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: fill; }
 .focushint { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); padding: 3px 9px; border-radius: 999px; background: rgb(0 0 0 / .6); color: #fff; font-size: .72rem; pointer-events: none; }
