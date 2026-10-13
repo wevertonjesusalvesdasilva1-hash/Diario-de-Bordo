@@ -34,3 +34,16 @@ test('painel: pareto acumulado e tempo parado por turno', () => {
   assert.ok(P.byMotivo[0].acc < 100 && P.byMotivo[0].acc >= P.byMotivo[0].min / P.stopMin * 100 - 1);
   assert.equal(P.byTurno.reduce((s, t) => s + t.min, 0), P.stopMin);
 });
+
+test('painel: lista completa das paradas, mapa de calor e disponibilidade batem com os totais', () => {
+  const P = buildPanel(pages);
+  assert.equal(P.all.length, P.count);
+  assert.equal(P.all.reduce((n, x) => n + x.min, 0), P.stopMin);
+  // o mapa de calor soma exatamente o tempo parado, e cada parada reparte seus minutos pelas horas
+  assert.equal(P.heat.flatMap((r) => r.hours).reduce((n, x) => n + x, 0), P.stopMin);
+  for (const x of P.all) assert.equal(Object.values(x.perHour).reduce((n, v) => n + v, 0), x.min);
+  assert.equal(P.heat.find((r) => r.machine === 'UMC 01').hours[10], 60);
+  assert.equal(P.prodPct, Math.round((P.prodMin / (P.prodMin + P.stopMin)) * 100));
+  const x = P.all.find((y) => y.machine === 'UMC 01');
+  assert.equal(x.clock, '10:00'); assert.equal(x.chapa, '7910'); assert.equal(x.turno, '1');
+});

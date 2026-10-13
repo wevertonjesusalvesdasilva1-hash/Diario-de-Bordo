@@ -1,4 +1,6 @@
 import './verificado.css';
+import './panel.css';
+import { renderPanelUI, resetPanelSelection } from './panelui.js';
 import { readFiles, toCanvas, jpegB64, jpegUrl, shrinkCanvas } from './files.js';
 import { fitToBudget } from './core/fit.js';
 import { analyze, detectMachine } from './core/layout.js';
@@ -1087,49 +1089,18 @@ function renderPanel() {
   const inc = includedPages();
   if (!inc.length) { root.replaceChildren(h('p', { class: 'note' }, 'Suba e leia uma folha para ver o painel.')); return; }
   const P = buildPanel(inc, panelOpt);
-  const tile = (lab, val, small, cls = '') => h('div', { class: `tile ${cls}` }, h('span', { class: 'lab' }, lab), h('b', {}, val), h('small', {}, small));
-  const sel = (id, opts, cur, fn) => { const el = h('select', { id }, opts.map(([v, t]) => h('option', { value: v, selected: String(v) === String(cur) }, t))); el.addEventListener('change', () => { fn(el.value); renderPanel(); }); return el; };
   const hasRaw = inc.some((p) => listGroup(p.machine) === 'raw'), hasUsi = inc.some((p) => listGroup(p.machine) === 'usi');
   const groups = [['all', 'Todas as máquinas']]; if (hasRaw && hasUsi) groups.push(['raw', 'Só RAW'], ['usi', 'Só usinagem']);
-  const filters = h('div', { class: 'row' },
-    h('label', {}, 'Grupo ', sel('pn-group', groups, panelOpt.group, (v) => { panelOpt.group = v; panelOpt.day = 'all'; })),
-    h('label', {}, 'Dia ', sel('pn-day', [['all', 'Todos'], ...P.days.map((d) => [d.key, d.label])], panelOpt.day, (v) => { panelOpt.day = v; })));
   const note = state.reviewed ? null : h('p', { class: 'note' }, 'Atenção: dados ainda não aprovados com o OK. Os números podem mudar após a conferência.');
-  if (!P.byMachine.length) { root.replaceChildren(h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Painel'), filters, h('p', { class: 'note' }, 'Sem horários válidos para este filtro.'))); return; }
-
-  const maxMot = Math.max(1, ...P.byMotivo.map((x) => x.min));
-  const maxMac = Math.max(1, ...P.byMachine.map((m) => m.stopMin));
-  const maxHour = Math.max(1, ...P.byHour);
-  const stack = (m) => h('div', { class: 'stack', style: `width:${Math.round((m.stopMin / maxMac) * 100)}%` },
-    m.motivos.map((x) => h('i', { style: `flex:${x.min};background:${motColor(x.motivo)}`, title: `${x.motivo}: ${fmtDur(x.min)}` })));
-  const legend = h('div', { class: 'legend' }, P.byMotivo.map((x) => h('span', {}, h('i', { style: `background:${motColor(x.motivo)}` }), x.motivo)));
-
-  root.replaceChildren(
-    h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Painel · tempo parado'), filters, note,
-      h('div', { class: 'astats' },
-        tile('Parado', fmtDur(P.stopMin), `${P.pct} % do tempo registrado`, P.pct >= 30 ? 'warn' : ''),
-        tile('Produzindo', fmtDur(P.prodMin), 'tempo registrado'),
-        tile('Paradas', String(P.count), 'registros'),
-        tile('Maior parada', P.longest ? fmtDur(P.longest.min) : '—', P.longest ? `${P.longest.machine} · ${P.longest.motivo}` : ''))),
-    h('section', { class: 'card' }, h('h3', {}, 'Tempo parado por motivo'),
-      P.byMotivo.length ? P.byMotivo.map((x) => h('div', { class: 'brow' }, h('span', {}, x.motivo),
-        h('div', { class: 'track' }, h('i', { style: `width:${Math.round((x.min / maxMot) * 100)}%;background:${motColor(x.motivo)}` })), h('b', {}, `${fmtDur(x.min)} · ${x.count}× · ${x.acc}% acum.`)))
-        : h('p', { class: 'note' }, 'Nenhuma parada registrada.')),
-    h('section', { class: 'card' }, h('h3', {}, 'Tempo parado por turno'),
-      P.byTurno.map((x) => h('div', { class: 'brow' }, h('span', {}, x.turno === '?' ? 'Sem turno' : `Turno ${x.turno}`),
-        h('div', { class: 'track' }, h('i', { style: `width:${Math.round((x.min / Math.max(1, ...P.byTurno.map((y) => y.min))) * 100)}%` })), h('b', {}, fmtDur(x.min))))),
-    h('section', { class: 'card' }, h('h3', {}, 'Tempo parado por máquina'), legend,
-      P.byMachine.map((m) => h('div', { class: 'brow' }, h('span', {}, m.name, h('small', {}, ` ${m.pct} % parada`)),
-        h('div', { class: 'track plain' }, stack(m)), h('b', {}, fmtDur(m.stopMin))))),
-    h('section', { class: 'card' }, h('h3', {}, 'Paradas ao longo do dia (por hora)'),
-      h('div', { class: 'hours' }, P.byHour.map((v, i) => h('div', { class: 'hcol', title: `${String(i).padStart(2, '0')}h: ${fmtDur(v)}` },
-        h('i', { style: `height:${Math.round((v / maxHour) * 100)}%` }), h('small', {}, String(i)))))),
-    h('section', { class: 'card' }, h('h3', {}, 'Maiores paradas'),
-      P.top.length ? P.top.map((t) => h('div', { class: 'issue' },
-        h('span', { class: 'tag' }, fmtDur(t.min)),
-        h('div', {}, `${t.machine} · ${t.motivo}`, h('small', {}, t.desc || `linha ${t.linha || '?'}`)),
-        h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: t.page, k: t.table, r: t.ri } }, 'Ir para a linha')))
-        : h('p', { class: 'note' }, 'Nenhuma parada registrada.')));
+  if (!P.byMachine.length) {
+    const sel = (opts, cur, fn) => { const el = h('select', {}, opts.map(([v, t]) => h('option', { value: v, selected: String(v) === String(cur) }, t))); el.addEventListener('change', () => { fn(el.value); renderPanel(); }); return el; };
+    root.replaceChildren(h('section', { class: 'card' }, h('h2', { class: 'ptitle' }, 'Painel'), h('div', { class: 'row' },
+      h('label', {}, 'Grupo ', sel(groups, panelOpt.group, (v) => { panelOpt.group = v; panelOpt.day = 'all'; })), h('label', {}, 'Dia ', sel([['all', 'Todos'], ...P.days.map((d) => [d.key, d.label])], panelOpt.day, (v) => { panelOpt.day = v; }))),
+      h('p', { class: 'note' }, 'Sem horários válidos para este filtro.')));
+    return;
+  }
+  renderPanelUI(root, P, { fmtDur, motColor, who: (c) => (c ? operatorName(c) || `chapa ${c}` : ''), note,
+    filters: { groups, days: P.days, opt: panelOpt, onChange: (o) => { Object.assign(panelOpt, o); resetPanelSelection(); renderPanel(); } } });
 }
 $('tab-panel').addEventListener('click', () => showTab('panel'));
 

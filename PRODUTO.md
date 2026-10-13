@@ -157,3 +157,12 @@ A caixa de envio tem **três** lugares: **RAW** (RAW05 a RAW12), **Usinagem** (U
 
 ## Cards em fileiras que deslizam
 Na aba de análise, cada tipo de aviso é **uma fileira** de cards que desliza para os lados, em vez de uma grade que cresce para baixo. Para andar na fileira: as **setas** nas pontas (somem quando não há mais para onde ir), a **roda do mouse** (para baixo vai para a direita, para cima vai para a esquerda; no fim da fileira a roda volta a rolar a página), **arrastar com o mouse**, ou o dedo no celular. A ordem dentro da fileira segue o "Ordenar" escolhido (por padrão, do maior tempo para o menor, da esquerda para a direita; "Menor tempo" inverte).
+
+## Painel (estilo BI)
+A aba **3 · Painel** mostra o tempo parado em gráficos animados e clicáveis. Todos os números vêm dos mesmos horários conferidos da análise (`core/panel.js`); nada é estimado.
+- **Indicadores** no topo (tempo parado, produzindo, número de paradas e a curva das paradas ao longo do dia) com contagem animada.
+- **Rosca por motivo:** passe o mouse numa fatia para ver o motivo, o tempo e a porcentagem; clique para abrir a tabela **Detalhes** ao lado, com cada parada daquele motivo (máquina, motivo, hora de início, duração, operador e "Ir para a linha").
+- **Mapa de calor** (máquina × hora do dia, começando às 04h): quanto mais escuro, mais tempo parado naquela hora; clique numa célula para ver as paradas daquela máquina naquela hora.
+- **Máquinas, turnos e horas** também são clicáveis e preenchem a mesma tabela. Clique de novo (ou no ✕) para limpar.
+- **Aproveitamento:** medidor em segmentos com a porcentagem do tempo registrado em que a máquina estava produzindo.
+- Filtros de grupo (RAW/usinagem) e de dia no topo; em tela pequena os cartões empilham. Respeita "reduzir movimento" do aparelho.
