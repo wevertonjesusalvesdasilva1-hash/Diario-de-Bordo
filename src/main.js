@@ -1,3 +1,4 @@
+import './verificado.css';
 import { readFiles, toCanvas, jpegB64, jpegUrl, shrinkCanvas } from './files.js';
 import { fitToBudget } from './core/fit.js';
 import { analyze, detectMachine } from './core/layout.js';
@@ -29,7 +30,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
 
-const state = { dismissed: new Set(), pages: [], nextId: 1, batch: 0, busy: false, undo: null, reviewed: false, okAt: null, okSig: '', analysis: null, ai: null, tab: 'read' };
+const state = { dismissed: new Set(), checked: new Set(), pages: [], nextId: 1, batch: 0, busy: false, undo: null, reviewed: false, okAt: null, okSig: '', analysis: null, ai: null, tab: 'read' };
 const secrets = new Map(); // page id → { images } kept only in memory, for "tentar de novo"
 
 function h(tag, attrs = {}, ...kids) {
@@ -62,7 +63,7 @@ function persist(delay = 400) {
   sync?.changed();
   saveTimer = setTimeout(() => {
     const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo }) => ({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo }));
-    saveState({ dismissed: [...state.dismissed], pages: keep, nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig, ai: Array.isArray(state.ai) ? state.ai : null });
+    saveState({ dismissed: [...state.dismissed], checked: [...state.checked], pages: keep, nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig, ai: Array.isArray(state.ai) ? state.ai : null });
   }, delay);
 }
 
@@ -74,7 +75,7 @@ async function restore() {
   if (!saved?.pages?.length) return;
   state.nextId = saved.nextId ?? saved.pages.length + 1;
   state.batch = saved.batch ?? 0;
-  state.dismissed = new Set(saved.dismissed ?? []);
+  state.dismissed = new Set(saved.dismissed ?? []); state.checked = new Set(saved.checked ?? []);
   for (const p of saved.pages) {
     if (p.status === 'erro') p.error = `${p.error || 'Erro'} (envie o arquivo de novo para repetir)`;
     p.file ??= String(p.label).split(' · pág.')[0];
@@ -97,7 +98,7 @@ async function restore() {
 function applyShared({ pages, meta }) {
   state.pages = []; $('pages').replaceChildren();
   state.nextId = meta.nextId ?? pages.length + 1; state.batch = meta.batch ?? 0;
-  state.dismissed = new Set(meta.dismissed ?? []);
+  state.dismissed = new Set(meta.dismissed ?? []); state.checked = new Set(meta.checked ?? []);
   for (const p of pages) {
     p.pending = false; state.pages.push(p);
     $('pages').append(h('section', { class: 'card page', id: `page-${p.id}` }));
@@ -120,7 +121,7 @@ function setSyncStatus(kind, text) {
 }
 sync = createSync({
   getPages: () => state.pages,
-  getMeta: () => ({ dismissed: [...state.dismissed], nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig }),
+  getMeta: () => ({ dismissed: [...state.dismissed], checked: [...state.checked], nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig }),
   apply: applyShared,
   busy: () => state.busy,
   status: setSyncStatus,
@@ -358,7 +359,7 @@ async function processFiles(files, { append = false, skip = null, job: resumeJob
   state.quotaHit = false;
   if (state.pages.length && !append) {
     for (const p of state.pages) secrets.delete(p.id);
-    state.pages = []; state.dismissed.clear(); $('pages').replaceChildren();
+    state.pages = []; state.dismissed.clear(); state.checked.clear(); $('pages').replaceChildren();
     toast('Leitura anterior removida. A análise vale só para o arquivo que você enviou agora.');
   }
   discardUndo(); resetReview();
@@ -641,6 +642,10 @@ document.addEventListener('click', (e) => {
   if (fk) { anaKind = fk.dataset.anakind; renderAnalysis(); return; }
   const dis = e.target.closest('button[data-dismiss]');
   if (dis) { state.dismissed.add(dis.dataset.dismiss); closeCardModal(); refreshAnalysis(); persist(0); toast('Marcado como anotação correta. Dá para desfazer no topo da análise.'); return; }
+  const chk = e.target.closest('button[data-check]');
+  if (chk) { const k = chk.dataset.check; const on = !state.checked.has(k); if (on) state.checked.add(k); else state.checked.delete(k); closeCardModal(); renderAnalysis(); persist(0); toast(on ? 'Marcado como verificado: o card ficou escuro.' : 'Verificação desfeita.'); return; }
+  const so = e.target.closest('button[data-anasort]');
+  if (so) { anaSort = so.dataset.anasort; try { localStorage.setItem('mt-sort', anaSort); } catch { /* private mode */ } renderAnalysis(); return; }
   if (e.target.closest('button[data-undismiss]')) { state.dismissed.clear(); refreshAnalysis(); persist(0); return; }
   if (e.target.closest('button[data-closecard]') || (e.target.id === 'cardmodal') || e.target.classList?.contains('cmstage')) { closeCardModal(); return; }
   const tl = e.target.closest('.acard');
@@ -797,6 +802,14 @@ function goToRow(pid, table, ri) {
 const SEV = { alta: ['Alta', 'tag bad'], media: ['Média', 'tag'], info: ['Info', 'tag'] };
 const goBtn = (i) => h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: i.page, k: i.table, r: i.ri } }, 'Ir para a linha');
 let anaMachine = 'all', anaKind = 'all', showDismissed = false;
+let anaSort = (() => { try { return localStorage.getItem('mt-sort') || 'tempo-desc'; } catch { return 'tempo-desc'; } })();
+const SORTS = [['tempo-desc', 'Maior tempo primeiro'], ['tempo-asc', 'Menor tempo primeiro'], ['maquina', 'Máquina'], ['operador', 'Operador']];
+// inside each type: the longest times first (the riskiest), verified cards last
+function sortCards(list) {
+  const name = (c) => c.people?.[0]?.nome || c.people?.[0]?.chapa || '~';
+  const by = { 'tempo-desc': (a, b) => b.mins - a.mins, 'tempo-asc': (a, b) => a.mins - b.mins, maquina: (a, b) => String(a.machine).localeCompare(String(b.machine), 'pt-BR', { numeric: true }) || b.mins - a.mins, operador: (a, b) => name(a).localeCompare(name(b), 'pt-BR') || b.mins - a.mins }[anaSort];
+  return [...list].sort((a, b) => (state.checked.has(a.key) - state.checked.has(b.key)) || by(a, b));
+}
 
 // Back of a card: the whole sheet, with the rows that matter outlined. Click it to open the viewer (zoom).
 function sheetView(c) {
@@ -818,12 +831,13 @@ const peopleEl = (c, big) => h('div', { class: `oper-id${big ? ' big' : ''}` }, 
 
 // compact tile in the grid: click to open the card full screen
 function tile(c) {
-  return h('article', { class: 'acard', style: `--kc:${c.color}`, dataset: { open: c.key }, tabindex: '0', role: 'button', 'aria-label': `${c.machine}: ${c.title}. Clique para abrir.` },
+  const done = state.checked.has(c.key);
+  return h('article', { class: `acard${done ? ' done' : ''}`, style: `--kc:${c.color}`, dataset: { open: c.key }, tabindex: '0', role: 'button', 'aria-label': `${c.machine}: ${c.title}. Clique para abrir.` },
     h('div', { class: 'ftop' }, h('strong', { class: 'fmachine' }, c.machine), h('span', { class: 'kchip' }, h('i', {}), c.title)),
     peopleEl(c, false),
     c.big ? h('div', { class: 'fbig2' }, h('b', {}, c.big), h('small', {}, c.bigLabel)) : null,
     h('p', { class: 'tbrief' }, c.brief),
-    h('div', { class: 'ffoot' }, h('span', {}, c.day ? `Folha do dia ${c.day}` : c.label), h('span', { class: 'fhint' }, 'Abrir ⤢')));
+    h('div', { class: 'ffoot' }, h('span', {}, c.day ? `Folha do dia ${c.day}` : c.label), h('span', { class: 'fhint' }, done ? '✓ Verificado' : 'Abrir ⤢')));
 }
 
 // full-screen card: front = what was written, back = the sheet with the row outlined
@@ -835,7 +849,8 @@ function flipCard(c) {
     c.fix ? h('div', { class: 'ffix' }, c.fix) : null,
     c.caution ? h('p', { class: 'fcaution' }, '⚠ ', c.caution) : null,
     (c.lines ?? []).length ? h('details', { class: 'fread' }, h('summary', {}, 'Ver os dados lidos'), (c.lines ?? []).map((l) => h('div', { class: 'fline' }, l))) : null,
-    h('div', { class: 'ffoot' }, h('span', {}, c.day ? `Folha do dia ${c.day}` : c.label), h('button', { type: 'button', class: 'viewbtn', dataset: { flipto: '1' } }, 'Ver folha ↻')));
+    h('div', { class: 'ffoot' }, h('span', {}, c.day ? `Folha do dia ${c.day}` : c.label), h('button', { type: 'button', class: 'viewbtn', dataset: { flipto: '1' } }, 'Ver folha ↻')),
+    h('button', { type: 'button', class: `checkbtn${state.checked.has(c.key) ? ' on' : ''}`, dataset: { check: c.key } }, state.checked.has(c.key) ? '↩ Desmarcar verificado' : '✓ Marcar como verificado'));
   const back = h('div', { class: 'face back' },
     sheetView(c),
     h('div', { class: 'fbtns' }, goBtn(c), h('button', { type: 'button', class: 'ghost ok', dataset: { dismiss: c.key }, title: 'A folha está certa: tira este aviso' }, 'Anotação correta ✓'), h('button', { type: 'button', class: 'ghost', dataset: { flip: '1' } }, 'Voltar ↻')));
@@ -868,24 +883,26 @@ function renderAnalysis() {
   const byMachine = report.filter((c) => anaMachine === 'all' || c.machine === anaMachine);
   const shown = byMachine.filter((c) => anaKind === 'all' || c.kind === anaKind);
   const graves = shown.filter((c) => c.sev === 'alta').length;
+  const checkedN = shown.filter((c) => state.checked.has(c.key)).length;
   const hidden = report.hidden ?? 0;
 
   const chipRow = (label, items) => h('div', { class: 'fchips' }, h('span', { class: 'flabel' }, label), items);
   const machineChips = machines.length > 1 ? chipRow('Máquina', ['all', ...machines].map((m) => h('button', { type: 'button', class: `fchip${anaMachine === m ? ' on' : ''}`, dataset: { anamachine: m } }, m === 'all' ? 'Todas' : m))) : null;
   const kindChips = kindsPresent.length > 1 ? chipRow('Tipo', [h('button', { type: 'button', class: `fchip${anaKind === 'all' ? ' on' : ''}`, dataset: { anakind: 'all' } }, 'Todos'),
     ...kindsPresent.map((k) => h('button', { type: 'button', class: `fchip kind${anaKind === k.id ? ' on' : ''}`, style: `--kc:${k.color}`, dataset: { anakind: k.id } }, h('i', {}), k.name, h('em', {}, String(byMachine.filter((c) => c.kind === k.id).length))))]) : null;
+  const sortChips = chipRow('Ordenar', SORTS.map(([id, label]) => h('button', { type: 'button', class: `fchip${anaSort === id ? ' on' : ''}`, dataset: { anasort: id } }, label)));
   const head = h('section', { class: 'card' },
     h('h2', { class: 'ptitle' }, 'Análise', h('span', { class: 'badge-ai' }, `${a.sheets} folha(s) · OK às ${new Date(state.okAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`)),
     h('div', { class: 'row backrow' },
       h('button', { type: 'button', class: 'ghost', dataset: { nav: 'read' } }, '← Voltar à conferência'),
       h('button', { type: 'button', class: 'ghost', dataset: { nav: 'undo' } }, 'Desfazer o OK e revisar de novo')),
-    h('p', { class: 'asum' }, shown.length ? h('span', {}, h('b', {}, `${shown.length} aviso${shown.length === 1 ? '' : 's'}`), graves ? ` · ${graves} grave${graves === 1 ? '' : 's'}` : '', ' · clique em um card para abrir') : 'Nenhum aviso para este filtro.',
+    h('p', { class: 'asum' }, shown.length ? h('span', {}, h('b', {}, `${shown.length} aviso${shown.length === 1 ? '' : 's'}`), graves ? ` · ${graves} grave${graves === 1 ? '' : 's'}` : '', ' · clique em um card para abrir', checkedN ? ` · ${checkedN} verificado${checkedN === 1 ? '' : 's'}` : '') : 'Nenhum aviso para este filtro.',
       hidden ? h('span', { class: 'dism' }, ` · ${hidden} marcado${hidden === 1 ? '' : 's'} como correto${hidden === 1 ? '' : 's'} `, h('button', { type: 'button', class: 'linkbtn', dataset: { undismiss: '1' } }, 'desfazer')) : null),
-    machineChips, kindChips);
+    machineChips, kindChips, sortChips);
 
   const sections = [head];
   for (const k of KINDS) {
-    const list = shown.filter((c) => c.kind === k.id);
+    const list = sortCards(shown.filter((c) => c.kind === k.id));
     if (!list.length) continue;
     sections.push(h('section', { class: 'tier', style: `--kc:${k.color}` }, h('h3', {}, h('i', { class: 'kdot' }), k.name, h('span', { class: 'tcount' }, String(list.length))), h('p', { class: 'khint' }, k.hint), h('div', { class: 'acards' }, list.map(tile))));
   }
