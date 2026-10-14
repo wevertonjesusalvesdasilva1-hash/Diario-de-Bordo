@@ -157,3 +157,11 @@ export async function renderBaseCard(root, ctx) {
   }
   body.replaceChildren(...rows);
 }
+
+// the base screen as a window (opened from the ⋮ menu): see what is stored, import the Excel history, undo an envio
+export function openBaseModal(ctx) {
+  const host = h('div', { class: 'bd-card-body' });
+  modal('Base de dados', host, { wide: true });
+  const reload = () => { renderBaseCard(host, { ...ctx, reload }); ctx.reload?.(); };
+  renderBaseCard(host, { ...ctx, reload });
+}

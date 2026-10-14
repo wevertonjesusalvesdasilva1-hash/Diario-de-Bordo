@@ -200,7 +200,7 @@ Nos campos INÍCIO e FIM (produção e paradas, na conferência e na revisão r�
 
 ## Base de dados e BI (aba "3 · Painel BI")
 - **Subir para a base de dados**: depois do OK aparece o botão. Ele confere (sem dúvidas pendentes, máquina escolhida), mostra o que vai entrar (produções e paradas) e só envia depois de a pessoa marcar que está tudo certo. Folha enviada ganha o selo "✓ na base"; reenviar não duplica; cada envio pode ser desfeito.
-- **Importar histórico (Excel)**: lê as abas PRODUÇÃO e PARADAS do arquivo de controle (RAW ou usinagem), mostra a prévia e só grava depois da confirmação. Mantém os valores de TEMPO/DEC do Excel; linhas idênticas repetidas entram todas.
+- **Importar histórico (Excel)** (menu ⋮ → "Base de dados"): lê as abas PRODUÇÃO e PARADAS do arquivo de controle (RAW ou usinagem), mostra a prévia e só grava depois da confirmação. Mantém os valores de TEMPO/DEC do Excel; linhas idênticas repetidas entram todas.
 - **BI**: reproduz os relatórios do Power BI (RAW e usinagem) sobre essa base: mesmas medidas (disponibilidade = horas produzidas ÷ (18,58 h × dias de cada máquina), meta 88%, ganho sobre o tempo padrão, Pareto com % acumulado), mesmas relações (a parada só aparece com a produção da mesma data, máquina e chapa final) e mesmas cores. Clicar numa barra filtra os outros gráficos.
 - Diferenças conhecidas: título dos cartões corrigido ("HORAS PRODUZIDAS" etc.); meses em ordem do calendário; se o Excel tem TEMPO/DEC vazio, o app usa a soma dos horários.
 - Uma só aba, **Painel BI**: primeiro os **Indicadores** (relatórios do Power BI sobre a base) e, no final da mesma aba, **Folhas de hoje** (o Painel de antes, com todos os gráficos). Visual (cores, cartões) segue o Painel.

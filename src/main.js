@@ -1,7 +1,7 @@
 import './verificado.css';
 import './panel.css';
 import { renderPanelUI, resetPanelSelection, panelMaxKey, closePanelMax, reopenPanelMax } from './panelui.js';
-import { openSubmit, renderBaseCard } from './basedados.js';
+import { openSubmit, openBaseModal } from './basedados.js';
 import { renderBiUI, setBiGroup } from './biui.js';
 import { readFiles, toCanvas, jpegB64, jpegUrl, shrinkCanvas } from './files.js';
 import { fitToBudget } from './core/fit.js';
@@ -1200,7 +1200,7 @@ function openSubmitBase() {
 $('submitbase').addEventListener('click', openSubmitBase);
 function renderBi() {
   if (viewGroup !== 'all') setBiGroup(viewGroup);   // "Visualizar" (RAW / Usinagem) also picks the BI group
-  renderBiUI($('view-bi'), { toast, onGroup: (g) => { if (bothGroups()) setView(g); }, renderBase: (host) => renderBaseCard(host, { toast, reload: renderBi }) });
+  renderBiUI($('view-bi'), { toast, openBase: () => openBaseModal({ toast, reload: () => { if (state.tab === 'panel') renderBi(); } }), onGroup: (g) => { if (bothGroups()) setView(g); }, });
 }
 
 $('ok').addEventListener('click', giveOk);
@@ -1630,6 +1630,7 @@ menuEl.addEventListener('click', (e) => {
   if (!act) return;
   if (act === 'help') openHelp();
   if (act === 'lists' || act === 'limit') { $('listsbox').open = true; $('listsbox').scrollIntoView({ behavior: 'smooth', block: 'center' }); if (act === 'limit') setTimeout(() => $('limit').focus(), 400); }
+  if (act === 'base') openBaseModal({ toast, reload: () => { if (state.tab === 'panel') renderBi(); } });
   if (act === 'clear') $('clear').click();
   if (act === 'sync') { if (sync.on) sync.stop(); else sync.start().then((ok) => toast(ok ? 'Sincronização ligada: o que você mexer aparece no PC do colega em até 30 segundos.' : `Não deu para sincronizar: ${$('sync-text').textContent}`)); }
   if (act === 'logout') { try { localStorage.removeItem('mt-code'); } catch { /* ignore */ } location.reload(); }

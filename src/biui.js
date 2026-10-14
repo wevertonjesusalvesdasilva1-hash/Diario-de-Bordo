@@ -298,14 +298,13 @@ export async function renderBiUI(root, ctx) {
   const tabs = el('div', { class: 'bi-pages', role: 'group', 'aria-label': 'Página' }, PAGES[ui.g].map(([id, label]) => el('button', { type: 'button', 'aria-pressed': String(ui.page === id), onclick: () => { ui.page = id; ui.sel = null; renderBiUI(root, ctx); } }, label)));
   bar.append(seg, tabs);
   wrap.append(title, bar, main);
-  const baseHost = el('section', { class: 'card bd-card' });
   root.replaceChildren(wrap);
   main.append(el('p', { class: 'bi-note' }, 'Lendo a base…'));
   let base;
-  try { base = await loadBase(ui.g); } catch (e) { main.replaceChildren(el('p', { class: 'bd-warn' }, e.message)); wrap.append(baseHost); ctx.renderBase(baseHost); return; }
+  try { base = await loadBase(ui.g); } catch (e) { main.replaceChildren(el('p', { class: 'bd-warn' }, e.message)); return; }
   if (!base.prod.length && !base.stops.length) {
-    main.replaceChildren(el('div', { class: 'bi-empty' }, el('b', {}, `A base de ${GROUPS[ui.g].name} está vazia.`), el('span', {}, 'Importe o histórico do Excel (abaixo) ou suba uma folha conferida pelo botão "Subir para a base de dados".')));
-    wrap.append(baseHost); ctx.renderBase(baseHost); return;
+    main.replaceChildren(el('div', { class: 'bi-empty' }, el('b', {}, `A base de ${GROUPS[ui.g].name} está vazia.`), el('span', {}, 'Importe o histórico do Excel ou suba uma folha conferida pelo botão "Subir para a base de dados".'), el('button', { type: 'button', class: 'primary', onclick: () => ctx.openBase?.() }, 'Abrir a base de dados')));
+    return;
   }
   const cube = cubeFor(ui.g, base); curCube = cube;
   const days = [...new Set(base.prod.map((r) => r.d))].sort();
@@ -332,5 +331,4 @@ export async function renderBiUI(root, ctx) {
   const layout = el('div', { class: 'bi-layout' });
   main.replaceChildren(el('p', { class: 'bi-note' }, `${GROUPS[ui.g].name} · ${days.length} dias (${dmy(days[0])} a ${dmy(days.at(-1))}) · ${base.prod.length.toLocaleString('pt-BR')} produções · ${base.stops.length.toLocaleString('pt-BR')} paradas. Clique numa barra para filtrar os outros gráficos.`), toggle, layout);
   drawMain();
-  wrap.append(baseHost); ctx.renderBase(baseHost);
 }
