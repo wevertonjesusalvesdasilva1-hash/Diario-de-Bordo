@@ -183,17 +183,20 @@ export function dayLoads(prod, stops) {
   for (const r of stops) { put(r.m, r.d, [[r.i, r.f]], r.h, false); get(r.m, dayIdx(r.d)).ns++; }
   return [...days.values()].map((x) => ({ m: x.m, d: x.d, ph: x.ph, sh: x.sh, tot: x.ph + x.sh, np: x.np, ns: x.ns, overlapH: (unionLen(x.P) + unionLen(x.S) - unionLen([...x.P, ...x.S])) / 60 }));
 }
+export function overWhy(x) {
+  const why = [];
+  if (x.ph > DAY_HOURS + 1e-4) why.push('só a produção passa de 24 h');
+  if (x.sh > DAY_HOURS + 1e-4) why.push('só as paradas passam de 24 h');
+  if (x.overlapH > 0.01) why.push(`${x.overlapH.toFixed(1).replace('.', ',')} h de produção e parada no mesmo horário (contadas duas vezes)`);
+  if (!why.length) why.push('a soma passa de 24 h');
+  return why.join('; ');
+}
 // keepDay(machine, 'YYYY-MM-DD') → whether that machine-day takes part (default: all). Returns the machine-days over 24 h, biggest first.
 export function auditDays(prod, stops, keepDay = () => true) {
   const out = [];
   for (const x of dayLoads(prod, stops)) {
     if (x.tot <= DAY_HOURS + 1e-4 || !keepDay(x.m, x.d)) continue;
-    const why = [];
-    if (x.ph > DAY_HOURS + 1e-4) why.push('só a produção passa de 24 h');
-    if (x.sh > DAY_HOURS + 1e-4) why.push('só as paradas passam de 24 h');
-    if (x.overlapH > 0.01) why.push(`${x.overlapH.toFixed(1).replace('.', ',')} h de produção e parada no mesmo horário (contadas duas vezes)`);
-    if (!why.length) why.push('a soma passa de 24 h');
-    out.push({ ...x, why: why.join('; ') });
+    out.push({ ...x, why: overWhy(x) });
   }
   return out.sort((a, b) => b.tot - a.tot);
 }

@@ -1,6 +1,6 @@
 // "4 · BI": the Power BI reports (RAW and usinagem) rebuilt on the history. Numbers come from core/bi.js (the report's own measures).
 import './bi.css';
-import { buildCube, slice, M, corEfic, options, optionsFor, auditoria24, cardsBI, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
+import { buildCube, slice, M, corEfic, options, optionsFor, auditoria24, dayRows, cardsBI, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
 import { dmy, dayLoads } from './core/history.js';
 import { loadBase } from './historico.js';
 import { getOperators, operatorName } from './core/operators.js';
@@ -51,8 +51,14 @@ const SLICERS = {
   entrega: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['Turno', 'p', 't'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Nome do operador', 'p', 'nome']],
   pessoas: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['Turno', 'p', 't'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Nome do operador', 'p', 'nome']],
 };
-const fkey = () => `${ui.g}.${ui.page}`;
-const pageFilter = () => (ui.filt[fkey()] ??= { p: {}, s: {} });
+// ONE set of filters per group, shared by every page: the dates, months, machine and shift you pick follow you from page to page.
+// The Produção side (p) and the Paradas side (s) keep the same values for the columns they share.
+const pageFilter = () => (ui.filt[ui.g] ??= { p: {}, s: {} });
+const SHARED = ['data', 'mes', 'm', 't'];
+function mirror() {
+  const f = pageFilter(), a = ui.page === 'paradas' ? 's' : 'p', b = a === 'p' ? 's' : 'p';
+  for (const c of SHARED) { if (f[a][c]) f[b][c] = new Set(f[a][c]); else delete f[b][c]; }
+}
 const optLabel = (col, v) => (v === '' ? '(vazio)' : col === 'data' ? dmy(v) : col === 't' ? `Turno ${v}` : v);
 
 // Like Power BI: a plain click selects only that item (click it again to clear); Ctrl/⌘ + click (or "Seleção múltipla", for touch screens) adds or removes items; "Selecionar tudo" marks every item of the list
@@ -240,7 +246,7 @@ function pageGeral(x) {
   const turnoMaq = () => { const gr = groupP(x.cube, x.F('v6'), ['m', 't']); const ms = [...new Set(gr.map((g) => g.vals[0]))], ts = [...new Set(gr.map((g) => g.vals[1]))].sort(); return { cats: ms.map((m) => ({ key: m, label: m })), series: ts.map((t, k) => ({ name: t ? `Turno ${t}` : 'Sem turno', color: PALETTE[k], vals: ms.map((m) => M.horasProd((gr.find((g) => g.vals[0] === m && g.vals[1] === t) ?? { c: { P: [] } }).c)) })), stacked: true, fmt: f1, onPick: x.pick('v6', 'p', ['m']), selected: x.selOf('v6') }; };
   // production + stops of each machine and day (midnight to midnight) against the 24 h line: a bar above the line is an error to fix
   let load24 = 'pior';
-  const dias24 = () => { const c = slice(x.cube, x.F('v8')), L = dayLoads(c.P.map((r) => r.src), c.S.map((r) => r.src));
+  const dias24 = () => { const L = dayRows(x.cube, x.F('v8'));
     let rows;
     if (load24 === 'acima') rows = L.filter((r) => r.tot > 24.0001).sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.m < b.m ? -1 : 1));
     else if (load24 === 'pior') { const by = new Map(); for (const r of L) { const o = by.get(r.d); if (!o || r.tot > o.tot) by.set(r.d, r); } rows = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1)); }
@@ -337,8 +343,8 @@ function pageEntrega(x) {
     return table([{ h: 'Peça e modelo', v: (r) => r.vals[0] }, { h: u + 's', v: (r) => [...new Set(r.c.P.filter((p) => !(p.tpx > 0)).map((p) => p.m))].sort().join(', ') }, { h: 'Peças sem padrão', v: (r) => fint(M.pecasSemPadrao(r.c)), key: (r) => M.pecasSemPadrao(r.c), n: true }, { h: 'Horas reais', v: (r) => f2(M.horasSemPadrao(r.c)), key: (r) => M.horasSemPadrao(r.c), n: true }], rows, { order: 2 }); };
   return [cards(),
     el('div', { class: 'bi-grid' },
-      vis('ENTREGA POR DIA · padrão × real', () => chartBox(porDia), { vid: 'v1', wide: true }),
-      vis(`REAL × ENTREGUE POR ${u.toUpperCase()}`, () => chartBox(porMaq), { vid: 'v2' }),
+      vis(`REAL × ENTREGUE POR ${u.toUpperCase()}`, () => chartBox(porMaq), { vid: 'v2', wide: true }),
+      vis('ENTREGA POR DIA · padrão × real', () => chartBox(porDia), { vid: 'v1' }),
       vis('ENTREGA POR PEÇA E MODELO (cor = eficiência)', () => chartBox(porPeca, 'vscroll'), { vid: 'v3' }),
       vis('POR OPERADOR', porOper, { vid: 't1' }),
       vis('PEÇAS SEM TEMPO PADRÃO (completar na matriz)', semPadrao, { vid: 't2' }))];
@@ -373,7 +379,7 @@ function quickBar(cube, side, apply) {
   const dates = options(cube, side, 'data');
   if (!dates.length) return '';
   const last = dates.at(-1), f = pageFilter(), box = el('div', { class: 'bi-quick', role: 'group', 'aria-label': 'Período' });
-  const pk = `${ui.g}.${ui.page}`, wk = (d) => { const w = new Date(`${d}T12:00:00Z`).getUTCDay(); return w >= 1 && w <= 5; };
+  const pk = ui.g, wk = (d) => { const w = new Date(`${d}T12:00:00Z`).getUTCDay(); return w >= 1 && w <= 5; };
   const U = (ui.uteis[pk] ??= { on: false, prev: null });
   const set = (arr) => { if (U.on) arr = (arr ?? dates).filter(wk); if (arr && arr.length === dates.length && !U.on) arr = null; if (arr) f[side].data = new Set(arr); else delete f[side].data; ui.sel = null; apply(); slicerFills.forEach((fn) => fn()); mark(); };
   const range = (a, b) => dates.filter((d) => d >= a && d <= b);
@@ -437,14 +443,14 @@ export async function renderBiUI(root, ctx) {
     } };
   slicerFills = [];
   const prune = () => { const f = pageFilter(); for (let k = 0; k < 2; k++) for (const [, sd, col] of SLICERS[ui.page] ?? []) { const set = f[sd][col]; if (!set) continue; const ok = new Set(optionsFor(cube, sd, col, f)); const keep = [...set].filter((v) => ok.has(v)); if (keep.length === set.size) continue; if (keep.length) f[sd][col] = new Set(keep); else delete f[sd][col]; } };
-  const slicers = (SLICERS[ui.page] ?? []).map(([t, sd, col]) => slicerBox(t === '@unit' ? GROUPS[ui.g].unit : t, sd, col, cube, () => { prune(); slicerFills.forEach((fn) => fn()); ui.sel = null; drawMain(); }));
+  const slicers = (SLICERS[ui.page] ?? []).map(([t, sd, col]) => slicerBox(t === '@unit' ? GROUPS[ui.g].unit : t, sd, col, cube, () => { mirror(); prune(); mirror(); slicerFills.forEach((fn) => fn()); ui.sel = null; drawMain(); }));
   side.replaceChildren(...slicers);
   const toggle = el('button', { type: 'button', class: 'ghost bi-filters-toggle', onclick: () => side.classList.toggle('open') }, '☰ Filtros');
   const noteHost = el('div', { class: 'bi-notehost' });
   const noteFn = () => noteHost.replaceChildren(...(ui.sel ? [el('p', { class: 'bi-note' }, 'Filtro por clique ativo nos outros gráficos. ', el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.sel = null; drawMain(); } }, 'Limpar clique'), ' ', el('button', { type: 'button', class: 'bi-more', onclick: () => { const c = slice(cube, mergeF(pageFilter(), ui.sel.f())); if (ui.sel.side === 's') openRecords(`Paradas (${c.S.length})`, STOP_HEAD, c.S.map(stopRow)); else openRecords(`Produções (${c.P.length})`, PROD_HEAD, c.P.map(prodRow)); } }, 'Ver registros'))] : []));
   let built = false;
   function drawMain() {
-    if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { prune(); drawMain(); }), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }
+    if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { mirror(); prune(); mirror(); drawMain(); }), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }
     else REG.forEach((r) => r.rebuild());          // like Power BI: the other visuals redraw, the page does not move
     noteFn();
   }

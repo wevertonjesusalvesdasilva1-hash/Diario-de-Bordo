@@ -3,7 +3,7 @@
 //   01_Produção  one row per production record      02_Paradas  one row per stop      02_Paradas_resumo  stop hours per (date + machine)
 //   Produção ↔ Paradas_resumo : Chave (date + machine)                      — filters both ways
 //   Produção ↔ Paradas        : Chave parada (date + machine + chapa final)  — many-to-many, filters both ways
-import { spanHours, fmtHM, auditDays, standardByPieceModel } from './history.js';
+import { spanHours, fmtHM, auditDays, standardByPieceModel, dayLoads, overWhy } from './history.js';
 
 export const META = 0.88;            // availability goal
 export const HORAS_DIA = 18.58;      // productive hours expected per machine per day
@@ -185,11 +185,17 @@ export function optionsFor(cube, side, col, f = {}) {
   return [...set].filter((v) => v != null).sort(col === 'mes' ? (a, b) => MORDER(a) - MORDER(b) : natural);
 }
 
-// machine-days over 24 h (production + stops), following the date / machine filters of the page
+// Machine-days (midnight to midnight) for the current filters. The MACHINE filter picks the records; the DAY and MONTH filters pick which clock days
+// are shown (so a shift that crosses midnight still counts on the day it spills into, but a day you filtered out never appears).
+export function dayRows(cube, f = {}) {
+  const ms = [f.p?.m, f.s?.m].filter(Boolean), okM = (r) => ms.every((st) => st.has(r.m));
+  const sets = (col) => [f.p?.[col], f.s?.[col]].filter(Boolean);
+  const dayOk = (d) => sets('data').every((st) => st.has(d)) && sets('mes').every((st) => st.has(monthOf(d)));
+  return dayLoads(cube.prod.filter(okM).map((r) => r.src), cube.stops.filter(okM).map((r) => r.src)).filter((x) => dayOk(x.d));
+}
+// machine-days over 24 h, following the date / month / machine filters of the page
 export function auditoria24(cube, f = {}) {
-  const fp = f.p ?? {}, fs = f.s ?? {};
-  const ok = (r, dims, a, b) => ['data', 'mes', 'm'].every((k) => { const sets = [a[k], b[k]].filter(Boolean); return sets.every((st) => st.has(dims[k](r))); });
-  return auditDays(cube.prod.filter((r) => ok(r, PD, fp, fs)).map((r) => r.src), cube.stops.filter((r) => ok(r, SD, fp, fs)).map((r) => r.src));
+  return dayRows(cube, f).filter((x) => x.tot > 24.0001).map((x) => ({ ...x, why: overWhy(x) })).sort((a, b) => b.tot - a.tot);
 }
 
 // cards of the Indicadores top row (same idea as the cards of the Análise tab): who/what stands out in the current view.

@@ -231,3 +231,9 @@ Nos campos INÍCIO e FIM (produção e paradas, na conferência e na revisão r�
 - **4 · Plano de ação**: (1) **Quanto está custando** (perda em R$: total, média por dia, projeção de 30 dias, maior perda por máquina e por motivo, Pareto em R$, perda por dia, perda acumulada, parada × o que faltou para a meta); (2) **O que fazer, em ordem** (linha do tempo vertical); (3) **Qualidade dos dados** (a auditoria completa, recolhida). O valor hora (R$/h) fica no alto desta aba e também aparece como cartão "Perda com parada" na Visão geral.
 - Os filtros de cada gráfico (máquina e data) ficam atrás do botão "⚙ Filtros" (o botão mostra ● quando há filtro ativo). "Listas de conferência" não aparece mais no rodapé: abre só pelo menu ⋮.
 - **Produção + paradas por dia (limite de 24 h)** na Visão geral: colunas empilhadas (produção + paradas) de cada máquina e dia, de meia-noite a meia-noite, com uma linha tracejada em 24 h. Coluna acima da linha tem ⚠ e o total em vermelho. Escolha no alto do gráfico: pior máquina de cada dia (padrão), só os dias acima de 24 h, ou uma máquina específica. Passar o mouse mostra a máquina, o dia e quantas horas estão no mesmo horário.
+
+## Filtros interligados no Painel BI
+
+- Há um único conjunto de filtros por grupo (RAW / usinagem): data, mês, robô e turno valem para **todas** as páginas e gráficos (inclusive "Só dias úteis"). Quem escolhe na tela de Produção vale também para Paradas.
+- O gráfico "Produção + paradas por dia (limite de 24 h)" respeita os filtros de data e mês (dia desmarcado não aparece).
+- "REAL × ENTREGUE POR ROBÔ" (pedido do supervisor) fica na página "Entrega (horas padrão)", em destaque no topo; seus filtros próprios ficam em "⚙ Filtros".
