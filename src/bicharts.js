@@ -64,7 +64,7 @@ export function drawChart(box, full) {
   if (!cats.length) { box.append(el('p', { class: 'bi-note' }, 'Sem dados para os filtros escolhidos.')); return; }
   const avail = Math.max(box.clientWidth || 360, 240);
   const sel = selected && selected.size ? selected : null;
-  const pickAttrs = (c) => (onPick ? { class: `pick${sel && !sel.has(c.key) ? ' dim' : ''}`, tabindex: 0, role: 'button', onclick: () => onPick(c.key), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(c.key); } } } : { class: sel && !sel.has(c.key) ? 'dim' : '' });
+  const pickAttrs = (c) => (onPick ? { class: `pick${sel && !sel.has(c.key) ? ' dim' : ''}`, tabindex: 0, role: 'button', onclick: (e) => onPick(c.key, e), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(c.key, e); } } } : { class: sel && !sel.has(c.key) ? 'dim' : '' });
   const lg = (name, color) => el('button', { type: 'button', class: `lg${on(name) ? '' : ' off'}`, 'aria-pressed': String(only.has(name)), title: 'Clique para ver só este; Ctrl + clique para somar', onclick: (e) => toggle(name, e.ctrlKey || e.metaKey) }, el('i', { style: `background:${color}` }), name);
   const legend = full.series.length > 1 || full.line ? el('div', { class: 'bi-leg' }, full.series.map((s) => lg(s.name, s.color)), full.line ? lg(full.line.name, full.line.color ?? '#fb7185') : '') : null;
 
@@ -173,7 +173,7 @@ function drawArea(box, spec, avail, legend, sel) {
     const hit = S('rect', { x: x(i) - step / 2, y: top, width: step, height: plotH, fill: 'transparent', class: `pick${sel && !sel.has(c.key) ? ' dim' : ''}`, tabindex: 0,
       onmouseenter: () => { guide.setAttribute('x1', x(i)); guide.setAttribute('x2', x(i)); guide.setAttribute('opacity', 0.7); dots.forEach((d, k) => { d.setAttribute('cx', x(i)); d.setAttribute('cy', y(series[k].vals[i] || 0)); d.setAttribute('opacity', 1); }); },
       onmouseleave: () => { guide.setAttribute('opacity', 0); dots.forEach((d) => d.setAttribute('opacity', 0)); },
-      onclick: () => onPick?.(c.key) }, S('title', {}, `${c.label}\n${series.map((s) => `${s.name}: ${fmt(s.vals[i])}`).join('\n')}`));
+      onclick: (e) => onPick?.(c.key, e) }, S('title', {}, `${c.label}\n${series.map((s) => `${s.name}: ${fmt(s.vals[i])}`).join('\n')}`));
     svg.append(hit);
   });
   box.append(svg, legend ?? '');

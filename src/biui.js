@@ -27,7 +27,7 @@ const blank = (v) => (v === '' || v == null ? '(vazio)' : v);
 const GROUPS = { raw: { name: 'RAW (robôs)', unit: 'Robô', units: 'Robôs' }, usi: { name: 'Usinagem', unit: 'Máquina', units: 'Máquinas' } };
 const PAGES = { raw: [['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['mensal', 'Mensal']], usi: [['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador']] };
 
-const ui = { g: 'raw', page: 'diaria', filt: {}, vf: {}, lead: {}, uteis: {}, sel: null, cubes: {} };
+const ui = { g: 'raw', page: 'diaria', filt: {}, vf: {}, lead: {}, uteis: {}, multi: false, sel: null, cubes: {} };
 try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui.g = s; } catch { /* no storage */ }
 
 export const setBiGroup = (g) => { if (GROUPS[g]) { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; } };
@@ -65,7 +65,7 @@ function slicerBox(title, side, col, cube, onChange) {
   }
   function fill() {
     const vals = optionsFor(cube, side, col, f), q = search.value.trim().toLowerCase(), cur = sets()[col];
-    list.replaceChildren(...vals.filter((v) => !q || optLabel(col, v).toLowerCase().includes(q)).map((v) => el('li', {}, el('label', {}, el('input', { type: 'checkbox', checked: cur?.has(v) || null, onclick: (e) => { e.preventDefault(); pick(v, e.ctrlKey || e.metaKey || multi); } }), optLabel(col, v)))));
+    list.replaceChildren(...vals.filter((v) => !q || optLabel(col, v).toLowerCase().includes(q)).map((v) => el('li', {}, el('label', {}, el('input', { type: 'checkbox', checked: cur?.has(v) || null, onclick: (e) => { e.preventDefault(); pick(v, e.ctrlKey || e.metaKey || multi || ui.multi); } }), optLabel(col, v)))));
   }
   search.addEventListener('input', fill); fill();
   slicerFills.push(fill);
@@ -305,6 +305,7 @@ function quickBar(cube, side, apply) {
   const custom = () => set(range(from.value || dates[0], to.value || last));
   const btns = [['Tudo', () => set(null)], [`Último dia (${dmy(last).slice(0, 5)})`, () => set([last])], ['7 dias', () => set(range(addDays(last, -6), last))], ['30 dias', () => set(range(addDays(last, -29), last))], ['Mês do último dia', () => set(range(`${last.slice(0, 8)}01`, last))]]
     .map(([t, fn], i) => el('button', { type: 'button', onclick: () => { active = i; fn(); } }, t));
+  const multiBtn = el('button', { type: 'button', class: 'uteis', 'aria-pressed': String(ui.multi), title: 'Ligado: cada clique em barra ou item soma ou tira (o mesmo que Ctrl + clique). Útil no celular.', onclick: () => { ui.multi = !ui.multi; multiBtn.setAttribute('aria-pressed', String(ui.multi)); } }, 'Seleção múltipla');
   const uteisBtn = el('button', { type: 'button', class: 'uteis', 'aria-pressed': String(U.on), title: 'Tira sábados e domingos (feriados não são tirados)', onclick: () => {
     if (!U.on) { U.on = true; U.prev = f[side].data ? new Set(f[side].data) : null; set(f[side].data ? [...f[side].data] : null); }
     else { U.on = false; const back = U.prev; U.prev = null; set(back ? [...back] : null); }
@@ -312,7 +313,7 @@ function quickBar(cube, side, apply) {
   } }, 'Só dias úteis');
   let active = null;
   function mark() { const n = f[side].data?.size ?? 0; btns.forEach((b, i) => b.setAttribute('aria-pressed', String(i === 0 ? n === 0 : i === active && n > 0))); }
-  box.append(el('span', { class: 'lbl' }, 'Período'), ...btns, el('label', { class: 'vf-d' }, 'De', from), el('label', { class: 'vf-d' }, 'Até', to), uteisBtn);
+  box.append(el('span', { class: 'lbl' }, 'Período'), ...btns, el('label', { class: 'vf-d' }, 'De', from), el('label', { class: 'vf-d' }, 'Até', to), uteisBtn, multiBtn);
   mark();
   return box;
 }
@@ -344,8 +345,15 @@ export async function renderBiUI(root, ctx) {
   const x = { cube, g: ui.g,
     F: (vid) => mergeF(mergeF(pageFilter(), ui.sel && ui.sel.vid !== vid ? ui.sel.f() : null), visFilterOf(vid)),
     selOf: (vid) => (ui.sel?.vid === vid ? ui.sel.keys : null),
-    pick: (vid, sd, cols) => (key) => {
-      if (ui.sel?.vid === vid) { if (ui.sel.keys.has(key)) ui.sel.keys.delete(key); else ui.sel.keys.add(key); if (!ui.sel.keys.size) ui.sel = null; }
+    // like Power BI: a click selects only that bar (again = clear); Ctrl/⌘ + click (or "Seleção múltipla") adds or removes bars
+    pick: (vid, sd, cols) => (key, ev) => {
+      const add = !!(ev?.ctrlKey || ev?.metaKey || ui.multi);
+      if (ui.sel?.vid === vid) {
+        if (add) { if (ui.sel.keys.has(key)) ui.sel.keys.delete(key); else ui.sel.keys.add(key); }
+        else if (ui.sel.keys.size === 1 && ui.sel.keys.has(key)) ui.sel.keys.clear();
+        else ui.sel.keys = new Set([key]);
+        if (!ui.sel.keys.size) ui.sel = null;
+      }
       else ui.sel = { vid, side: sd, keys: new Set([key]), f() { const o = { p: {}, s: {} }; cols.forEach((c, i) => { o[sd][c] = new Set([...this.keys].map((k) => k.split(SEP)[i])); }); return o; } };
       drawMain();
     } };
