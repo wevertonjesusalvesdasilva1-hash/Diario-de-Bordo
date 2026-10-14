@@ -54,7 +54,7 @@ export async function openSubmit(ctx) {
       plans.push({ ...x, recs, merged });
     }
     // a machine cannot run more than 24 h in a day: block the envio when the days touched by these sheets would pass it
-    const over = plans.flatMap((p) => { const touched = new Set([...p.recs.prod, ...p.recs.stops].map((r) => `${r.d}|${r.m}`)); return auditDays(p.merged.prod, p.merged.stops, (r) => touched.has(`${r.d}|${r.m}`)); });
+    const over = plans.flatMap((p) => { const touched = new Set([...p.recs.prod, ...p.recs.stops].map((r) => `${r.d}|${r.m}`)); const next = (d) => new Date(Date.parse(`${d}T12:00:00Z`) + 86400000).toISOString().slice(0, 10); return auditDays(p.merged.prod, p.merged.stops, (m, d) => touched.has(`${d}|${m}`) || touched.has(`${new Date(Date.parse(`${d}T12:00:00Z`) - 86400000).toISOString().slice(0, 10)}|${m}`)); });
     if (over.length) {
       body.replaceChildren(h('p', { class: 'bd-warn' }, 'Não dá para subir: estes dias passariam de 24 horas (produção + paradas da mesma máquina).'),
         h('table', { class: 'bd-tab' }, h('thead', {}, h('tr', {}, ['Dia', 'Máquina', 'Produção', 'Paradas', 'Total', 'Por quê'].map((t) => h('th', {}, t)))),

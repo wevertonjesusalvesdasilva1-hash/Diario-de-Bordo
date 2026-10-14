@@ -1,6 +1,6 @@
 // Audit of the history (production + stops): every check returns { id, area, level, title, why, count, hours?, head, rows }.
 // Pure functions. Nothing here changes the data: it only finds what a person should look at.
-import { toMin, spanHours, dmy, standardByPieceModel, standardHours } from './history.js';
+import { toMin, spanHours, dmy, standardByPieceModel, standardHours, auditDays } from './history.js';
 import { aliasKey } from './lists.js';
 
 const f1 = (v) => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -33,10 +33,14 @@ const sRow = (s, why = '') => [dmy(s.d), s.m, s.c, `${s.i}–${s.f}`, s.mo, +(+s
 const closeEnough = (a, b) => Math.abs(a - b) <= 0.0105;
 
 // opts: { prod, stops, known?: Set<chapa> }   (known = operators list; optional)
-export function auditData({ prod, stops, known = null }) {
+export function auditData({ prod, stops, known = null, today = new Date().toISOString().slice(0, 10) }) {
   const out = [];
   const add = (c) => out.push({ hours: null, ...c, count: c.rows.length });
 
+  { // dates that have not happened yet (typed with the wrong day or month)
+    const rows = [...prod.filter((r) => r.d > today).map((r) => pRow(r, `data ${dmy(r.d)} ainda não chegou`)), ...stops.filter((x) => x.d > today).map((x) => sRow(x, `data ${dmy(x.d)} ainda não chegou`))];
+    add({ id: 'd-future', area: 'Dia inteiro', level: 'erro', title: 'Registro com data no futuro', why: 'Provavelmente dia ou mês digitado errado: o registro some do período certo e aparece em um dia que não existe.', head: stopCols, rows });
+  }
   // ---------------------------------------------------------------- production
   { // repeated identical rows
     const seen = new Map(), rows = [];
@@ -152,12 +156,12 @@ export function auditData({ prod, stops, known = null }) {
   }
 
   // ---------------------------------------------------------------- the whole day
-  { // machine-days over 24 h and machines with no production on weekdays
+  { // machine-days over 24 h (midnight to midnight) and production above the daily goal
+    const rows = auditDays(prod, stops).map((x) => [dmy(x.d), x.m, '', '', '', +x.tot.toFixed(2), `produção ${f1(x.ph)} h + paradas ${f1(x.sh)} h · ${x.why}`]);
+    add({ id: 'd-24', area: 'Dia inteiro', level: 'erro', title: 'Máquina com mais de 24 h no dia (meia-noite a meia-noite)', why: 'Produção + paradas da mesma máquina no mesmo dia (de 00:00 a 24:00) não pode passar de 24 h. O que atravessa a meia-noite é dividido entre os dois dias.', head: stopCols, rows });
     const days = new Map();
     for (const r of prod) { const x = days.get(`${r.d}|${r.m}`) ?? { m: r.m, d: r.d, ph: 0, sh: 0 }; x.ph += r.h; days.set(`${r.d}|${r.m}`, x); }
-    for (const s of stops) { const x = days.get(`${s.d}|${s.m}`) ?? { m: s.m, d: s.d, ph: 0, sh: 0 }; x.sh += s.h; days.set(`${s.d}|${s.m}`, x); }
-    const rows = [...days.values()].filter((x) => x.ph + x.sh > 24.0001).sort((a, b) => b.ph + b.sh - (a.ph + a.sh)).map((x) => [dmy(x.d), x.m, '', '', '', +(x.ph + x.sh).toFixed(2), `produção ${f1(x.ph)} h + paradas ${f1(x.sh)} h`]);
-    add({ id: 'd-24', area: 'Dia inteiro', level: 'erro', title: 'Máquina com mais de 24 h no dia', why: 'Produção + paradas da mesma máquina e dia não pode passar de 24 h.', head: stopCols, rows });
+    for (const s2 of stops) { const x = days.get(`${s2.d}|${s2.m}`) ?? { m: s2.m, d: s2.d, ph: 0, sh: 0 }; x.sh += s2.h; days.set(`${s2.d}|${s2.m}`, x); }
     const rows2 = [...days.values()].filter((x) => x.ph > 18.58 + 1e-4 && x.ph + x.sh <= 24.0001).map((x) => [dmy(x.d), x.m, '', '', '', +x.ph.toFixed(2), `produziu ${f1(x.ph)} h (meta do dia: 18,58 h)`]);
     add({ id: 'd-meta', area: 'Dia inteiro', level: 'info', title: 'Produção acima de 18,58 h no dia', why: 'Disponibilidade acima de 100%: pode ser verdade, mas vale conferir.', head: stopCols, rows: rows2 });
   }

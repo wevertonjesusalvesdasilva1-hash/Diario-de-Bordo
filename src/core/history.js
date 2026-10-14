@@ -152,21 +152,39 @@ export function parseHistoryWorkbook(XLSX, data) {
   return { group, prod, stops, warnings };
 }
 
-// ---- audit: a machine cannot run more than 24 h in a day. Production hours + stop hours of one machine and date are added up;
-// the clock intervals are also compared, because a stop typed over a production period is counted twice.
-const segsOf = (i, f) => { const a = toMin(i), b = toMin(f); if (a == null || b == null) return []; return b >= a ? [[a, b]] : [[a, 1440], [0, b]]; };
+// ---- audit: a machine cannot run more than 24 h in a day. The day is the CLOCK day (midnight to midnight): a piece or a stop that crosses
+// midnight is split, each part goes to its own day. Production hours + stop hours of one machine and day are added up; the clock intervals
+// are also compared, because a stop typed over a production period is counted twice.
 const unionLen = (arr) => { const a = arr.map((x) => [...x]).sort((x, y) => x[0] - y[0]); let tot = 0, cur = null; for (const sg of a) { if (cur && sg[0] <= cur[1]) cur[1] = Math.max(cur[1], sg[1]); else { if (cur) tot += cur[1] - cur[0]; cur = [...sg]; } } return tot + (cur ? cur[1] - cur[0] : 0); };
 export const DAY_HOURS = 24;
-// keep(record) → whether a record takes part (default: all). Returns the machine-days over 24 h, biggest first.
-export function auditDays(prod, stops, keep = () => true) {
+const dayIdx = (d) => Math.floor(Date.parse(`${d}T00:00:00Z`) / 86400000);
+export const dayStr = (idx) => new Date(idx * 86400000).toISOString().slice(0, 10);
+// [{ day (index), a, b }] minutes inside each clock day for a record with up to 3 [start, end] pairs; null when no pair has both times
+export function clockParts(d, pairs) {
+  const base = dayIdx(d), out = [];
+  for (const [i, f] of pairs) {
+    const a = toMin(i), b = toMin(f);
+    if (a == null || b == null || (a === 0 && b === 0 && !i)) continue;
+    const end = b >= a ? b : b + 1440;
+    for (let t = a; t < end;) { const di = Math.floor(t / 1440), next = Math.min(end, (di + 1) * 1440); out.push({ day: base + di, a: t - di * 1440, b: next - di * 1440 }); t = next; }
+  }
+  return out.length ? out : null;
+}
+// keepDay(machine, 'YYYY-MM-DD') → whether that machine-day takes part (default: all). Returns the machine-days over 24 h, biggest first.
+export function auditDays(prod, stops, keepDay = () => true) {
   const days = new Map();
-  const get = (m, d) => { const k = `${d}|${m}`; if (!days.has(k)) days.set(k, { m, d, ph: 0, sh: 0, np: 0, ns: 0, P: [], S: [] }); return days.get(k); };
-  for (const r of prod) { if (!keep(r)) continue; const x = get(r.m, r.d); x.ph += Number(r.h) || 0; x.np++; x.P.push(...segsOf(r.i1, r.f1), ...segsOf(r.i2, r.f2), ...segsOf(r.i3, r.f3)); }
-  for (const r of stops) { if (!keep(r)) continue; const x = get(r.m, r.d); x.sh += Number(r.h) || 0; x.ns++; x.S.push(...segsOf(r.i, r.f)); }
+  const get = (m, di) => { const k = `${di}|${m}`; if (!days.has(k)) days.set(k, { m, d: dayStr(di), ph: 0, sh: 0, np: 0, ns: 0, P: [], S: [] }); return days.get(k); };
+  const put = (m, d, pairs, h, isProd) => {
+    const parts = clockParts(d, pairs);
+    if (!parts) { const x = get(m, dayIdx(d)); if (isProd) { x.ph += Number(h) || 0; } else x.sh += Number(h) || 0; return; }
+    for (const p of parts) { const x = get(m, p.day); (isProd ? x.P : x.S).push([p.a, p.b]); if (isProd) x.ph += (p.b - p.a) / 60; else x.sh += (p.b - p.a) / 60; }
+  };
+  for (const r of prod) { put(r.m, r.d, [[r.i1, r.f1], [r.i2, r.f2], [r.i3, r.f3]], r.h, true); get(r.m, dayIdx(r.d)).np++; }
+  for (const r of stops) { put(r.m, r.d, [[r.i, r.f]], r.h, false); get(r.m, dayIdx(r.d)).ns++; }
   const out = [];
   for (const x of days.values()) {
     const tot = x.ph + x.sh;
-    if (tot <= DAY_HOURS + 1e-4) continue;
+    if (tot <= DAY_HOURS + 1e-4 || !keepDay(x.m, x.d)) continue;
     const overlapH = (unionLen(x.P) + unionLen(x.S) - unionLen([...x.P, ...x.S])) / 60, why = [];
     if (x.ph > DAY_HOURS + 1e-4) why.push('só a produção passa de 24 h');
     if (x.sh > DAY_HOURS + 1e-4) why.push('só as paradas passam de 24 h');

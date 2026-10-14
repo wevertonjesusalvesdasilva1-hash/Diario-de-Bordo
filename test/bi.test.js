@@ -72,16 +72,19 @@ test('filtros ligados: os dias seguem o mês, o mês não some pelo dia', () => 
   assert.deepEqual(optionsFor(cube, 'p', 'mes', g), ['agosto', 'setembro']);
 });
 
-test('auditoria de 24 h: produção + paradas da mesma máquina e dia', () => {
-  const t = (i, f, h) => ({ i1: i, f1: f, h });
-  const prod = [{ ...P('RAW05', '2026-08-01', 'A', 'X', 1, '100', 20, 8), i1: '06:00', f1: '14:00' }, { ...P('RAW05', '2026-08-01', 'B', 'Y', 2, '200', 6, 6), i1: '14:00', f1: '20:00' }];
+test('auditoria de 24 h: produção + paradas da mesma máquina, dia de meia-noite a meia-noite', () => {
+  const prod = [{ ...P('RAW05', '2026-08-01', 'A', 'X', 1, '100', 20, 8), i1: '00:00', f1: '20:00' }];
   const stops = [{ ...S('RAW05', '2026-08-01', '100', 1, 'SET-UP', 3), i: '10:00', f: '13:00' }];
-  const c = buildCube({ prod, stops });
-  const r = auditoria24(c, {});
-  assert.equal(r.length, 1);
-  assert.equal(r[0].tot, 29); assert.match(r[0].why, /3,0 h de produção e parada no mesmo horário/);
-  assert.equal(auditoria24(buildCube({ prod: [prod[1]], stops }), {}).length, 0);   // 6 h + 3 h
+  const r = auditoria24(buildCube({ prod, stops }), {});
+  assert.equal(r.length, 0);                         // 20 h de produção + 3 h de parada = 23 h: não passa de 24 h
+  const stops2 = [{ ...S('RAW05', '2026-08-01', '100', 1, 'SET-UP', 5), i: '10:00', f: '15:00' }];
+  const r2 = auditoria24(buildCube({ prod, stops: stops2 }), {});
+  assert.equal(r2.length, 1); assert.equal(r2[0].tot, 25); assert.match(r2[0].why, /5,0 h de produção e parada no mesmo horário/);
+  // o que atravessa a meia-noite é dividido: 22:00–04:00 conta 2 h num dia e 4 h no outro
+  const prod3 = [{ ...P('RAW06', '2026-08-01', 'A', 'X', 1, '100', 6, 8), i1: '22:00', f1: '04:00' }, { ...P('RAW06', '2026-08-02', 'B', 'Y', 1, '100', 20, 8), i1: '04:00', f1: '24:00' }];
+  assert.equal(auditoria24(buildCube({ prod: prod3, stops: [] }), {}).length, 0);
 });
+
 
 test('entrega: horas padrão das peças x horas reais (uma linha, uma peça)', () => {
   const mk = (m, p, o, h, tp) => ({ ...P(m, '2026-08-01', p, o, 1, '100', h, tp), p, o });

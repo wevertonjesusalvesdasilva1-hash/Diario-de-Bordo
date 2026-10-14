@@ -33,6 +33,7 @@ const PAGES = { raw: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diári
 const ui = { g: 'raw', page: 'entrega', filt: {}, vf: {}, lead: {}, uteis: {}, multi: false, sel: null, cubes: {} };
 try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui.g = s; } catch { /* no storage */ }
 
+export { openRecords, table as biTable, fileSafe };
 export const setBiGroup = (g) => { if (GROUPS[g]) { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; } };
 const cubeFor = (g, base) => {
   const key = `${base.rev}|${Object.keys(getOperators()).length}`;

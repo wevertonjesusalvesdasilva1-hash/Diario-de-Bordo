@@ -3,6 +3,7 @@ import './panel.css';
 import { renderPanelUI, resetPanelSelection, panelMaxKey, closePanelMax, reopenPanelMax } from './panelui.js';
 import { openSubmit, openBaseModal } from './basedados.js';
 import { renderBiUI, setBiGroup } from './biui.js';
+import { renderPlanUI, setPlanGroup } from './planui.js';
 import { readFiles, toCanvas, jpegB64, jpegUrl, shrinkCanvas } from './files.js';
 import { fitToBudget } from './core/fit.js';
 import { isTimeField, maskTime, finishTime, timeProblem } from './core/timemask.js';
@@ -572,6 +573,7 @@ function setView(v) {
   updateSummary();
   if (state.tab === 'analysis') renderAnalysis();
   if (state.tab === 'panel') renderPanelTab();
+  if (state.tab === 'plan') renderPlan();
 }
 
 function updateSummary() {
@@ -835,15 +837,18 @@ function showTab(name) {
   $('view-analysis').hidden = name !== 'analysis';
   $('tab-read').classList.toggle('on', name === 'read');
   $('tab-analysis').classList.toggle('on', name === 'analysis');
+  $('view-plan').hidden = name !== 'plan';
+  $('tab-plan').classList.toggle('on', name === 'plan'); $('tab-plan').setAttribute('aria-selected', String(name === 'plan'));
   $('view-bi').hidden = $('view-panel').hidden = $('panel-now-title').hidden = name !== 'panel';   // indicators first, today's sheets at the end
-  $('stats').hidden = $('upload').hidden = name === 'panel';
-  document.body.classList.toggle('pbi', name === 'panel');   // the BI uses the full width of the screen
+  $('stats').hidden = $('upload').hidden = name === 'panel' || name === 'plan';
+  document.body.classList.toggle('pbi', name === 'panel' || name === 'plan');   // the BI uses the full width of the screen
   $('tab-panel').classList.toggle('on', name === 'panel');
   $('tab-panel').setAttribute('aria-selected', String(name === 'panel'));
   $('tab-read').setAttribute('aria-selected', String(name === 'read'));
   $('tab-analysis').setAttribute('aria-selected', String(name === 'analysis'));
   if (name === 'analysis') renderAnalysis();
   if (name === 'panel') renderPanelTab();
+  if (name === 'plan') renderPlan();
 }
 
 function giveOk() {
@@ -1160,6 +1165,10 @@ const MOT_COLOR = Object.fromEntries(MOTIVOS_ALL.map((m, i) => [m, `var(--m${i})
 MOT_COLOR['SEM MOTIVO'] = 'var(--muted)';
 const motColor = (m) => MOT_COLOR[m] ?? 'var(--muted)';
 
+function renderPlan() {
+  if (viewGroup !== 'all') setPlanGroup(viewGroup);
+  renderPlanUI($('view-plan'), { toast, openBase: () => openBaseModal({ toast, reload: renderPlan }), onGroup: (g) => { if (bothGroups()) setView(g); } });
+}
 function renderPanelTab() { renderBi(); renderPanel(); }
 function renderPanel() {
   const root = $('view-panel');
@@ -1190,6 +1199,7 @@ function renderPanel() {
     filters: { groups: [], days: P.days, opt: panelOpt, onChange: (o) => { Object.assign(panelOpt, o); resetPanelSelection(); renderPanel(); } } });
 }
 $('tab-panel').addEventListener('click', () => showTab('panel'));
+$('tab-plan').addEventListener('click', () => showTab('plan'));
 
 // ---------------------------------------------------------------- base de dados (histórico) e BI
 function openSubmitBase() {
