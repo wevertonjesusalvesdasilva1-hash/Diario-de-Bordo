@@ -95,3 +95,11 @@ test('entrega: horas padrão das peças x horas reais (uma linha, uma peça)', (
   assert.ok(Math.abs(M.efic(s) - 10 / 12) < 1e-9);
   assert.equal(M.pecasSemPadrao(s), 1); assert.equal(M.horasSemPadrao(s), 4);
 });
+
+test('filtro de data/máquina igual nos dois lados (filtro da página) corta cada tabela sozinha e não perde peças sem parada', () => {
+  const d = new Set(['2026-08-02']);   // a day with production and no stop
+  const solo = slice(cube, { p: { data: d }, s: {} }), espelhado = slice(cube, { p: { data: d }, s: { data: d } });
+  assert.equal(M.qtdPecas(espelhado), M.qtdPecas(solo));
+  assert.equal(M.horasProd(espelhado), M.horasProd(solo));
+  assert.equal(espelhado.S.length, slice(cube, { p: {}, s: { data: d } }).S.length);
+});

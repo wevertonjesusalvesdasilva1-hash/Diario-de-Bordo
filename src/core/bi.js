@@ -53,8 +53,13 @@ export function slice(cube, f = {}) {
   const Pd = pa.length ? cube.prod.filter((r) => matches(pa, PD, r)) : cube.prod;
   const Sd = sa.length ? cube.stops.filter((r) => matches(sa, SD, r)) : cube.stops;
   let P = Pd, S = Sd, R = null;
-  if (sa.length) { const k = new Set(Sd.map((s) => s.key)); P = Pd.filter((r) => k.has(r.keyP)); }
-  if (pa.length) { const k = new Set(Pd.map((r) => r.keyP)); S = Sd.filter((s) => k.has(s.key)); }
+  // a filter on the same column with the same choice on both sides (the page-wide date / month / machine / shift filters) cuts each table by itself;
+  // only a filter that is on ONE side (e.g. a stop reason, a piece) travels through the relationship to the other table
+  const same = (a, b) => a && b && a.size === b.size && [...a].every((v) => b.has(v));
+  const shared = (k) => same(f.p?.[k], f.s?.[k]);
+  const paX = pa.filter(([k]) => !shared(k)), saX = sa.filter(([k]) => !shared(k));
+  if (saX.length) { const k = new Set(Sd.map((s) => s.key)); P = Pd.filter((r) => k.has(r.keyP)); }
+  if (paX.length) { const k = new Set(Pd.map((r) => r.keyP)); S = Sd.filter((s) => k.has(s.key)); }
   const filtered = pa.length > 0 || sa.length > 0;
   const c = { P, S };
   // Σ of Paradas_resumo (stop hours per date + machine) over the keys that survive on the production side
