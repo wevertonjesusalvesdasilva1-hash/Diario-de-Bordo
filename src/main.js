@@ -2,7 +2,7 @@ import './verificado.css';
 import './panel.css';
 import { renderPanelUI, resetPanelSelection, panelMaxKey, closePanelMax, reopenPanelMax } from './panelui.js';
 import { openSubmit, renderBaseCard } from './basedados.js';
-import { renderBiUI } from './biui.js';
+import { renderBiUI, setBiGroup } from './biui.js';
 import { readFiles, toCanvas, jpegB64, jpegUrl, shrinkCanvas } from './files.js';
 import { fitToBudget } from './core/fit.js';
 import { isTimeField, maskTime, finishTime, timeProblem } from './core/timemask.js';
@@ -550,6 +550,8 @@ function includedPages() { return okPages().filter((p) => p.include); }
 // ---- "Visualizar": everything (default), only RAW or only usinagem. It filters what is SHOWN (sheets, cards, charts);
 // the OK and the analysis are still made on all the selected sheets, and exports keep their own buttons.
 let viewGroup = (() => { try { const v = localStorage.getItem('mt-view'); return v === 'raw' || v === 'usi' ? v : 'all'; } catch { return 'all'; } })();
+let pbMode = 'hist';   // "Painel BI": 'hist' = the history (BI reports) · 'now' = the sheets being read
+try { pbMode = localStorage.getItem('mt-pbmode') === 'now' ? 'now' : 'hist'; } catch { /* private mode */ }
 const pageGroup = (p) => (p.machine ? listGroup(p.machine) : (p.group ?? 'raw'));
 const machineGroup = (m) => (/^RAW/.test(m ?? '') ? 'raw' : /^(UMC|HMC|NCBZ)/.test(m ?? '') ? 'usi' : 'none');
 const bothGroups = () => { const g = new Set(state.pages.filter((p) => p.status === 'ok' || p.status === 'lendo').map(pageGroup)); return g.has('raw') && g.has('usi'); };
@@ -558,7 +560,7 @@ const inView = (p) => effView() === 'all' || pageGroup(p) === effView();
 const machineInView = (m) => effView() === 'all' || machineGroup(m) === effView();
 function updateViewBar() {
   const bar = $('viewbar'), both = bothGroups();
-  bar.hidden = !both;
+  bar.hidden = !both || (state.tab === 'panel' && pbMode === 'hist');   // the BI has its own RAW / Usinagem switch
   if (!both) return;
   const count = (g) => state.pages.filter((p) => (p.status === 'ok' || p.status === 'lendo') && pageGroup(p) === g).length;
   $('viewseg').replaceChildren(...[['all', 'Tudo', state.pages.filter((p) => p.status === 'ok' || p.status === 'lendo').length], ['raw', 'RAW', count('raw')], ['usi', 'Usinagem', count('usi')]]
@@ -829,7 +831,9 @@ function updateReviewUi() {
 }
 
 function showTab(name) {
+  if (name === 'panel' && state.tab !== 'panel' && viewGroup !== 'all') setBiGroup(viewGroup);   // entering the BI follows "Visualizar"
   state.tab = name;
+  updateViewBar();
   $('view-read').hidden = name !== 'read';
   $('view-analysis').hidden = name !== 'analysis';
   $('tab-read').classList.toggle('on', name === 'read');
@@ -1161,8 +1165,6 @@ const MOT_COLOR = Object.fromEntries(MOTIVOS_ALL.map((m, i) => [m, `var(--m${i})
 MOT_COLOR['SEM MOTIVO'] = 'var(--muted)';
 const motColor = (m) => MOT_COLOR[m] ?? 'var(--muted)';
 
-let pbMode = 'hist';   // "Painel BI": 'hist' = the history (BI reports) · 'now' = the sheets being read
-try { pbMode = localStorage.getItem('mt-pbmode') === 'now' ? 'now' : 'hist'; } catch { /* private mode */ }
 function renderPanelTab() {
   $('pbmode').replaceChildren(...[['hist', 'Histórico (BI)'], ['now', 'Folhas de hoje']].map(([v, t]) => h('button', { type: 'button', 'aria-pressed': String(pbMode === v), onclick: () => { pbMode = v; try { localStorage.setItem('mt-pbmode', v); } catch { /* private mode */ } showTab('panel'); } }, t)));
   if (pbMode === 'hist') renderBi(); else renderPanel();

@@ -29,6 +29,7 @@ const PAGES = { raw: [['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'P
 const ui = { g: 'raw', page: 'diaria', filt: {}, vf: {}, sel: null, cubes: {} };
 try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui.g = s; } catch { /* no storage */ }
 
+export const setBiGroup = (g) => { if (GROUPS[g]) { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; } };
 const cubeFor = (g, base) => {
   const key = `${base.rev}|${Object.keys(getOperators()).length}`;
   if (ui.cubes[g]?.key !== key) ui.cubes[g] = { key, cube: buildCube(base, (c) => operatorName(c) || '') };
