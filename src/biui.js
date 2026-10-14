@@ -208,11 +208,12 @@ function biCard(c) {
 }
 function alertsStrip(x) {
   return live(() => {
-    const f = x.F('cards'), cards = cardsBI(x.cube, f, { unit: GROUPS[x.g].unit }), d24 = auditoria24(x.cube, f), bad = anomalias(x.cube, f);
-    if (d24.length) cards.push({ key: 'd24', tone: 'bad', machine: 'Auditoria de 24 h', title: 'Dias acima de 24 h', people: [], big: String(d24.length), bigLabel: 'dias de máquina', brief: 'Uma máquina não pode ter mais de 24 h num dia somando produção e paradas. Confira estes dias.', foot: 'Produção + paradas', detail: { title: `Dias acima de 24 h (${d24.length})`, head: ['Dia', 'Máquina', 'Produção (h)', 'Paradas (h)', 'Total (h)', 'Por quê'], rows: d24.map((r) => [dmy(r.d), r.m, +r.ph.toFixed(2), +r.sh.toFixed(2), +r.tot.toFixed(2), r.why]) } });
-    if (bad.length) cards.push({ key: 'susp', tone: 'warn', machine: 'Registros suspeitos', title: 'Horas fora do normal', people: [], big: String(bad.length), bigLabel: 'registros', brief: 'Registros com mais de 16 h ou em dias que passam de 24 h. O horário digitado pode estar errado.', foot: 'Conferir na folha', detail: { title: `Registros suspeitos (${bad.length})`, head: [...PROD_HEAD, 'Motivo'], rows: bad.map(({ r, why }) => [...prodRow(r), why]) } });
+    const f = x.F('cards'), c = slice(x.cube, f), cards = cardsBI(x.cube, f, { unit: GROUPS[x.g].unit, groupName: GROUPS[x.g].name }), d24 = auditoria24(x.cube, f), bad = anomalias(x.cube, f), sem = M.pecasSemPadrao(c);
+    // data to check before trusting the numbers
+    const n = d24.length + bad.length + (sem ? 1 : 0);
+    if (n) cards.push({ key: 'conferir', tone: d24.length ? 'bad' : 'warn', machine: 'Dados para conferir', title: 'Antes de confiar nos números', big: String(d24.length + bad.length || sem), bigLabel: d24.length + bad.length ? 'dias e registros' : 'peças sem padrão', brief: [d24.length ? `${d24.length} dia(s) de máquina acima de 24 h` : '', bad.length ? `${bad.length} registro(s) com horas fora do normal` : '', sem ? `${sem.toLocaleString('pt-BR')} peça(s) sem tempo padrão` : ''].filter(Boolean).join(' · ') + '.', foot: 'Abrir a lista',
+      open: () => openRecords('Dados para conferir', ['Tipo', 'Dia', 'Máquina', 'Detalhe'], [...d24.map((r) => ['Dia acima de 24 h', dmy(r.d), r.m, `${r.ph.toFixed(1)} h produção + ${r.sh.toFixed(1)} h paradas = ${r.tot.toFixed(1)} h · ${r.why}`]), ...bad.map(({ r, why }) => ['Registro suspeito', dmy(r.d), r.m, `${r.pm} · ${r.h.toFixed(1)} h · ${why}`]), ...(sem ? [['Sem tempo padrão', '', '', `${sem} peças (veja a página Entrega, tabela "Peças sem tempo padrão")`]] : [])]) });
     const order = { bad: 0, warn: 1, ok: 2 };
-    cards.sort((a, b) => order[a.tone] - order[b.tone]);
     return cards.length ? [el('div', { class: 'acards bi-acards' }, cards.map(biCard))] : [];
   }, 'bi-alerts');
 }
