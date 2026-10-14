@@ -126,7 +126,6 @@
 .bi-main { grid-template-columns: minmax(0, 1fr); }
 .bi-layout, .bi, #view-bi, #view-panel { min-width: 0; }
 body.pbi .top, body.pbi main { max-width: min(1760px, 100%); }
-body.pbi { overflow-x: hidden; }
 .bi-quick { max-width: 100%; }
 @media (max-width: 1280px) { .bi-layout { grid-template-columns: 180px minmax(0, 1fr); } .bi-acards .acard { flex-basis: 260px; } }
 .bi-acards.acards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); overflow: visible; scroll-snap-type: none; padding: 4px 0; }
@@ -143,3 +142,14 @@ body.pbi { overflow-x: hidden; }
 .bi-acards .tbrief { font-size: .86rem; -webkit-line-clamp: 5; }
 .bi-acards .fbig2 b { font-size: 1.75rem; }
 .bi-quick button, .bi-quick .vf-d { font-size: .76rem; padding-block: .18rem; }
+
+/* wide content of "Folhas de hoje" must scroll inside its own box and never widen the page (it used to push the whole page past the screen) */
+#view-panel, #view-bi, #panel-now-title { max-width: 100%; }
+#view-panel { overflow-x: auto; min-width: 0; }
+body.pbi { overflow-x: visible; }
+body.pbi main { overflow-x: clip; }
+.bi-pages, .bi-seg { max-width: 100%; }
+.bi-bar { min-width: 0; }
+.bi-bar > * { min-width: 0; }
+
+.bd-head .hd { display: inline-flex; gap: .5rem; align-items: center; }

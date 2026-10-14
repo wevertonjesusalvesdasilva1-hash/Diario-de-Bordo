@@ -24,7 +24,7 @@ export function buildCube(base, nameOf = () => '') {
       h: Number(r.h) || 0, tp: Number(r.tp) || 0, key, keyP: key + '|' + cf, src: r,
       t1: spanHours(r.i1, r.f1) ?? 0, t2: spanHours(r.i2, r.f2) ?? 0, t3: spanHours(r.i3, r.f3) ?? 0 };
     // "hours delivered" (standard hours of the piece): the matrix value of the sheet; else the same piece+model on another machine; else none
-    if (o.tp > 0) { o.tpx = o.tp; o.tpSrc = 'matriz'; } else { const e = standardByPieceModel(o.p, o.o); o.tpx = e; o.tpSrc = e > 0 ? 'estimado' : 'sem'; }
+    if (o.tp > 0) { o.tpx = o.tp; o.tpSrc = 'matriz'; } else { const e = standardByPieceModel(o.p, o.o, o.m); o.tpx = e; o.tpSrc = e > 0 ? 'estimado' : 'sem'; }
     o.t1s = hm(o.t1); o.t2s = hm(o.t2); o.t3s = hm(o.t3);
     return o;
   });

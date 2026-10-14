@@ -1,4 +1,5 @@
 // The "base de dados" screens: submit the validated sheets, import the Excel history, and see/undo what went in.
+import { auditData } from './core/audit.js';
 import { recordsFromPages, mergeRecords, parseHistoryWorkbook, groupOfMachine, dmy, auditDays } from './core/history.js';
 import { loadBase, sendRecords, undoBatch, restoreBase, emptyBase } from './historico.js';
 
@@ -62,6 +63,8 @@ export async function openSubmit(ctx) {
         h('div', { class: 'bd-btns' }, h('button', { type: 'button', class: 'ghost', onclick: close }, 'Fechar'), h('button', { type: 'button', class: 'primary', onclick: () => { close(); ctx.goRead(); } }, 'Ir para a conferência')));
       return;
     }
+    // things to look at (they do not stop the envio): the other checks of the audit, only for the machine-days of these sheets
+    const warn = plans.flatMap((p) => { const touched = new Set([...p.recs.prod, ...p.recs.stops].map((r) => `${r.d}|${r.m}`)), keep = (r) => touched.has(`${r.d}|${r.m}`); return auditData({ prod: p.merged.prod.filter(keep), stops: p.merged.stops.filter(keep) }).filter((c) => c.count && c.level !== 'info' && !['p-std', 'd-24', 's-nolink', 's-prod', 'p-eff', 's-mot'].includes(c.id)).map((c) => `${GNAME[p.g]}: ${c.count} · ${c.title}`); });
     const total = plans.reduce((n, p) => n + p.merged.added.prod + p.merged.added.stops, 0);
     const ok = h('input', { type: 'checkbox', id: 'bd-ok' }), go = h('button', { type: 'button', class: 'primary', disabled: true }, 'Sim, subir para a base');
     ok.addEventListener('change', () => { go.disabled = !ok.checked || !total; });
@@ -72,6 +75,7 @@ export async function openSubmit(ctx) {
         h('tbody', {}, plans.map((p) => h('tr', {}, h('td', {}, GNAME[p.g]), h('td', {}, String(p.pages.length)), h('td', {}, `${p.merged.added.prod} de ${p.recs.prod.length}`), h('td', {}, `${p.merged.added.stops} de ${p.recs.stops.length}`),
           h('td', {}, `${p.merged.dup.prod} produção(ões) · ${p.merged.dup.stops} paradas`))))),
       skipped.length ? h('details', { class: 'bd-skip' }, h('summary', {}, `${skipped.length} linha(s) ficam de fora (sem data ou horário)`), h('ul', {}, skipped.map((s) => h('li', {}, `${s.page}: ${s.why}`)))) : null,
+      warn.length ? h('details', { class: 'bd-skip', open: true }, h('summary', {}, `Para conferir (${warn.length}) — não impede o envio`), h('ul', {}, warn.map((w) => h('li', {}, w))), h('p', { class: 'note' }, 'Veja os detalhes depois, em Painel BI → Auditoria dos dados.')) : null,
       total ? null : h('p', { class: 'note' }, 'Tudo isso já está na base. Não há nada novo para subir.'),
       h('label', { class: 'bd-check' }, ok, ' Confirmo que o preenchimento destas folhas está finalizado e correto.'),
       h('div', { class: 'bd-btns' }, h('button', { type: 'button', class: 'ghost', onclick: close }, 'Cancelar'), go));

@@ -5,6 +5,7 @@ import { dmy } from './core/history.js';
 import { loadBase } from './historico.js';
 import { getOperators, operatorName } from './core/operators.js';
 import { el, chartBox, PALETTE } from './bicharts.js';
+import { auditData } from './core/audit.js';
 import * as BI from './core/bi.js';
 
 // the report's color rules are kept, painted with the Painel's palette
@@ -14,6 +15,7 @@ const corEficS = (e) => sk(corEfic(e));
 const corPctS = (v) => sk(BI.corPct(v)), corGanhoS = (g) => sk(BI.corGanho(g)), corTempoS = (h) => sk(BI.corTempo(h)), corVariacaoS = (v) => sk(BI.corVariacao(v));
 
 const SEP = '\u0001';
+const fileSafe = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 -]+/g, ' ').trim().replace(/\s+/g, '-').slice(0, 60) || 'dados';
 let slicerFills = [];
 const ddmm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const r6 = (v) => Math.round((v ?? 0) * 1e6) / 1e6;   // drop floating-point noise before rounding
@@ -26,7 +28,7 @@ const hhmm = (h) => { const m = Math.round((h || 0) * 60); return `${String(Math
 const blank = (v) => (v === '' || v == null ? '(vazio)' : v);
 
 const GROUPS = { raw: { name: 'RAW (robôs)', unit: 'Robô', units: 'Robôs' }, usi: { name: 'Usinagem', unit: 'Máquina', units: 'Máquinas' } };
-const PAGES = { raw: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['mensal', 'Mensal']], usi: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador']] };
+const PAGES = { raw: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['mensal', 'Mensal'], ['auditoria', 'Auditoria dos dados']], usi: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['auditoria', 'Auditoria dos dados']] };
 
 const ui = { g: 'raw', page: 'entrega', filt: {}, vf: {}, lead: {}, uteis: {}, multi: false, sel: null, cubes: {} };
 try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui.g = s; } catch { /* no storage */ }
@@ -40,6 +42,7 @@ const cubeFor = (g, base) => {
 
 // ---- slicers ------------------------------------------------------------------------------------------------
 const SLICERS = {
+  auditoria: [],
   entrega: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['Turno', 'p', 't'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Nome do operador', 'p', 'nome']],
   diaria: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Turno', 'p', 't']],
   paradas: [['Dia', 's', 'data'], ['Mês', 's', 'mes'], ['@unit', 's', 'm'], ['Motivo', 's', 'mo'], ['Turno', 's', 't']],
@@ -102,7 +105,7 @@ function visFilterBar(vid, side, rebuild) {
     el('button', { type: 'button', class: 'vf-x', onclick: (e) => { st.m.clear(); st.from = st.to = ''; e.target.closest('.vf').replaceWith(visFilterBar(vid, side, rebuild)); rebuild(); } }, 'Limpar'));
 }
 // build(): returns the chart/table DOM using x.F(vid); it runs again whenever this chart's own filters change
-function vis(title, build, { vid, side = 'p', wide = false, acts = [] } = {}) {
+function vis(title, build, { vid, side = 'p', wide = false, acts = [], filters = true } = {}) {
   VSIDE[vid] = side;
   const box = el('section', { class: `bi-vis${wide ? ' wide' : ''}` }), slot = el('div');
   const max = el('button', { type: 'button', 'aria-label': 'Ampliar', onclick: () => { const on = box.classList.toggle('max'); max.textContent = on ? '✕ Fechar' : '⤢'; } }, '⤢');
@@ -126,9 +129,9 @@ function vis(title, build, { vid, side = 'p', wide = false, acts = [] } = {}) {
     box.rebuild();
   };
   REG.push(box);
-  const xl = el('button', { type: 'button', 'aria-label': 'Baixar em Excel', title: 'Baixar os dados deste gráfico em Excel', onclick: async () => { const t = slot.firstElementChild?.getTable?.(); if (!t) return; const X = await import('xlsx'); const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([t.head, ...t.rows]), 'Dados'); X.writeFile(wb, `${title.replace(/[^\p{L}\p{N} ·-]+/gu, '').trim().slice(0, 60) || 'dados'}.xlsx`); } }, '⬇ Excel');
-  box.append(el('header', {}, el('h4', {}, title), el('div', { class: 'acts' }, acts, xl, max)), barHost, slot);
-  box.rebuildBar();
+  const xl = el('button', { type: 'button', 'aria-label': 'Baixar em Excel', title: 'Baixar os dados deste gráfico em Excel', onclick: async () => { const t = slot.firstElementChild?.getTable?.(); if (!t) return; const X = await import('xlsx'); const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([t.head, ...t.rows]), 'Dados'); X.writeFile(wb, `${fileSafe(title)}.xlsx`); } }, '⬇ Excel');
+  box.append(el('header', {}, el('h4', {}, title), el('div', { class: 'acts' }, acts, filters ? xl : '', max)), filters ? barHost : '', slot);
+  if (filters) box.rebuildBar();
   box.rebuild();
   return box;
 }
@@ -147,7 +150,7 @@ function table(cols, rows, { totals, order, desc = true, limit = 300 } = {}) {
     more.textContent = `Mostrar todas as ${fint(list.length)} linhas`;
   }
   draw(); wrap.append(box, more);
-  wrap.getTable = () => { let list = rows; if (sortCol != null) { const c = cols[sortCol], k = c.key ?? c.v; list = [...rows].sort((a, b) => { const x = k(a), y = k(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; }); } return { head: cols.map((c) => c.h), rows: list.map((r) => cols.map((c) => c.v(r))) }; };
+  wrap.getTable = () => { let list = rows; if (sortCol != null) { const c = cols[sortCol], k = c.key ?? c.v; list = [...rows].sort((a, b) => { const x = k(a), y = k(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; }); } return { head: cols.map((c) => c.h), rows: list.map((r) => cols.map((c) => { const v = c.v(r); return v && typeof v === 'object' ? '' : v; })) }; };
   return wrap;
 }
 const rowsOf = (groups) => groups.map((g) => ({ vals: g.vals, c: g.c }));
@@ -159,7 +162,7 @@ function openRecords(title, head, rows, note) {
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   const tbl = table(head.map((h, i) => ({ h, v: (r) => r[i], n: typeof rows[0]?.[i] === 'number' })), rows, { limit: 400 });
   const box = el('div', { id: 'bd-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, el('div', { class: 'bd-box wide' },
-    el('div', { class: 'bd-head' }, el('h3', {}, title), el('button', { type: 'button', class: 'bd-x', 'aria-label': 'Fechar', onclick: close }, '✕')),
+    el('div', { class: 'bd-head' }, el('h3', {}, title), el('span', { class: 'hd' }, el('button', { type: 'button', class: 'ghost', onclick: async () => { const t = tbl.getTable(); const X = await import('xlsx'); const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([t.head, ...t.rows]), 'Dados'); X.writeFile(wb, `${fileSafe(title)}.xlsx`); } }, '⬇ Excel'), el('button', { type: 'button', class: 'bd-x', 'aria-label': 'Fechar', onclick: close }, '✕'))),
     el('div', { class: 'bd-body' }, note ? el('p', { class: 'note' }, note) : '', tbl)));
   box.addEventListener('click', (e) => { if (e.target === box) close(); });
   document.body.append(box); document.addEventListener('keydown', onKey);
@@ -336,7 +339,27 @@ function pageEntrega(x) {
       vis('PEÇAS SEM TEMPO PADRÃO (completar na matriz)', semPadrao, { vid: 't2' }))];
 }
 
-const BUILDERS = { entrega: pageEntrega, diaria: pageDiaria, paradas: pageParadas, peca: pagePeca, operador: pageOperador, mensal: pageMensal };
+// ---- Auditoria dos dados: everything in the history that a person should look at (the app never changes the data by itself)
+function pageAuditoria(x) {
+  const known = new Set(Object.keys(getOperators()));
+  const res = auditData({ prod: x.base.prod, stops: x.base.stops, known: known.size ? known : null });
+  const n = (lv) => res.filter((c) => c.level === lv && c.count).reduce((a, c) => a + c.count, 0), k = (lv) => res.filter((c) => c.level === lv && c.count).length;
+  const LV = { erro: ['Erro', '#fb7185'], 'atenção': ['Atenção', '#fbbf24'], info: ['Informação', '#60a5fa'] };
+  const rows = res.map((c) => ({ c }));
+  const xlsx = async () => { const X = await import('xlsx'); const wb = X.utils.book_new();
+    X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([['Nível', 'Área', 'Verificação', 'Quantidade', 'Horas', 'O que significa'], ...res.map((c) => [LV[c.level][0], c.area, c.title, c.count, c.hours == null ? '' : +c.hours.toFixed(1), c.why])]), 'Resumo');
+    for (const c of res) if (c.count) X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([c.head, ...c.rows]), c.title.replace(/[\[\]\*\?\/\\:]/g, ' ').slice(0, 31));
+    X.writeFile(wb, `auditoria-${GROUPS[x.g].name.split(' ')[0].toLowerCase()}.xlsx`); };
+  return [el('div', { class: 'bi-cards' }, card('ERROS', fint(n('erro')), '#fb7185', `${k('erro')} tipos de problema`), card('ATENÇÃO', fint(n('atenção')), '#fbbf24', `${k('atenção')} tipos`), card('INFORMAÇÃO', fint(n('info')), '#60a5fa', `${k('info')} tipos`), card('BASE', `${fint(x.base.prod.length)} + ${fint(x.base.stops.length)}`, null, 'produções + paradas verificadas')),
+    el('div', { class: 'bi-grid' }, vis('VERIFICAÇÕES (clique em Ver linhas para abrir cada lista)', () => table([
+      { h: 'Nível', v: (r) => LV[r.c.level][0], key: (r) => 3 - ['erro', 'atenção', 'info'].indexOf(r.c.level), bg: (r) => LV[r.c.level][1] },
+      { h: 'Área', v: (r) => r.c.area }, { h: 'Verificação', v: (r) => r.c.title },
+      { h: 'Quantidade', v: (r) => fint(r.c.count), key: (r) => r.c.count, n: true }, { h: 'Horas', v: (r) => (r.c.hours == null ? '' : f1(r.c.hours)), key: (r) => r.c.hours ?? -1, n: true },
+      { h: 'O que significa', v: (r) => r.c.why },
+      { h: '', v: (r) => (r.c.count ? el('button', { type: 'button', class: 'bi-more', onclick: () => openRecords(`${r.c.title} (${r.c.count})`, r.c.head, r.c.rows, r.c.why) }, 'Ver linhas') : '—') }], rows, { order: 0 }), { vid: 'au', wide: true, filters: false, acts: [el('button', { type: 'button', onclick: xlsx }, '⬇ Auditoria completa (Excel)')] }))];
+}
+
+const BUILDERS = { auditoria: pageAuditoria, entrega: pageEntrega, diaria: pageDiaria, paradas: pageParadas, peca: pagePeca, operador: pageOperador, mensal: pageMensal };
 const pageFilterSet = (col) => pageFilter().p[col] ?? new Set();
 
 // ---- quick date bar (Último dia, 7 dias, 30 dias, mês, De/Até) --------------------------------------------------
@@ -390,7 +413,7 @@ export async function renderBiUI(root, ctx) {
   }
   const cube = cubeFor(ui.g, base); curCube = cube;
   const days = [...new Set(base.prod.map((r) => r.d))].sort();
-  const x = { cube, g: ui.g,
+  const x = { cube, g: ui.g, base,
     F: (vid) => mergeF(mergeF(pageFilter(), ui.sel && ui.sel.vid !== vid ? ui.sel.f() : null), visFilterOf(vid)),
     selOf: (vid) => (ui.sel?.vid === vid ? ui.sel.keys : null),
     // like Power BI: a click selects only that bar (again = clear); Ctrl/⌘ + click (or "Seleção múltipla") adds or removes bars
