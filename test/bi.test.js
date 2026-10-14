@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCube, slice, M, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, corPct, corGanho, selecionado, anomalias, destaques, optionsFor } from '../src/core/bi.js';
+import { buildCube, slice, M, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, corPct, corGanho, selecionado, anomalias, destaques, optionsFor, auditoria24 } from '../src/core/bi.js';
 
 const P = (m, d, p, o, t, c, h, tp) => ({ m, d, p, o, c1: t === 1 ? c : '', i1: '', f1: '', c2: t === 2 ? c : '', i2: '', f2: '', c3: t === 3 ? c : '', i3: '', f3: '', t, ob: '', h, tp });
 const S = (m, d, c, t, mo, h) => ({ m, d, c, i: '08:00', f: '09:00', t, mo, ds: '', h });
@@ -70,4 +70,15 @@ test('filtros ligados: os dias seguem o mês, o mês não some pelo dia', () => 
   assert.deepEqual(optionsFor(cube, 'p', 'data', f), ['2026-08-01', '2026-08-02']);
   const g = { p: { data: new Set(['2026-08-01']) }, s: {} };
   assert.deepEqual(optionsFor(cube, 'p', 'mes', g), ['agosto', 'setembro']);
+});
+
+test('auditoria de 24 h: produção + paradas da mesma máquina e dia', () => {
+  const t = (i, f, h) => ({ i1: i, f1: f, h });
+  const prod = [{ ...P('RAW05', '2026-08-01', 'A', 'X', 1, '100', 20, 8), i1: '06:00', f1: '14:00' }, { ...P('RAW05', '2026-08-01', 'B', 'Y', 2, '200', 6, 6), i1: '14:00', f1: '20:00' }];
+  const stops = [{ ...S('RAW05', '2026-08-01', '100', 1, 'SET-UP', 3), i: '10:00', f: '13:00' }];
+  const c = buildCube({ prod, stops });
+  const r = auditoria24(c, {});
+  assert.equal(r.length, 1);
+  assert.equal(r[0].tot, 29); assert.match(r[0].why, /3,0 h de produção e parada no mesmo horário/);
+  assert.equal(auditoria24(buildCube({ prod: [prod[1]], stops }), {}).length, 0);   // 6 h + 3 h
 });

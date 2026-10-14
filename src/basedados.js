@@ -1,5 +1,5 @@
 // The "base de dados" screens: submit the validated sheets, import the Excel history, and see/undo what went in.
-import { recordsFromPages, mergeRecords, parseHistoryWorkbook, groupOfMachine, dmy } from './core/history.js';
+import { recordsFromPages, mergeRecords, parseHistoryWorkbook, groupOfMachine, dmy, auditDays } from './core/history.js';
 import { loadBase, sendRecords, undoBatch, restoreBase, emptyBase } from './historico.js';
 
 function h(tag, attrs = {}, ...kids) {
@@ -51,6 +51,16 @@ export async function openSubmit(ctx) {
       const base = await loadBase(x.g).catch((e) => { throw new Error(`${GNAME[x.g]}: ${e.message}`); });
       const merged = mergeRecords(base, recs);
       plans.push({ ...x, recs, merged });
+    }
+    // a machine cannot run more than 24 h in a day: block the envio when the days touched by these sheets would pass it
+    const over = plans.flatMap((p) => { const touched = new Set([...p.recs.prod, ...p.recs.stops].map((r) => `${r.d}|${r.m}`)); return auditDays(p.merged.prod, p.merged.stops, (r) => touched.has(`${r.d}|${r.m}`)); });
+    if (over.length) {
+      body.replaceChildren(h('p', { class: 'bd-warn' }, 'Não dá para subir: estes dias passariam de 24 horas (produção + paradas da mesma máquina).'),
+        h('table', { class: 'bd-tab' }, h('thead', {}, h('tr', {}, ['Dia', 'Máquina', 'Produção', 'Paradas', 'Total', 'Por quê'].map((t) => h('th', {}, t)))),
+          h('tbody', {}, over.map((r) => h('tr', {}, h('td', {}, dmy(r.d)), h('td', {}, r.m), h('td', {}, `${r.ph.toFixed(1)} h`), h('td', {}, `${r.sh.toFixed(1)} h`), h('td', {}, `${r.tot.toFixed(1)} h`), h('td', {}, r.why))))),
+        h('p', { class: 'note' }, 'Confira horários digitados errados, paradas repetidas ou parada lançada no mesmo horário da produção. Corrija na conferência e dê o OK de novo.'),
+        h('div', { class: 'bd-btns' }, h('button', { type: 'button', class: 'ghost', onclick: close }, 'Fechar'), h('button', { type: 'button', class: 'primary', onclick: () => { close(); ctx.goRead(); } }, 'Ir para a conferência')));
+      return;
     }
     const total = plans.reduce((n, p) => n + p.merged.added.prod + p.merged.added.stops, 0);
     const ok = h('input', { type: 'checkbox', id: 'bd-ok' }), go = h('button', { type: 'button', class: 'primary', disabled: true }, 'Sim, subir para a base');

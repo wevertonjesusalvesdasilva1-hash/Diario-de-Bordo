@@ -1,6 +1,6 @@
 // "4 · BI": the Power BI reports (RAW and usinagem) rebuilt on the history. Numbers come from core/bi.js (the report's own measures).
 import './bi.css';
-import { buildCube, slice, M, options, optionsFor, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
+import { buildCube, slice, M, options, optionsFor, auditoria24, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
 import { dmy } from './core/history.js';
 import { loadBase } from './historico.js';
 import { getOperators, operatorName } from './core/operators.js';
@@ -197,6 +197,8 @@ function alertsStrip(x) {
   return live(() => {
     const f = x.F('cards'), items = destaques(x.cube, f, { unit: GROUPS[x.g].unit }), bad = anomalias(x.cube, f);
     const out = items.map((d) => el('span', { class: `bi-al ${d.tone}` }, d.text));
+    const d24 = auditoria24(x.cube, f);
+    if (d24.length) out.push(el('button', { type: 'button', class: 'bi-al bad act', onclick: () => openRecords(`Dias acima de 24 h (${d24.length})`, ['Dia', 'Máquina', 'Produção (h)', 'Paradas (h)', 'Total (h)', 'Por quê'], d24.map((r) => [dmy(r.d), r.m, +r.ph.toFixed(2), +r.sh.toFixed(2), +r.tot.toFixed(2), r.why]), 'Uma máquina não pode ter mais de 24 h em um dia somando produção e paradas. Corrija as linhas na folha ou no Excel e importe de novo.') }, `⚠ ${d24.length} dia(s) acima de 24 h · ver`));
     if (bad.length) out.push(el('button', { type: 'button', class: 'bi-al bad act', onclick: () => openRecords(`Registros suspeitos (${bad.length})`, [...PROD_HEAD, 'Motivo'], bad.map(({ r, why }) => [...prodRow(r), why]), 'Confira estas linhas na folha ou no Excel: o horário digitado pode estar errado (por exemplo, hora que atravessa a meia-noite).') }, `⚠ ${bad.length} registro(s) suspeito(s) · ver`));
     return out;
   }, 'bi-alerts');

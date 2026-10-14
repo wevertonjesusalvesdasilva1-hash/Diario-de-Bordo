@@ -3,7 +3,7 @@
 //   01_Produção  one row per production record      02_Paradas  one row per stop      02_Paradas_resumo  stop hours per (date + machine)
 //   Produção ↔ Paradas_resumo : Chave (date + machine)                      — filters both ways
 //   Produção ↔ Paradas        : Chave parada (date + machine + chapa final)  — many-to-many, filters both ways
-import { spanHours, fmtHM } from './history.js';
+import { spanHours, fmtHM, auditDays } from './history.js';
 
 export const META = 0.88;            // availability goal
 export const HORAS_DIA = 18.58;      // productive hours expected per machine per day
@@ -26,7 +26,7 @@ export function buildCube(base, nameOf = () => '') {
     o.t1s = hm(o.t1); o.t2s = hm(o.t2); o.t3s = hm(o.t3);
     return o;
   });
-  const stops = base.stops.map((s) => ({ m: s.m, d: s.d, mes: monthOf(s.d), c: s.c, t: s.t == null ? '' : String(s.t), mo: s.mo, ds: s.ds, i: s.i, f: s.f, h: Number(s.h) || 0, key: s.d + '|' + s.m + '|' + s.c, dm: s.d + '|' + s.m }));
+  const stops = base.stops.map((s) => ({ m: s.m, d: s.d, mes: monthOf(s.d), c: s.c, t: s.t == null ? '' : String(s.t), mo: s.mo, ds: s.ds, i: s.i, f: s.f, h: Number(s.h) || 0, key: s.d + '|' + s.m + '|' + s.c, dm: s.d + '|' + s.m, src: s }));
   const resumo = new Map();
   for (const s of stops) resumo.set(s.dm, (resumo.get(s.dm) || 0) + s.h);
   return { prod, stops, resumo };
@@ -171,4 +171,11 @@ export function optionsFor(cube, side, col, f = {}) {
   const set = new Set();
   for (const r of rows) if (matches(others, dims, r)) set.add(dims[col](r));
   return [...set].filter((v) => v !== '' && v != null).sort(col === 'mes' ? (a, b) => MORDER(a) - MORDER(b) : natural);
+}
+
+// machine-days over 24 h (production + stops), following the date / machine filters of the page
+export function auditoria24(cube, f = {}) {
+  const fp = f.p ?? {}, fs = f.s ?? {};
+  const ok = (r, dims, a, b) => ['data', 'mes', 'm'].every((k) => { const sets = [a[k], b[k]].filter(Boolean); return sets.every((st) => st.has(dims[k](r))); });
+  return auditDays(cube.prod.filter((r) => ok(r, PD, fp, fs)).map((r) => r.src), cube.stops.filter((r) => ok(r, SD, fp, fs)).map((r) => r.src));
 }
