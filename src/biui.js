@@ -280,7 +280,9 @@ function pageGeral(x) {
     tblBtn.textContent = ui.t24.open ? '▦ Fechar tabela' : '▦ Abrir tabela'; tblBtn.setAttribute('aria-expanded', String(ui.t24.open)); tblBtn.classList.toggle('on', ui.t24.open);
     if (!ui.t24.open) { if (ui.t24.key) wrapBox.append(el('p', { class: 'bi-note' }, 'Barra escolhida: ', el('b', {}, ui.t24.key.split(SEP).reverse().join(' · ').replace(/(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1')), '. Clique em "Abrir tabela" para ver e corrigir os registros dela.')); return wrapBox; }
     const rows = spec?.rowsOf24 ?? [], pickRows = ui.t24.only && ui.t24.key ? rows.filter((r) => r.d + SEP + r.m === ui.t24.key) : rows;
-    const hitP = new Set(), hitS = new Set(); rows.filter((r) => r.d + SEP + r.m === ui.t24.key).forEach((r) => { r.PR.forEach((p) => hitP.add(p)); r.SR.forEach((p) => hitS.add(p)); });
+    const hitP = new Set(), hitS = new Set(), spillP = new Set(), spillS = new Set();
+    // a record that starts the day before and crosses midnight counts, in part, on the next day: it is shown in amber and named
+    rows.filter((r) => r.d + SEP + r.m === ui.t24.key).forEach((r) => { r.PR.forEach((p) => { hitP.add(p); if (p.d !== r.d) spillP.add(p); }); r.SR.forEach((p) => { hitS.add(p); if (p.d !== r.d) spillS.add(p); }); });
     const uniq = (k) => [...new Set(pickRows.flatMap((r) => r[k]))];
     const byTime = (a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.m < b.m ? -1 : a.m > b.m ? 1 : String(a.i1 ?? a.i).localeCompare(String(b.i1 ?? b.i)));
     const sel = ui.t24.key ? el('span', {}, 'Destacado: ', el('b', {}, ui.t24.key.split(SEP).reverse().join(' · ').replace(/(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1')), ' ',
@@ -288,8 +290,9 @@ function pageGeral(x) {
       : el('span', {}, 'Clique numa barra do gráfico para destacar aqui os registros dela.');
     const common = { g: x.g, toast: x.toast, onSaved: () => x.refresh() };
     wrapBox.append(el('p', { class: 'bi-note dbe-note-hit' }, 'Edite a célula e clique em Salvar: a base de dados é atualizada e todos os gráficos recalculam. ', sel),
-      recordsEditor({ ...common, kind: 'prod', title: 'Produções', records: uniq('PR').sort(byTime), focus: hitP, empty: 'Nenhuma produção nestes dias.' }),
-      recordsEditor({ ...common, kind: 'stop', title: 'Paradas', records: uniq('SR').sort(byTime), focus: hitS, empty: 'Nenhuma parada nestes dias.' }));
+      ...(spillP.size + spillS.size ? [el('p', { class: 'bi-note dbe-note-hit' }, `Linhas em âmbar começam no dia anterior e passam da meia-noite: só a parte depois das 00:00 conta em ${dmy(ui.t24.key.split(SEP)[0])}. São ${fint(spillP.size + spillS.size)} no total.`)] : []),
+      recordsEditor({ ...common, kind: 'prod', title: 'Produções', records: uniq('PR').sort(byTime), focus: hitP, spill: spillP, empty: 'Nenhuma produção nestes dias.' }),
+      recordsEditor({ ...common, kind: 'stop', title: 'Paradas', records: uniq('SR').sort(byTime), focus: hitS, spill: spillS, empty: 'Nenhuma parada nestes dias.' }));
     return wrapBox;
   };
   const v24 = vis('PRODUÇÃO + PARADAS POR DIA (limite de 24 h)', build24, { vid: 'v8', wide: true, acts: [tblBtn, sel24] });

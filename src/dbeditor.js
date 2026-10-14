@@ -17,7 +17,7 @@ const norm = (kind, r) => (kind === 'prod' ? prodRecord({ ...r, h: undefined, tp
 const same = (a, b, cols) => cols.every(([k]) => String(a[k] ?? '') === String(b[k] ?? ''));
 
 // kind: 'prod' | 'stop'; records: the base objects to show; focus: Set of records to highlight; onSaved(): redraw after saving
-export function recordsEditor({ g, kind, records, focus = null, onSaved, toast = () => {}, pageSize = 100, title = '', empty = 'Nenhum registro.' }) {
+export function recordsEditor({ g, kind, records, focus = null, spill = null, onSaved, toast = () => {}, pageSize = 100, title = '', empty = 'Nenhum registro.' }) {
   const cols = kind === 'prod' ? PROD_COLS : STOP_COLS;
   const drafts = new Map(), host = el('section', { class: 'dbe' });   // record → edited copy
   let page = 0, last = null;
@@ -28,7 +28,7 @@ export function recordsEditor({ g, kind, records, focus = null, onSaved, toast =
     if (kind === 'stop' && (!d.i || !d.f)) return 'a parada precisa de início e fim';
     return '';
   };
-  const hoursOf = (r) => { const d = drafts.get(r) ?? r; try { const n = norm(kind, d); return [n.h, n.tp]; } catch { return [r.h, r.tp]; } };
+  const hoursOf = (r) => { if (!dirty(r)) return [r.h, r.tp]; const d = drafts.get(r); try { const n = norm(kind, d); return [n.h, n.tp]; } catch { return [r.h, r.tp]; } };
   async function save(list) {
     const ch = [];
     for (const r of list) { const d = drafts.get(r), w = bad(d); if (w) { toast(`${dmy(d.d) || 'Linha'} ${d.m ?? ''}: ${w}.`); return; } ch.push({ kind, old: r, new: norm(kind, d) }); }
@@ -65,7 +65,7 @@ export function recordsEditor({ g, kind, records, focus = null, onSaved, toast =
       fillSpans();
       hc = el('td', { class: 'ro n' }, f2(hoursOf(r)[0])); tc = kind === 'prod' ? el('td', { class: 'ro n' }, f2(hoursOf(r)[1])) : '';
       sv = el('button', { type: 'button', class: 'dbe-s', disabled: dirty(r) ? null : true, onclick: () => save([r]) }, 'Salvar');
-      tr = el('tr', { class: `${focus?.has(r) ? 'hit' : ''}${dirty(r) ? ' dirty' : ''}` }, cols.map(inp), ...spanCells, hc, tc, el('td', { class: 'act' }, sv, el('button', { type: 'button', class: 'dbe-x', 'aria-label': 'Excluir linha', title: 'Excluir', onclick: () => del(r) }, '🗑')));
+      tr = el('tr', { class: `${focus?.has(r) ? (spill?.has(r) ? 'spill' : 'hit') : ''}${dirty(r) ? ' dirty' : ''}` }, cols.map(inp), ...spanCells, hc, tc, el('td', { class: 'act' }, sv, el('button', { type: 'button', class: 'dbe-x', 'aria-label': 'Excluir linha', title: 'Excluir', onclick: () => del(r) }, '🗑')));
       return tr;
     };
     const bar = {
@@ -83,7 +83,7 @@ export function recordsEditor({ g, kind, records, focus = null, onSaved, toast =
       addBox,
       list.length ? el('div', { class: 'dbe-wrap' }, el('table', {}, el('thead', {}, head), body)) : el('p', { class: 'bi-note' }, empty));
     // bring the highlighted line into view inside the table only (the page itself does not move)
-    setTimeout(() => { const w = host.querySelector('.dbe-wrap'), h = host.querySelector('tr.hit'); if (w && h) w.scrollTop = Math.max(0, h.offsetTop - 40); }, 0);
+    setTimeout(() => { const w = host.querySelector('.dbe-wrap'), h = host.querySelector('tr.hit') ?? host.querySelector('tr.spill'); if (w && h) w.scrollTop = Math.max(0, h.offsetTop - 40); }, 0);
   }
   function addRow() {
     const d = adding, set = (k, v) => { d[k] = v; };
