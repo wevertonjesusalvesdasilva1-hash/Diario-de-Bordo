@@ -90,6 +90,12 @@ export function auditData({ prod, stops, known = null }) {
       add({ id: 'p-known', area: 'Produção', level: 'atenção', title: 'Chapa fora da lista de operadores', why: 'A chapa pode estar digitada errada ou faltar na lista (o nome não aparece).', head: prodCols, rows });
     }
   }
+  { // plates that do not look like a plate (3 to 6 digits)
+    const rows = [];
+    for (const r of prod) for (const c of [r.c1, r.c2, r.c3]) if (c && !/^\d{3,6}$/.test(String(c))) rows.push(pRow(r, `chapa "${c}" não parece uma chapa (3 a 6 números)`));
+    for (const x of stops) if (x.c && !/^\d{3,6}$/.test(String(x.c))) rows.push(sRow(x, `chapa "${x.c}" não parece uma chapa`));
+    add({ id: 'p-fmt', area: 'Produção', level: 'atenção', title: 'Chapa com formato estranho', why: 'Chapa com letras ou poucos números costuma ser erro de digitação.', head: prodCols, rows });
+  }
   { // weekends with production (information)
     const rows = prod.filter((r) => { const w = new Date(`${r.d}T12:00:00Z`).getUTCDay(); return w === 0 || w === 6; }).map((r) => pRow(r, 'sábado ou domingo'));
     add({ id: 'p-wk', area: 'Produção', level: 'info', title: 'Produção em sábado ou domingo', why: 'Pode ser trabalho de fim de semana de verdade, ou data digitada errada.', head: prodCols, rows });
