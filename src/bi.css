@@ -193,3 +193,8 @@ body.pbi main { overflow-x: clip; }
 .vf-btn { border: 1px solid var(--line2); background: transparent; color: var(--muted); border-radius: 8px; font: inherit; font-size: .75rem; padding: .15rem .5rem; cursor: pointer; }
 .vf-btn:hover, .vf-btn.on { color: var(--accent); border-color: var(--accent); }
 .bi-explain { margin: 0 0 8px; font-size: 12.5px; line-height: 1.45; max-width: 90ch; }
+
+.bi-explain-box { margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; color: var(--muted, #9aa3b2); }
+.bi-explain-box p { margin: 0 0 4px; } .bi-explain-box ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; }
+.bi-explain-box b { color: var(--fg, #e6e9ef); font-weight: 600; }
+.ex-chip { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 7px; vertical-align: -1px; } .ex-chip.round { border-radius: 50%; }

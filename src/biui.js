@@ -168,7 +168,16 @@ function table(cols, rows, { totals, order, desc = true, limit = 300 } = {}) {
   return wrap;
 }
 // a short, plain sentence under a chart title saying what it shows
-const explain = (text, build) => () => { const w = el('div', {}), inner = build(); w.getTable = () => inner.getTable?.(); w.append(el('p', { class: 'bi-note bi-explain' }, text), inner); return w; };
+const explain = (text, build) => () => { const w = el('div', {}), inner = build(); w.getTable = () => inner.getTable?.(); w.append(typeof text === 'string' ? el('p', { class: 'bi-note bi-explain' }, text) : text, inner); return w; };
+// explanation of the robot chart, in the same words and colors as its legend
+const legendNote = () => {
+  const chip = (c, round) => el('i', { class: `ex-chip${round ? ' round' : ''}`, style: `background:${c}` });
+  const item = (c, name, text, round) => el('li', {}, chip(c, round), el('b', {}, name), ' — ', text);
+  return el('div', { class: 'bi-explain-box' }, el('p', {}, 'Para as mesmas peças de cada máquina:'),
+    el('ul', {}, item(PALETTE[0], 'Tempo real gasto (h)', 'quanto tempo a máquina realmente levou, pelos horários da folha.'),
+      item(PALETTE[3], 'Tempo que o padrão previa (h)', 'quanto tempo essas peças deveriam levar, segundo a matriz de tempos.'),
+      item('#fb7185', 'Eficiência (previsto ÷ real)', 'acima de 100%: a máquina foi mais rápida que o padrão (barra verde maior que a azul). Abaixo de 100%: demorou mais que o padrão.', true)));
+};
 const rowsOf = (groups) => groups.map((g) => ({ vals: g.vals, c: g.c }));
 
 // ---- records (modal) ------------------------------------------------------------------------------------------
@@ -357,7 +366,7 @@ function pageEntrega(x) {
     return { kind: 'area', cats: gr.map((g) => ({ key: g.vals[0], label: ddmm(g.vals[0]) })), series: [{ name: 'Tempo que o padrão previa (h)', vals: gr.map((g) => M.entrega(g.c)), color: PALETTE[3] }, { name: 'Tempo real gasto (h)', vals: gr.map((g) => M.realComPadrao(g.c)), color: PALETTE[0] }], height: 280, fmt: f1, onPick: x.pick('v1', 'p', ['data']), selected: x.selOf('v1') }; };
   const porMaq = () => { const gr = groupP(x.cube, x.F('v2'), ['m']);
     return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Tempo real gasto (h)', vals: gr.map((g) => M.realComPadrao(g.c)), color: PALETTE[0] }, { name: 'Tempo que o padrão previa (h)', vals: gr.map((g) => M.entrega(g.c)), color: PALETTE[3] }],
-      line: { name: 'Eficiência (previsto ÷ real)', vals: gr.map((g) => M.efic(g.c)), fmt: fpct0, color: '#fb7185', min: 0, max: Math.max(1.2, ...gr.map((g) => M.efic(g.c) ?? 0)) }, fmt: f1, onPick: x.pick('v2', 'p', ['m']), selected: x.selOf('v2') }; };
+      lineAbove: true, line: { name: 'Eficiência (previsto ÷ real)', vals: gr.map((g) => M.efic(g.c)), fmt: fpct0, color: '#fb7185', ref: 1, refLabel: '100%' }, fmt: f1, onPick: x.pick('v2', 'p', ['m']), selected: x.selOf('v2') }; };
   const porPeca = () => { const gr = groupP(x.cube, x.F('v3'), ['pm']).filter((g) => M.entrega(g.c) > 0).map((g) => ({ g, v: M.entrega(g.c), e: M.efic(g.c) })).sort((a, b) => b.v - a.v);
     return { orient: 'h', cats: gr.map(({ g, e }) => ({ key: g.vals[0], label: g.vals[0], color: corEficS(e) })), series: [{ name: 'Tempo que o padrão previa (h)', vals: gr.map((r) => r.v), color: PALETTE[3] }], fmt: f1, tip: (i) => `real ${f1(M.realComPadrao(gr[i].g.c))} h · ${fpct0(gr[i].e)} · ${fint(M.qtdPecas(gr[i].g.c))} peças`, onPick: x.pick('v3', 'p', ['pm']), selected: x.selOf('v3') }; };
   const porOper = () => { const rows = rowsOf(groupP(x.cube, x.F('t1'), ['cf', 'nome'])).filter((r) => M.entrega(r.c) > 0);
@@ -368,7 +377,7 @@ function pageEntrega(x) {
     return table([{ h: 'Peça e modelo', v: (r) => r.vals[0] }, { h: u + 's', v: (r) => [...new Set(r.c.P.filter((p) => !(p.tpx > 0)).map((p) => p.m))].sort().join(', ') }, { h: 'Peças sem padrão', v: (r) => fint(M.pecasSemPadrao(r.c)), key: (r) => M.pecasSemPadrao(r.c), n: true }, { h: 'Horas reais', v: (r) => f2(M.horasSemPadrao(r.c)), key: (r) => M.horasSemPadrao(r.c), n: true }], rows, { order: 2 }); };
   return [cards(),
     el('div', { class: 'bi-grid' },
-      vis(`TEMPO REAL × TEMPO PADRÃO POR ${u.toUpperCase()}`, explain(`Para as mesmas peças: a barra azul é o tempo que o ${u.toLowerCase()} realmente gastou e a amarela é o tempo que a matriz de tempos previa. Amarela maior que a azul = fez mais rápido que o padrão (eficiência acima de 100%). Amarela menor = demorou mais. A linha rosa é a eficiência.`, () => chartBox(porMaq)), { vid: 'v2', wide: true }),
+      vis(`TEMPO REAL × TEMPO PADRÃO POR ${u.toUpperCase()}`, explain(legendNote(), () => chartBox(porMaq)), { vid: 'v2', wide: true }),
       vis('POR DIA · tempo padrão × tempo real', explain('Cada dia: o que as peças feitas deveriam levar (padrão) contra o que realmente levaram. Quando a linha do padrão fica acima da real, o dia rendeu mais que o previsto.', () => chartBox(porDia)), { vid: 'v1' }),
       vis('TEMPO PADRÃO POR PEÇA E MODELO (cor = eficiência)', explain('Quanto tempo padrão cada peça e modelo já entregou. Verde = foi feito em menos tempo que o padrão; amarelo/vermelho = demorou mais. Passe o mouse para ver o tempo real.', () => chartBox(porPeca, 'vscroll')), { vid: 'v3' }),
       vis('POR OPERADOR', porOper, { vid: 't1' }),

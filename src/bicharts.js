@@ -99,18 +99,22 @@ export function drawChart(box, full) {
   const W = Math.max(avail, left + right + cats.length * step), H = (spec.height ?? 250) + (bottom - 46), plotH = H - top - bottom;
   const totals = cats.map((_, i) => (stacked ? series.reduce((s, x) => s + (x.vals[i] || 0), 0) : Math.max(...series.map((x) => x.vals[i] || 0))));
   const ref = spec.refLine;
-  const { max, ticks } = niceMax(Math.max(Math.max(...totals, 0) * 1.1, ref ? ref.value * 1.08 : 0) || 1);
+  const above = !!(spec.lineAbove && line);   // the line lives in a band over the columns, so the two never overlap
+  const { max, ticks } = niceMax(Math.max(Math.max(...totals, 0) * (above ? 1.7 : 1.1), ref ? ref.value * 1.08 : 0) || 1);
   const y = (v) => top + plotH - (v / max) * plotH;
   const svg = S('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img' });
-  (series.length ? ticks : [0, max]).forEach((t) => svg.append(S('line', { class: 'grid', x1: left, x2: W - right, y1: y(t), y2: y(t) }), series.length ? S('text', { x: left - 5, y: y(t), 'text-anchor': 'end', 'dominant-baseline': 'middle', class: 'mut' }, fmt(t)) : ''));
+  (series.length ? ticks.filter((t) => !above || t <= Math.max(...totals, 0) * 1.15) : [0, max]).forEach((t) => svg.append(S('line', { class: 'grid', x1: left, x2: W - right, y1: y(t), y2: y(t) }), series.length ? S('text', { x: left - 5, y: y(t), 'text-anchor': 'end', 'dominant-baseline': 'middle', class: 'mut' }, fmt(t)) : ''));
   if (ref) svg.append(S('line', { x1: left, x2: W - right, y1: y(ref.value), y2: y(ref.value), stroke: ref.color ?? '#fbbf24', 'stroke-width': 1.6, 'stroke-dasharray': '6 5' }), S('text', { x: W - right - 2, y: y(ref.value) - 5, 'text-anchor': 'end', style: `fill:${ref.color ?? '#fbbf24'};font-size:11px;font-weight:700` }, ref.label ?? String(ref.value)));
   let ly = null, dup = false;
   if (line) {
     // a line that repeats a column series (same numbers) shares the columns' scale and needs no second axis or labels
     dup = series.some((sr) => sr.vals.length === line.vals.length && sr.vals.every((v, i) => v === line.vals[i]));
-    const vs = line.vals.filter((v) => v != null), lo = dup ? 0 : (line.min ?? 0), hi = dup ? max : (line.max ?? niceMax(Math.max(...vs, 0) * 1.1).max);
+    const vs = line.vals.filter((v) => v != null);
+    let lo = dup ? 0 : (line.min ?? 0), hi = dup ? max : (line.max ?? niceMax(Math.max(...vs, 0) * 1.1).max);
+    if (above && vs.length) { const a = Math.min(...vs, line.ref ?? Infinity), b = Math.max(...vs, line.ref ?? -Infinity), sp = Math.max(b - a, 0.25); hi = (sp / 0.16) ; lo = a - 0.78 * hi; hi = lo + hi; }   // line between 78% and 94% of the height
     ly = (v) => top + plotH - ((v - lo) / (hi - lo || 1)) * plotH;
-    if (!dup) (line.ticks ?? (lo < 0 && hi > 0 ? [lo, 0, hi] : [lo, (lo + hi) / 2, hi])).forEach((t) => svg.append(S('text', { x: W - right + 5, y: ly(t), 'dominant-baseline': 'middle', class: 'mut' }, (line.fmt ?? String)(t))));
+    if (above && line.ref != null) svg.append(S('line', { x1: left, x2: W - right, y1: ly(line.ref), y2: ly(line.ref), stroke: line.color ?? '#fb7185', 'stroke-width': 1, 'stroke-dasharray': '4 4', opacity: 0.55 }), S('text', { x: W - right + 5, y: ly(line.ref), 'dominant-baseline': 'middle', class: 'mut' }, line.refLabel ?? String(line.ref)));
+    if (!dup && !above) (line.ticks ?? (lo < 0 && hi > 0 ? [lo, 0, hi] : [lo, (lo + hi) / 2, hi])).forEach((t) => svg.append(S('text', { x: W - right + 5, y: ly(t), 'dominant-baseline': 'middle', class: 'mut' }, (line.fmt ?? String)(t))));
   }
   let prevGroup = null, gStart = 0;
   const closeGroup = (i) => { if (prevGroup == null || i <= gStart) return; const cx = left + ((gStart + i) / 2) * step; svg.append(S('text', { x: cx, y: H - 6, 'text-anchor': 'middle', class: 'mut' }, clip(prevGroup, 12)), S('line', { class: 'grid', x1: left + i * step, x2: left + i * step, y1: H - bottom + 2, y2: H - 2 })); };
