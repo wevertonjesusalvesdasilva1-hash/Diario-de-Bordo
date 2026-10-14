@@ -19,7 +19,7 @@ export async function exportPlanningExcel(opts: {
 }) {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Hora Extra Claude';
+  wb.creator = 'Hora Extra';
   const sum = buildSummary(opts.recs);
   let logoId: number | null = null;
   try {
@@ -38,7 +38,7 @@ export async function exportPlanningExcel(opts: {
       printTitlesRow: repeat,
       horizontalCentered: true,
     };
-    ws.headerFooter.oddFooter = '&LHora Extra Claude&CPágina &P de &N&R&D';
+    ws.headerFooter.oddFooter = '&LHora Extra&CPágina &P de &N&R&D';
   };
   const bar = (ws: import('exceljs').Worksheet, row: number, text: string, cols: number) => {
     ws.mergeCells(row, 1, row, cols);

@@ -1,4 +1,4 @@
--- Hora Extra Claude: schema normalizado + RLS por papel
+-- Hora Extra: schema normalizado + RLS por papel
 create table if not exists public.he_profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,

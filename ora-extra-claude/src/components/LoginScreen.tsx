@@ -31,7 +31,7 @@ export default function LoginScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <form onSubmit={submit} className="w-full max-w-sm space-y-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
-        <h1 className="text-xl font-bold">Hora Extra Claude</h1>
+        <h1 className="text-xl font-bold">Hora Extra</h1>
         <p className="text-sm text-slate-400">Entre com seu usuário para sincronizar o turno em tempo real.</p>
         <input className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2" type="text" required autoCapitalize="none" autoComplete="username" placeholder="Usuário (ex.: joao.silva)" value={user} onChange={(e) => setUser(e.target.value)} />
         <input className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2" type="password" required minLength={6} placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} />
