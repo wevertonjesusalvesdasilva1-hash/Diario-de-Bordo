@@ -559,7 +559,7 @@ const inView = (p) => effView() === 'all' || pageGroup(p) === effView();
 const machineInView = (m) => effView() === 'all' || machineGroup(m) === effView();
 function updateViewBar() {
   const bar = $('viewbar'), both = bothGroups();
-  bar.hidden = !both;
+  bar.hidden = !both || state.tab === 'panel' || state.tab === 'plan';   // the BI and the Plano have their own RAW / Usinagem buttons
   if (!both) return;
   const count = (g) => state.pages.filter((p) => (p.status === 'ok' || p.status === 'lendo') && pageGroup(p) === g).length;
   $('viewseg').replaceChildren(...[['all', 'Tudo', state.pages.filter((p) => p.status === 'ok' || p.status === 'lendo').length], ['raw', 'RAW', count('raw')], ['usi', 'Usinagem', count('usi')]]
