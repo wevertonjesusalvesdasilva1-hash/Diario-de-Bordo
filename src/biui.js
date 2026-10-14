@@ -63,6 +63,9 @@ function slicerBox(title, side, col, cube, onChange) {
 }
 
 // ---- generic pieces -----------------------------------------------------------------------------------------
+// pieces that redraw in place (no DOM replacement, so the page keeps its scroll) when a filter or a click changes
+const REG = [];
+function live(fn, cls = 'bi-cards') { const box = el('div', { class: cls }); box.rebuild = () => box.replaceChildren(...[].concat(fn())); REG.push(box); box.rebuild(); return box; }
 function card(title, value, color) { return el('div', { class: 'bi-card' }, el('small', {}, title), el('b', color ? { style: `color:${color}` } : {}, value)); }
 const VSIDE = {};
 let curCube = null;
@@ -93,6 +96,7 @@ function vis(title, build, { vid, side = 'p', wide = false, acts = [] } = {}) {
   const box = el('section', { class: `bi-vis${wide ? ' wide' : ''}` }), slot = el('div');
   const max = el('button', { type: 'button', 'aria-label': 'Ampliar', onclick: () => { const on = box.classList.toggle('max'); max.textContent = on ? '✕ Fechar' : '⤢'; } }, '⤢');
   box.rebuild = () => slot.replaceChildren(build());
+  REG.push(box);
   box.append(el('header', {}, el('h4', {}, title), el('div', { class: 'acts' }, acts, max)), visFilterBar(vid, side, box.rebuild), slot);
   box.rebuild();
   return box;
@@ -119,9 +123,11 @@ const rowsOf = (groups) => groups.map((g) => ({ vals: g.vals, c: g.c }));
 // ---- the pages ----------------------------------------------------------------------------------------------
 // ctx: { cube, g, F(vid) → filter for that visual, pick(vid, side, cols) → onPick, selOf(vid) → Set }
 function cardsRow(x, kind) {
-  const c = slice(x.cube, x.F('cards'));
-  const res = kind === 'resumo' ? M.horasParadasResumo(c) : M.horasParadas(c), pct = M.pct(c);
-  return el('div', { class: 'bi-cards' }, card('PRODUÇÃO (peças)', fint(M.qtdPecas(c))), card('HORAS PRODUZIDAS', `${f1(M.horasProd(c))} h`), card('HORAS PARADAS', `${f1(res)} h`), card('DISPONIBILIDADE', fpct(pct), corPctS(pct)));
+  return live(() => {
+    const c = slice(x.cube, x.F('cards'));
+    const res = kind === 'resumo' ? M.horasParadasResumo(c) : M.horasParadas(c), pct = M.pct(c);
+    return [card('PRODUÇÃO (peças)', fint(M.qtdPecas(c))), card('HORAS PRODUZIDAS', `${f1(M.horasProd(c))} h`), card('HORAS PARADAS', `${f1(res)} h`), card('DISPONIBILIDADE', fpct(pct), corPctS(pct))];
+  });
 }
 const unitCats = (groups) => groups.map((g) => ({ key: g.vals.join(SEP), label: blank(g.vals.at(-1)) }));
 
@@ -181,7 +187,7 @@ function pagePeca(x) {
     return table([{ h: 'Data', v: (r) => dmy(r.vals[0]), key: (r) => r.vals[0] }, { h: 'Turno', v: (r) => fint(r.c.P.reduce((s, p) => s + (+p.t || 0), 0)), n: true }, { h: 'Chapa', v: (r) => blank(r.vals[1]) }, { h: 'Peça e Modelo', v: (r) => r.vals[2] },
       { h: 'Tempo (h)', v: (r) => f2(M.horasProd(r.c)), key: (r) => M.horasProd(r.c), n: true }, { h: 'TP Padrão', v: (r) => f2(M.tp(r.c)), key: (r) => M.tp(r.c), n: true },
       { h: '%', v: (r) => ganhoTexto(M.ganho(r.c)), key: (r) => M.ganho(r.c) ?? -9, n: true, bg: (r) => corGanhoS(M.ganho(r.c)) }, { h: '1ºTURNO', v: (r) => r.vals[3] }, { h: '2ºTURNO', v: (r) => r.vals[4] }, { h: '3ºTURNO', v: (r) => r.vals[5] }], rows); };
-  return [el('div', { class: 'bi-cards' }, card('PEÇA - MODELO', selecionado(pecasSel, 'Todos', 'peças selecionadas')), card('HORAS PRODUZIDAS', `${f1(M.horasProd(c()))} h`), card('PEÇAS', fint(M.pecasDistintas(c())))),
+  return [live(() => [card('PEÇA - MODELO', selecionado(pecasSel, 'Todos', 'peças selecionadas')), card('HORAS PRODUZIDAS', `${f1(M.horasProd(c()))} h`), card('PEÇAS', fint(M.pecasDistintas(c())))]),
     el('div', { class: 'bi-grid' }, vis(`${u.toUpperCase()} · PEÇA E MODELO`, t1, { vid: 't1' }), vis('CHAPA · PEÇA E MODELO', t2, { vid: 't2' }), vis('DETALHE', t3, { vid: 't3', wide: true }), vis('TEMPO DAS PEÇAS PRODUZIDAS · QTD', () => chartBox(tempoPecas(x, 'v5'), 'vscroll'), { vid: 'v5' }))];
 }
 
@@ -194,7 +200,7 @@ function pageOperador(x) {
       line: { name: '% Ganho', vals: gr.map((r) => M.ganho(r.g.c)), fmt: fpct0, color: '#ff7a5c', max: Math.max(0.5, ...gr.map((r) => Math.abs(M.ganho(r.g.c) ?? 0))), ticks: [0, 0.5] }, fmt: f1, onPick: x.pick('v3', 'p', ['cf']), selected: x.selOf('v3') }; };
   const semNomes = !Object.keys(getOperators()).length;
   return [semNomes ? el('p', { class: 'bi-note' }, 'Os nomes vêm da lista de operadores (botão "Operadores" na tela de Conferência). Enquanto ela não estiver carregada neste aparelho, só aparecem as chapas.') : '',
-    el('div', { class: 'bi-cards' }, card('OPERADOR', selecionado(nomeSel, 'Todos', 'operadores selecionados')), card('HORAS PRODUZIDAS', `${f1(M.horasProd(slice(x.cube, x.F('cards'))))} h`)),
+    live(() => [card('OPERADOR', selecionado(nomeSel, 'Todos', 'operadores selecionados')), card('HORAS PRODUZIDAS', `${f1(M.horasProd(slice(x.cube, x.F('cards'))))} h`)]),
     el('div', { class: 'bi-grid' }, vis(`${u.toUpperCase()} · PEÇA · CHAPA`, t1, { vid: 't1' }), vis('OPERADOR', t2, { vid: 't2' }), vis('TEMPO PRODUZIDO VS PADRÃO (por chapa)', () => chartBox(combo), { vid: 'v3', wide: true }), vis('TEMPO DAS PEÇAS PRODUZIDAS · QTD', () => chartBox(tempoPecas(x, 'v5'), 'vscroll'), { vid: 'v5' }))];
 }
 
@@ -249,10 +255,13 @@ export async function renderBiUI(root, ctx) {
   const slicers = (SLICERS[ui.page] ?? []).map(([t, sd, col]) => slicerBox(t === '@unit' ? GROUPS[ui.g].unit : t, sd, col, cube, () => { ui.sel = null; drawMain(); }));
   side.replaceChildren(...slicers);
   const toggle = el('button', { type: 'button', class: 'ghost bi-filters-toggle', onclick: () => side.classList.toggle('open') }, '☰ Filtros');
+  const noteHost = el('div', { class: 'bi-notehost' });
+  const noteFn = () => noteHost.replaceChildren(...(ui.sel ? [el('p', { class: 'bi-note' }, 'Filtro por clique ativo nos outros gráficos. ', el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.sel = null; drawMain(); } }, 'Limpar clique'))] : []));
+  let built = false;
   function drawMain() {
-    const body = el('div', { class: 'bi-main' }, BUILDERS[ui.page](x));
-    if (ui.sel) body.prepend(el('p', { class: 'bi-note' }, 'Filtro por clique ativo nos outros gráficos. ', el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.sel = null; drawMain(); } }, 'Limpar clique')));
-    layout.replaceChildren(side, body);
+    if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }
+    else REG.forEach((r) => r.rebuild());          // like Power BI: the other visuals redraw, the page does not move
+    noteFn();
   }
   const layout = el('div', { class: 'bi-layout' });
   main.replaceChildren(el('p', { class: 'bi-note' }, `${GROUPS[ui.g].name} · ${days.length} dias (${dmy(days[0])} a ${dmy(days.at(-1))}) · ${base.prod.length.toLocaleString('pt-BR')} produções · ${base.stops.length.toLocaleString('pt-BR')} paradas. Clique numa barra para filtrar os outros gráficos.`), toggle, layout);
