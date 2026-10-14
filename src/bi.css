@@ -107,7 +107,6 @@
 .bi-ch .pick:hover rect.bar { filter: drop-shadow(0 0 7px var(--c)); }
 
 .bi-slicer header .hd { display: inline-flex; gap: .5rem; align-items: center; }
-.bi-slicer header .hd button:first-child { color: var(--muted); border: 1px solid var(--line2); border-radius: 999px; padding: 0 .45rem; }
 
 
 .bi-leg .lg { border: 1px solid transparent; background: transparent; color: var(--muted); font: inherit; font-size: .75rem; padding: .1rem .5rem; border-radius: 999px; cursor: pointer; }
@@ -166,3 +165,25 @@ body.pbi main { overflow-x: clip; }
 .bi-quick .qb-opts button { padding: .28rem .8rem; }
 .bi-quick .qb-opts button::before { content: ''; display: inline-block; width: .7rem; height: .7rem; border: 1.5px solid currentColor; border-radius: 3px; margin-right: .4rem; vertical-align: -1px; }
 .bi-quick .qb-opts button[aria-pressed="true"]::before { background: #fff; box-shadow: inset 0 0 0 2px var(--pv); }
+
+/* slicer header: title on its own line, two equal action buttons below, a thin scrollbar without arrows */
+.bi-slicer header { display: grid; gap: .4rem; }
+.bi-slicer header .tt { display: flex; align-items: center; gap: .4rem; font-size: .84rem; font-weight: 700; }
+.bi-slicer header .cnt { font-style: normal; font-size: .68rem; min-width: 1.2rem; text-align: center; padding: 0 .35rem; border-radius: 999px; background: var(--pv); color: #fff; }
+.bi-slicer header .cnt:empty { display: none; }
+.bi-slicer header .hd { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
+.bi-slicer header .hd button { white-space: nowrap; font: inherit; font-size: .7rem; line-height: 1.2; padding: .28rem .35rem; border-radius: 8px; border: 1px solid var(--line2); background: var(--panel2); color: var(--muted); cursor: pointer; }
+.bi-slicer header .hd button:hover { color: var(--ink); border-color: var(--accent); }
+.bi-slicer header .hd button:first-child { color: var(--accent); }
+.bi-slicer ul { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.bi-slicer ul::-webkit-scrollbar { width: 6px; }
+.bi-slicer ul::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.bi-slicer ul::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
+.bi-slicer li label { padding: .2rem .25rem; }
+.bi-slicer { min-width: 0; }
+.bi-slicer header .hd { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); }
+.bi-slicer header .hd button { overflow: hidden; text-overflow: ellipsis; font-size: .68rem; padding: .3rem .25rem; text-align: center; }
+.bi-slicer header .hd { grid-template-columns: auto auto; justify-content: space-between; }
+.bi-slicer header .hd button { overflow: visible; text-overflow: clip; font-size: .66rem; padding: .3rem .5rem; }
+.bi-slicer header .hd { display: flex; flex-wrap: wrap; gap: .3rem; }
+.bi-slicer header .hd button { flex: 1 1 auto; }
