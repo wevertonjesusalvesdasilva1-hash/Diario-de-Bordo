@@ -571,7 +571,7 @@ function setView(v) {
   resetPanelSelection();
   for (const p of state.pages) renderPage(p);
   updateSummary();
-  if (state.tab === 'analysis') renderAnalysis();
+  if (state.tab === 'analysis') { renderAnalysis(); renderPanel(); }
   if (state.tab === 'panel') renderPanelTab();
   if (state.tab === 'plan') renderPlan();
 }
@@ -840,14 +840,14 @@ function showTab(name) {
   $('view-plan').hidden = name !== 'plan';
   $('tab-plan').classList.toggle('on', name === 'plan'); $('tab-plan').setAttribute('aria-selected', String(name === 'plan'));
   $('view-bi').hidden = name !== 'panel';
-  $('view-panel').hidden = $('panel-now-title').hidden = !(name === 'panel' && biPage === 'hoje');   // today's sheets only on their own page
+  $('view-panel').hidden = $('panel-now-title').hidden = name !== 'analysis';   // today's sheets live with the analysis of the day
   $('stats').hidden = $('upload').hidden = name === 'panel' || name === 'plan';
   document.body.classList.toggle('pbi', name === 'panel' || name === 'plan');   // the BI uses the full width of the screen
   $('tab-panel').classList.toggle('on', name === 'panel');
   $('tab-panel').setAttribute('aria-selected', String(name === 'panel'));
   $('tab-read').setAttribute('aria-selected', String(name === 'read'));
   $('tab-analysis').setAttribute('aria-selected', String(name === 'analysis'));
-  if (name === 'analysis') renderAnalysis();
+  if (name === 'analysis') { renderAnalysis(); renderPanel(); }
   if (name === 'panel') renderPanelTab();
   if (name === 'plan') renderPlan();
 }
@@ -1170,7 +1170,6 @@ function renderPlan() {
   if (viewGroup !== 'all') setPlanGroup(viewGroup);
   renderPlanUI($('view-plan'), { toast, openBase: () => openBaseModal({ toast, reload: renderPlan }), onGroup: (g) => { if (bothGroups()) setView(g); } });
 }
-let biPage = '';
 function renderPanelTab() { renderBi(); }
 function renderPanel() {
   const root = $('view-panel');
@@ -1202,6 +1201,7 @@ function renderPanel() {
 }
 $('tab-panel').addEventListener('click', () => showTab('panel'));
 $('tab-plan').addEventListener('click', () => showTab('plan'));
+$('closelists').addEventListener('click', () => { $('listscard').hidden = true; window.scrollTo({ top: 0, behavior: 'smooth' }); });
 
 // ---------------------------------------------------------------- base de dados (histórico) e BI
 function openSubmitBase() {
@@ -1213,7 +1213,7 @@ function openSubmitBase() {
 $('submitbase').addEventListener('click', openSubmitBase);
 function renderBi() {
   if (viewGroup !== 'all') setBiGroup(viewGroup);   // "Visualizar" (RAW / Usinagem) also picks the BI group
-  renderBiUI($('view-bi'), { toast, onPage: (pg) => { biPage = pg; const on = pg === 'hoje' && state.tab === 'panel'; $('view-panel').hidden = $('panel-now-title').hidden = !on; if (on) renderPanel(); }, openBase: () => openBaseModal({ toast, reload: () => { if (state.tab === 'panel') renderBi(); } }), onGroup: (g) => { if (bothGroups()) setView(g); }, });
+  renderBiUI($('view-bi'), { toast, openBase: () => openBaseModal({ toast, reload: () => { if (state.tab === 'panel') renderBi(); } }), onGroup: (g) => { if (bothGroups()) setView(g); }, });
 }
 
 $('ok').addEventListener('click', giveOk);
@@ -1642,7 +1642,7 @@ menuEl.addEventListener('click', (e) => {
   const act = e.target.closest('button[data-menu]')?.dataset.menu;
   if (!act) return;
   if (act === 'help') openHelp();
-  if (act === 'lists' || act === 'limit') { $('listsbox').open = true; $('listsbox').scrollIntoView({ behavior: 'smooth', block: 'center' }); if (act === 'limit') setTimeout(() => $('limit').focus(), 400); }
+  if (act === 'lists' || act === 'limit') { $('listscard').hidden = false; $('listsbox').open = true; $('listsbox').scrollIntoView({ behavior: 'smooth', block: 'center' }); if (act === 'limit') setTimeout(() => $('limit').focus(), 400); }
   if (act === 'base') openBaseModal({ toast, reload: () => { if (state.tab === 'panel') renderBi(); } });
   if (act === 'clear') $('clear').click();
   if (act === 'sync') { if (sync.on) sync.stop(); else sync.start().then((ok) => toast(ok ? 'Sincronização ligada: o que você mexer aparece no PC do colega em até 30 segundos.' : `Não deu para sincronizar: ${$('sync-text').textContent}`)); }

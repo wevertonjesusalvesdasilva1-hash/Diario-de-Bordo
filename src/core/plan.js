@@ -124,6 +124,28 @@ export function buildPlan({ prod, stops, valorHora = 0, dates = null, known = nu
   // ---- order: the data first (everything depends on it), then by hours at stake
   const rank = (a) => (a.id === 'dados' ? -Infinity : a.id === 'semregistro' || a.id === 'apontamento' ? 1e9 : -a.hours);   // data first, then by hours; the notes about notes last
   out.sort((a, b) => rank(a) - rank(b));
-  out.forEach((a, i) => { a.n = i + 1; a.money = a.id === 'dados' || a.id === 'apontamento' || a.id === 'padrao' || a.id === 'eficiencia' ? null : money(a.hours); });
+  out.forEach((a, i) => { a.n = i + 1; a.money = ['dados', 'apontamento', 'padrao', 'eficiencia', 'semregistro'].includes(a.id) ? null : money(a.hours); });
   return { actions: out, summary: { dias: days.length, de: days[0] ?? '', ate: days.at(-1) ?? '', stopH, prodH, perda: money(stopH), maquinasDia: nMD } };
+}
+
+// ---- money: what the stopped hours cost. Same period rules as the plan. loss = hours × hourly value (R$/h).
+export function buildFinance({ prod, stops, valorHora = 0, dates = null }) {
+  const P = dates ? prod.filter((r) => dates.has(r.d)) : prod, S = dates ? stops.filter((r) => dates.has(r.d)) : stops, v = valorHora;
+  const machines = [...new Set([...P, ...S].map((r) => r.m))].sort();
+  const perMachine = machines.map((m) => {
+    const pl = P.filter((r) => r.m === m), sl = S.filter((r) => r.m === m), d = new Set(pl.map((r) => r.d)).size;
+    const stopH = sum(sl, (r) => r.h), prodH = sum(pl, (r) => r.h), target = HORAS_DIA * d, shortH = Math.max(0, target - prodH);
+    return { m, stopH, loss: stopH * v, prodH, target, pct: target ? prodH / target : 0, shortH, shortLoss: shortH * v };
+  }).sort((a, b) => b.loss - a.loss);
+  const total = sum(S, (r) => r.h), reasons = [...by(S, (s) => motivoKey(s.mo)).entries()].map(([key, list]) => {
+    const names = by(list, (s) => s.mo || '(sem motivo)');
+    return { key, label: key === 'FALTADEPECA' ? 'FALTA DE PEÇA (inclui AGUARDANDO PEÇA)' : [...names].sort((a, b) => b[1].length - a[1].length)[0][0], h: sum(list, (s) => s.h) };
+  }).sort((a, b) => b.h - a.h);
+  let acc = 0;
+  const perMotivo = reasons.map((r) => { acc += r.h; return { ...r, loss: r.h * v, share: total ? r.h / total : 0, cum: total ? acc / total : 0 }; });
+  const dayKeys = [...new Set([...P, ...S].map((r) => r.d))].sort();
+  let run = 0;
+  const perDay = dayKeys.map((d) => { const h = sum(S.filter((r) => r.d === d), (r) => r.h); run += h; return { d, h, loss: h * v, cumLoss: run * v }; });
+  const avgDay = dayKeys.length ? total / dayKeys.length : 0;
+  return { total, totalLoss: total * v, avgDayLoss: avgDay * v, projection30: avgDay * 30 * v, days: dayKeys.length, perMachine, perMotivo, perDay, shortLoss: sum(perMachine, (m) => m.shortLoss) };
 }

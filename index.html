@@ -161,10 +161,10 @@
     <div id="view-analysis" hidden></div>
     <div id="view-plan" hidden></div>
     <div id="view-bi" hidden></div>
-    <h2 id="panel-now-title" class="bi-h2" hidden>Folhas de hoje</h2>
+    <h2 id="panel-now-title" class="bi-h2" hidden>Painel do dia · folhas de hoje</h2>
     <div id="view-panel" hidden></div>
 
-    <section class="card">
+    <section class="card" id="listscard" hidden>
       <details id="listsbox">
         <summary><span class="ptitle inline">Listas de conferência</span> <span class="note">chapas, peças e modelos</span></summary>
         <p class="note">Um valor por linha. Chapa nova precisa entrar aqui, senão fica marcada. RAW e usinagem têm listas separadas.</p>
@@ -177,6 +177,7 @@
         <div class="row">
           <button id="savelists" type="button">Salvar listas</button>
           <button id="resetlists" type="button" class="ghost">Restaurar padrão</button>
+          <button id="closelists" type="button" class="ghost">Fechar</button>
           <span class="note" id="learned"></span>
         </div>
         <div class="oper">

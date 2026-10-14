@@ -223,3 +223,10 @@ Nos campos INÍCIO e FIM (produção e paradas, na conferência e na revisão r�
 - **Perda com parada:** horas paradas × **valor hora do robô** (R$/h, campo no alto da aba, um valor para RAW e outro para usinagem; fica salvo só neste navegador). Sem o valor, aparece "—".
 - Os dias são contados de **meia-noite a meia-noite**: o que atravessa a meia-noite é dividido entre os dois dias (isso vale também para a auditoria de 24 h e para o tempo sem registro).
 - O plano só sugere: nunca muda os dados.
+
+## Organização das abas (repaginação)
+- **1 · Conferência**: subir folhas, conferir, dar OK, subir para a base.
+- **2 · Análise**: os cards da análise do dia e, logo abaixo, o **Painel do dia** (o antigo "Folhas de hoje", com rosca, mapa de calor e tempo por máquina). Só aparece aqui.
+- **3 · Painel BI** (Indicadores), só quatro páginas: **Visão geral** (cinco cards-chave, produtividade por dia, disponibilidade, horas produzidas × paradas, por mês e resumo por máquina), **Paradas** (Pareto, por turno, por dia), **Entrega (horas padrão)** e **Peças e operadores** (peça, operador, tempo × padrão, detalhe de cada peça). As páginas Diária, Peça produtividade, Operador, Mensal, Auditoria e Folhas de hoje deixaram de existir como páginas: o que importava foi juntado nas outras.
+- **4 · Plano de ação**: (1) **Quanto está custando** (perda em R$: total, média por dia, projeção de 30 dias, maior perda por máquina e por motivo, Pareto em R$, perda por dia, perda acumulada, parada × o que faltou para a meta); (2) **O que fazer, em ordem** (linha do tempo vertical); (3) **Qualidade dos dados** (a auditoria completa, recolhida). O valor hora (R$/h) fica no alto desta aba e também aparece como cartão "Perda com parada" na Visão geral.
+- Os filtros de cada gráfico (máquina e data) ficam atrás do botão "⚙ Filtros" (o botão mostra ● quando há filtro ativo). "Listas de conferência" não aparece mais no rodapé: abre só pelo menu ⋮.

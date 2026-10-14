@@ -6,6 +6,8 @@ import { loadBase } from './historico.js';
 import { getOperators, operatorName } from './core/operators.js';
 import { el, chartBox, PALETTE } from './bicharts.js';
 import { auditData } from './core/audit.js';
+import { getValor } from './valorhora.js';
+import { brl } from './core/plan.js';
 import * as BI from './core/bi.js';
 
 // the report's color rules are kept, painted with the Painel's palette
@@ -15,6 +17,7 @@ const corEficS = (e) => sk(corEfic(e));
 const corPctS = (v) => sk(BI.corPct(v)), corGanhoS = (g) => sk(BI.corGanho(g)), corTempoS = (h) => sk(BI.corTempo(h)), corVariacaoS = (v) => sk(BI.corVariacao(v));
 
 const SEP = '\u0001';
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const fileSafe = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 -]+/g, ' ').trim().replace(/\s+/g, '-').slice(0, 60) || 'dados';
 let slicerFills = [];
 const ddmm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
@@ -28,12 +31,12 @@ const hhmm = (h) => { const m = Math.round((h || 0) * 60); return `${String(Math
 const blank = (v) => (v === '' || v == null ? '(vazio)' : v);
 
 const GROUPS = { raw: { name: 'RAW (robôs)', unit: 'Robô', units: 'Robôs' }, usi: { name: 'Usinagem', unit: 'Máquina', units: 'Máquinas' } };
-const PAGES = { raw: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['mensal', 'Mensal'], ['auditoria', 'Auditoria dos dados'], ['hoje', 'Folhas de hoje']], usi: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['auditoria', 'Auditoria dos dados'], ['hoje', 'Folhas de hoje']] };
+const PAGES = { raw: [['geral', 'Visão geral'], ['paradas', 'Paradas'], ['entrega', 'Entrega (horas padrão)'], ['pessoas', 'Peças e operadores']], usi: [['geral', 'Visão geral'], ['paradas', 'Paradas'], ['entrega', 'Entrega (horas padrão)'], ['pessoas', 'Peças e operadores']] };
 
-const ui = { g: 'raw', page: 'entrega', filt: {}, vf: {}, lead: {}, uteis: {}, multi: false, sel: null, cubes: {} };
+const ui = { g: 'raw', page: 'geral', filt: {}, vf: {}, lead: {}, uteis: {}, multi: false, sel: null, cubes: {} };
 try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui.g = s; } catch { /* no storage */ }
 
-export { openRecords, table as biTable, fileSafe };
+export { openRecords, table as biTable, fileSafe, vis as biVis, card as biStat };
 export const setBiGroup = (g) => { if (GROUPS[g]) { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; } };
 const cubeFor = (g, base) => {
   const key = `${base.rev}|${Object.keys(getOperators()).length}`;
@@ -43,13 +46,10 @@ const cubeFor = (g, base) => {
 
 // ---- slicers ------------------------------------------------------------------------------------------------
 const SLICERS = {
-  auditoria: [],
-  entrega: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['Turno', 'p', 't'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Nome do operador', 'p', 'nome']],
-  diaria: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Turno', 'p', 't']],
+  geral: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Turno', 'p', 't']],
   paradas: [['Dia', 's', 'data'], ['Mês', 's', 'mes'], ['@unit', 's', 'm'], ['Motivo', 's', 'mo'], ['Turno', 's', 't']],
-  peca: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['Turno', 'p', 't'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm']],
-  operador: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['Turno', 'p', 't'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Nome do operador', 'p', 'nome']],
-  mensal: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm']],
+  entrega: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['Turno', 'p', 't'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Nome do operador', 'p', 'nome']],
+  pessoas: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['Turno', 'p', 't'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Nome do operador', 'p', 'nome']],
 };
 const fkey = () => `${ui.g}.${ui.page}`;
 const pageFilter = () => (ui.filt[fkey()] ??= { p: {}, s: {} });
@@ -114,8 +114,12 @@ function vis(title, build, { vid, side = 'p', wide = false, acts = [], filters =
   const max = el('button', { type: 'button', 'aria-label': 'Ampliar', onclick: () => { const on = box.classList.toggle('max'); max.textContent = on ? '✕ Fechar' : '⤢'; } }, '⤢');
   box.vid = vid;
   box.rebuild = () => slot.replaceChildren(build());
-  const barHost = el('div');
-  box.rebuildBar = () => barHost.replaceChildren(visFilterBar(vid, side, changed));
+  const barHost = el('div', { class: 'vf-host' }), fkey = `${ui.g}.${ui.page}.${vid}`;
+  let open = false;
+  const isActive = () => { const t = ui.vf[fkey]; return !!t && (t.m?.size > 0 || !!t.from || !!t.to); };
+  const fbtn = el('button', { type: 'button', class: 'vf-btn', 'aria-expanded': 'false', onclick: () => { open = !open; sync(); } }, '⚙ Filtros');
+  const sync = () => { const on = isActive(); barHost.hidden = !(open || on); fbtn.classList.toggle('on', on); fbtn.textContent = on ? '⚙ Filtros ●' : '⚙ Filtros'; fbtn.setAttribute('aria-expanded', String(open)); };
+  box.rebuildBar = () => { barHost.replaceChildren(visFilterBar(vid, side, changed)); sync(); };
   // a change here is copied to the other charts of the page (they follow by default, and each one can still be changed on its own)
   const changed = () => {
     const pk = `${ui.g}.${ui.page}`, mine = ui.vf[`${pk}.${vid}`];
@@ -129,11 +133,11 @@ function vis(title, build, { vid, side = 'p', wide = false, acts = [], filters =
       r.rebuildBar?.(); r.rebuild();
     }
     if (empty) { lead.vid = null; lead.own.clear(); }   // cleared: everything goes back to the default
-    box.rebuild();
+    box.rebuild(); sync();
   };
   REG.push(box);
   const xl = el('button', { type: 'button', 'aria-label': 'Baixar em Excel', title: 'Baixar os dados deste gráfico em Excel', onclick: async () => { const t = slot.firstElementChild?.getTable?.(); if (!t) return; const X = await import('xlsx'); const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([t.head, ...t.rows]), 'Dados'); X.writeFile(wb, `${fileSafe(title)}.xlsx`); } }, '⬇ Excel');
-  box.append(el('header', {}, el('h4', {}, title), el('div', { class: 'acts' }, acts, filters ? xl : '', max)), filters ? barHost : '', slot);
+  box.append(el('header', {}, el('h4', {}, title), el('div', { class: 'acts' }, acts, filters ? fbtn : '', filters ? xl : '', max)), filters ? barHost : '', slot);
   if (filters) box.rebuildBar();
   box.rebuild();
   return box;
@@ -187,7 +191,7 @@ function prevSlice(x, side) {
   return slice(x.cube, (side === 's' ? withS : withP)(x.F('cards'), 'data', prev));
 }
 const arrow = (d, unit, dec = 1) => (Math.abs(d) < 0.05 ? '= igual ao período anterior' : `${d > 0 ? '▲ +' : '▼ −'}${Math.abs(d).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec })}${unit} vs. período anterior`);
-function cardsRow(x, kind, side = 'p') {
+function cardsRow(x, kind, side = 'p', slim = false) {
   return live(() => {
     const c = slice(x.cube, x.F('cards')), pv = prevSlice(x, side);
     const res = kind === 'resumo' ? M.horasParadasResumo(c) : M.horasParadas(c), pct = M.pct(c);
@@ -196,7 +200,8 @@ function cardsRow(x, kind, side = 'p') {
     return [card('PRODUÇÃO (peças)', fint(M.qtdPecas(c)), null, pv ? arrow(M.qtdPecas(c) - M.qtdPecas(pv), '', 0) : ''),
       card('HORAS PRODUZIDAS', `${f1(M.horasProd(c))} h`, null, pv ? arrow(M.horasProd(c) - M.horasProd(pv), ' h') : ''),
       card(kind === 'resumo' ? 'HORAS PARADAS (todas do dia e máquina)' : 'HORAS PARADAS (das chapas filtradas)', `${f1(res)} h`, null, resPrev != null ? arrow(res - resPrev, ' h') : ''),
-      card('DISPONIBILIDADE', fpct(pct), corPctS(pct), `Meta ${Math.round(META * 100)}% · ${gap >= 0 ? '+' : '−'}${f1(Math.abs(gap))} pts${pv ? ' · ' + arrow((pct - M.pct(pv)) * 100, ' pts') : ''}`)];
+      ...(slim ? [] : [card('DISPONIBILIDADE', fpct(pct), corPctS(pct), `Meta ${Math.round(META * 100)}% · ${gap >= 0 ? '+' : '−'}${f1(Math.abs(gap))} pts${pv ? ' · ' + arrow((pct - M.pct(pv)) * 100, ' pts') : ''}`)]),
+      ...(getValor(x.g) > 0 ? [card('PERDA COM PARADA', brl(res * getValor(x.g)), '#fb7185', `${f1(res)} h × ${brl(getValor(x.g))} por hora`)] : [])];
   });
 }
 // top row: cards like the ones of the Análise tab (machine, chip, who, big number, short story, "Abrir")
@@ -224,24 +229,29 @@ function alertsStrip(x) {
 }
 const unitCats = (groups) => groups.map((g) => ({ key: g.vals.join(SEP), label: blank(g.vals.at(-1)) }));
 
-function pageDiaria(x) {
+function pageGeral(x) {
   const u = GROUPS[x.g].unit;
-  // one group of columns per day, one color per machine (legend below); the day is the only axis label
+  // one smooth line per machine over the days; the day is the only axis label
   const prodDia = () => { const gr = groupP(x.cube, x.F('v1'), ['data', 'm']); const days = [...new Set(gr.map((g) => g.vals[0]))], ms = [...new Set(gr.map((g) => g.vals[1]))].sort();
     const at = new Map(gr.map((g) => [g.vals[0] + SEP + g.vals[1], M.horasProd(g.c)]));
-    return { kind: 'area', cats: days.map((d) => ({ key: d, label: ddmm(d) })), series: ms.map((m, k) => ({ name: m, color: PALETTE[k % PALETTE.length], vals: days.map((d) => at.get(d + SEP + m) ?? 0) })), height: 280, fmt: f1, onPick: x.pick('v1', 'p', ['data']), selected: x.selOf('v1') }; };
-  const turnoPecas = () => { const gr = groupP(x.cube, x.F('v2'), ['t']); return { cats: gr.map((g) => ({ key: g.vals[0], label: `Turno ${blank(g.vals[0])}` })), series: [{ name: 'Qtde peças', vals: gr.map((g) => M.qtdPecas(g.c)), color: PALETTE[0] }], fmt: fint, onPick: x.pick('v2', 'p', ['t']), selected: x.selOf('v2') }; };
-  const disp = () => { const gr = groupP(x.cube, x.F('v3'), ['m']).map((g) => ({ g, v: M.pct(g.c) })).sort((a, b) => b.v - a.v); return { cats: gr.map(({ g, v }) => ({ key: g.vals[0], label: g.vals[0], color: corPctS(v) })), series: [{ name: 'Disponibilidade', vals: gr.map((r) => r.v), color: PALETTE[0] }], fmt: fpct, line: undefined, onPick: x.pick('v3', 'p', ['m']), selected: x.selOf('v3') }; };
+    return { kind: 'area', cats: days.map((d) => ({ key: d, label: ddmm(d) })), series: ms.map((m, k) => ({ name: m, color: PALETTE[k % PALETTE.length], vals: days.map((d) => at.get(d + SEP + m) ?? 0) })), height: 260, fmt: f1, onPick: x.pick('v1', 'p', ['data']), selected: x.selOf('v1') }; };
+  const disp = () => { const gr = groupP(x.cube, x.F('v3'), ['m']).map((g) => ({ g, v: M.pct(g.c) })).sort((a, b) => b.v - a.v); return { cats: gr.map(({ g, v }) => ({ key: g.vals[0], label: g.vals[0], color: corPctS(v) })), series: [{ name: 'Disponibilidade', vals: gr.map((r) => r.v), color: PALETTE[0] }], fmt: fpct, onPick: x.pick('v3', 'p', ['m']), selected: x.selOf('v3') }; };
   const prodPar = () => { const gr = groupP(x.cube, x.F('v4'), ['m']); return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: PALETTE[1] }], fmt: f1, onPick: x.pick('v4', 'p', ['m']), selected: x.selOf('v4') }; };
-  const pecas = () => { const gr = groupP(x.cube, x.F('v5'), ['pm']).map((g) => ({ g, v: M.horasProd(g.c) })).sort((a, b) => b.v - a.v); return { orient: 'h', cats: gr.map(({ g }) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas', vals: gr.map((r) => r.v), color: PALETTE[0] }], fmt: f1, tip: (i) => `${fint(M.qtdPecas(gr[i].g.c))} peças`, onPick: x.pick('v5', 'p', ['pm']), selected: x.selOf('v5') }; };
   const turnoMaq = () => { const gr = groupP(x.cube, x.F('v6'), ['m', 't']); const ms = [...new Set(gr.map((g) => g.vals[0]))], ts = [...new Set(gr.map((g) => g.vals[1]))].sort(); return { cats: ms.map((m) => ({ key: m, label: m })), series: ts.map((t, k) => ({ name: t ? `Turno ${t}` : 'Sem turno', color: PALETTE[k], vals: ms.map((m) => M.horasProd((gr.find((g) => g.vals[0] === m && g.vals[1] === t) ?? { c: { P: [] } }).c)) })), stacked: true, fmt: f1, onPick: x.pick('v6', 'p', ['m']), selected: x.selOf('v6') }; };
-  return [cardsRow(x, 'resumo'),
+  const mes = () => { const gr = groupP(x.cube, x.F('v7'), ['mes']); const order = (m) => MESES.indexOf(m); gr.sort((a, b) => order(a.vals[0]) - order(b.vals[0]));
+    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: PALETTE[1] }], fmt: f1, onPick: x.pick('v7', 'p', ['mes']), selected: x.selOf('v7') }; };
+  const tbl = () => { const rows = rowsOf(groupP(x.cube, x.F('t1'), ['m'])), tot = slice(x.cube, x.F('t1'));
+    return table([{ h: u, v: (r) => r.vals[0] }, { h: 'Peças', v: (r) => fint(M.qtdPecas(r.c)), key: (r) => M.qtdPecas(r.c), n: true }, { h: 'Horas (h)', v: (r) => f2(M.horasProd(r.c)), key: (r) => M.horasProd(r.c), n: true }, { h: 'Meta (h)', v: (r) => f2(M.target(r.c)), key: (r) => M.target(r.c), n: true },
+      { h: 'Disponib.', v: (r) => fpct(M.pct(r.c)), key: (r) => M.pct(r.c), n: true, bg: (r) => corPctS(M.pct(r.c)) }, { h: 'Desvio', v: (r) => variacaoTexto(M.pct(r.c)), key: (r) => M.pct(r.c), n: true, bg: (r) => corVariacaoS(M.pct(r.c)) },
+      { h: 'Paradas (h)', v: (r) => f2(M.horasParadas(r.c)), key: (r) => M.horasParadas(r.c), n: true }], rows, { order: 4, desc: false,
+      totals: ['Total', fint(M.qtdPecas(tot)), f2(M.horasProd(tot)), f2(M.target(tot)), fpct(M.pct(tot)), variacaoTexto(M.pct(tot)), f2(M.horasParadas(tot))] }); };
+  return [alertsStrip(x), cardsRow(x, 'resumo', 'p', true),
     el('div', { class: 'bi-grid' },
-      vis(`PRODUTIVIDADE POR ${u.toUpperCase()}`, () => chartBox(prodDia), { vid: 'v1', wide: true }),
-      vis('DISPONIBILIDADE', () => chartBox(disp), { vid: 'v3' }), vis('HORAS PRODUZIDAS X HORAS PARADAS', () => chartBox(prodPar), { vid: 'v4' }),
-      vis('QTD PEÇAS PRODUZIDAS (por turno)', () => chartBox(turnoPecas), { vid: 'v2' }),
+      vis(`PRODUTIVIDADE POR ${u.toUpperCase()} · por dia`, () => chartBox(prodDia), { vid: 'v1', wide: true }),
+      vis('DISPONIBILIDADE', () => chartBox(disp), { vid: 'v3' }), vis('HORAS PRODUZIDAS X PARADAS', () => chartBox(prodPar), { vid: 'v4' }),
       x.g === 'usi' ? vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6' }) : '',
-      vis('TEMPO DAS PEÇAS PRODUZIDAS · QTD', () => chartBox(pecas, 'vscroll'), { vid: 'v5' }))];
+      vis('POR MÊS', () => chartBox(mes), { vid: 'v7' }),
+      vis(`RESUMO POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, tbl, { vid: 't1', wide: true }))];
 }
 
 function pageParadas(x) {
@@ -271,43 +281,21 @@ function tempoPecas(x, vid) {
   return () => { const gr = groupP(x.cube, x.F(vid), ['pm']).map((g) => ({ g, v: M.horasProd(g.c) })).sort((a, b) => b.v - a.v); return { orient: 'h', cats: gr.map(({ g }) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas', vals: gr.map((r) => r.v), color: PALETTE[0] }], fmt: f1, tip: (i) => `${fint(M.qtdPecas(gr[i].g.c))} peças`, onPick: x.pick(vid, 'p', ['pm']), selected: x.selOf(vid) }; };
 }
 
-function pagePeca(x) {
-  const u = GROUPS[x.g].unit, pecasSel = pageFilterSet('pm');
-  const c = () => slice(x.cube, x.F('cards'));
+function pagePessoas(x) {
+  const u = GROUPS[x.g].unit, pecasSel = pageFilterSet('pm'), nomeSel = pageFilterSet('nome');
   const t1 = () => { const rows = avgOrder(0, rowsOf(groupP(x.cube, x.F('t1'), ['m', 'pm']))); return table(tpCols([{ h: u, v: (r) => r.vals[0] }, { h: 'Peça e Modelo', v: (r) => r.vals[1] }]), rows, { totals: tpTotals(slice(x.cube, x.F('t1')), ['Total', '']) }); };
-  const t2 = () => { const rows = avgOrder(0, rowsOf(groupP(x.cube, x.F('t2'), ['cf', 'pm']))); return table(tpCols([{ h: 'Chapa', v: (r) => blank(r.vals[0]) }, { h: 'Peça e Modelo', v: (r) => r.vals[1] }]), rows, { totals: tpTotals(slice(x.cube, x.F('t2')), ['Total', '']) }); };
+  const t2 = () => table(tpCols([{ h: 'Chapa', v: (r) => blank(r.vals[0]) }, { h: 'Nome', v: (r) => blank(r.vals[1]) }]), avgOrder(0, rowsOf(groupP(x.cube, x.F('t2'), ['cf', 'nome']))), { totals: tpTotals(slice(x.cube, x.F('t2')), ['Total', '']) });
   const t3 = () => { const rows = avgOrder(0, rowsOf(groupP(x.cube, x.F('t3'), ['data', 'cf', 'pm', 't1', 't2', 't3'])));
     return table([{ h: 'Data', v: (r) => dmy(r.vals[0]), key: (r) => r.vals[0] }, { h: 'Turno', v: (r) => fint(r.c.P.reduce((s, p) => s + (+p.t || 0), 0)), n: true }, { h: 'Chapa', v: (r) => blank(r.vals[1]) }, { h: 'Peça e Modelo', v: (r) => r.vals[2] },
       { h: 'Tempo (h)', v: (r) => f2(M.horasProd(r.c)), key: (r) => M.horasProd(r.c), n: true }, { h: 'TP Padrão', v: (r) => f2(M.tp(r.c)), key: (r) => M.tp(r.c), n: true },
       { h: '%', v: (r) => ganhoTexto(M.ganho(r.c)), key: (r) => M.ganho(r.c) ?? -9, n: true, bg: (r) => corGanhoS(M.ganho(r.c)) }, { h: '1ºTURNO', v: (r) => r.vals[3] }, { h: '2ºTURNO', v: (r) => r.vals[4] }, { h: '3ºTURNO', v: (r) => r.vals[5] }], rows); };
-  return [live(() => [card('PEÇA - MODELO', selecionado(pecasSel, 'Todos', 'peças selecionadas')), card('HORAS PRODUZIDAS', `${f1(M.horasProd(c()))} h`), card('PEÇAS', fint(M.pecasDistintas(c())))]),
-    el('div', { class: 'bi-grid' }, vis(`${u.toUpperCase()} · PEÇA E MODELO`, t1, { vid: 't1' }), vis('CHAPA · PEÇA E MODELO', t2, { vid: 't2' }), vis('DETALHE', t3, { vid: 't3', wide: true }), vis('TEMPO DAS PEÇAS PRODUZIDAS · QTD', () => chartBox(tempoPecas(x, 'v5'), 'vscroll'), { vid: 'v5' }))];
-}
-
-function pageOperador(x) {
-  const u = GROUPS[x.g].unit, nomeSel = pageFilterSet('nome');
-  const t1 = () => table(tpCols([{ h: u, v: (r) => r.vals[0] }, { h: 'Peça e Modelo', v: (r) => r.vals[1] }, { h: 'Chapa', v: (r) => blank(r.vals[2]) }]), avgOrder(0, rowsOf(groupP(x.cube, x.F('t1'), ['m', 'pm', 'cf']))), { totals: tpTotals(slice(x.cube, x.F('t1')), ['Total', '', '']) });
-  const t2 = () => table(tpCols([{ h: 'Nome', v: (r) => blank(r.vals[0]) }]), avgOrder(0, rowsOf(groupP(x.cube, x.F('t2'), ['nome']))), { totals: tpTotals(slice(x.cube, x.F('t2')), ['Total']) });
   const combo = () => { const gr = groupP(x.cube, x.F('v3'), ['cf']).map((g) => ({ g, v: M.horasProd(g.c) })).sort((a, b) => b.v - a.v);
     return { cats: gr.map(({ g }) => ({ key: g.vals[0], label: blank(g.vals[0]) })), series: [{ name: 'Tempo (h)', vals: gr.map((r) => r.v), color: PALETTE[0] }, { name: 'TP Padrão (h)', vals: gr.map((r) => M.tp(r.g.c)), color: PALETTE[1] }],
       line: { name: '% Ganho', vals: gr.map((r) => M.ganho(r.g.c)), fmt: fpct0, color: '#fb7185', min: Math.min(0, ...gr.map((r) => M.ganho(r.g.c) ?? 0)), max: Math.max(0.5, ...gr.map((r) => M.ganho(r.g.c) ?? 0)) }, fmt: f1, onPick: x.pick('v3', 'p', ['cf']), selected: x.selOf('v3') }; };
   const semNomes = !Object.keys(getOperators()).length;
-  return [semNomes ? el('p', { class: 'bi-note' }, 'Os nomes vêm da lista de operadores do servidor, carregada ao abrir o app. Se não aparecerem, recarregue a página; se continuar, a lista de operadores ainda não foi configurada e só as chapas aparecem.') : '',
-    live(() => [card('OPERADOR', selecionado(nomeSel, 'Todos', 'operadores selecionados')), card('HORAS PRODUZIDAS', `${f1(M.horasProd(slice(x.cube, x.F('cards'))))} h`)]),
-    el('div', { class: 'bi-grid' }, vis(`${u.toUpperCase()} · PEÇA · CHAPA`, t1, { vid: 't1' }), vis('OPERADOR', t2, { vid: 't2' }), vis('TEMPO PRODUZIDO VS PADRÃO (por chapa)', () => chartBox(combo), { vid: 'v3', wide: true }), vis('TEMPO DAS PEÇAS PRODUZIDAS · QTD', () => chartBox(tempoPecas(x, 'v5'), 'vscroll'), { vid: 'v5' }))];
-}
-
-function pageMensal(x) {
-  const u = GROUPS[x.g].unit;
-  const combo = () => { const gr = groupP(x.cube, x.F('v1'), ['mes']); const order = (m) => ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'].indexOf(m); gr.sort((a, b) => order(a.vals[0]) - order(b.vals[0]));
-    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }], line: { name: 'Total no mês (h)', vals: gr.map((g) => M.horasProd(g.c)), fmt: f1, color: PALETTE[1] }, fmt: f1, onPick: x.pick('v1', 'p', ['mes']), selected: x.selOf('v1') }; };
-  const turno = () => { const gr = groupP(x.cube, x.F('v4'), ['t']); return { cats: gr.map((g) => ({ key: g.vals[0], label: `Turno ${blank(g.vals[0])}` })), series: [{ name: 'Peças', vals: gr.map((g) => M.qtdPecas(g.c)), color: PALETTE[0] }], fmt: fint, onPick: x.pick('v4', 'p', ['t']), selected: x.selOf('v4') }; };
-  const tbl = () => { const rows = rowsOf(groupP(x.cube, x.F('t1'), ['m'])), tot = slice(x.cube, x.F('t1'));
-    return table([{ h: u, v: (r) => r.vals[0] }, { h: 'Peças', v: (r) => fint(M.qtdPecas(r.c)), key: (r) => M.qtdPecas(r.c), n: true }, { h: 'Horas (h)', v: (r) => f2(M.horasProd(r.c)), key: (r) => M.horasProd(r.c), n: true }, { h: 'Target (h)', v: (r) => f2(M.target(r.c)), key: (r) => M.target(r.c), n: true },
-      { h: '%', v: (r) => fpct(M.pct(r.c)), key: (r) => M.pct(r.c), n: true, bg: (r) => corPctS(M.pct(r.c)) }, { h: 'Desvio', v: (r) => variacaoTexto(M.pct(r.c)), key: (r) => M.pct(r.c), n: true, bg: (r) => corVariacaoS(M.pct(r.c)) },
-      { h: 'Média horas', v: (r) => f2(M.mediaHoras(r.c)), key: (r) => M.mediaHoras(r.c) ?? 0, n: true }, { h: 'Paradas (h)', v: (r) => f2(M.horasParadas(r.c)), key: (r) => M.horasParadas(r.c), n: true }], rows, { order: 4, desc: false,
-      totals: ['Total', fint(M.qtdPecas(tot)), f2(M.horasProd(tot)), f2(M.target(tot)), fpct(M.pct(tot)), variacaoTexto(M.pct(tot)), f2(M.mediaHoras(tot)), f2(M.horasParadas(tot))] }); };
-  return [cardsRow(x, 'paradas'), el('div', { class: 'bi-grid' }, vis('PRODUTIVIDADE POR MÊS', () => chartBox(combo), { vid: 'v1', wide: true }), vis('TEMPO POR PEÇA E MODELO', () => chartBox(tempoPecas(x, 'v5'), 'vscroll'), { vid: 'v5' }), vis(`${u.toUpperCase()} · META ${Math.round(META * 100)}%`, tbl, { vid: 't1' }), vis('PEÇAS POR TURNO', () => chartBox(turno), { vid: 'v4' }))];
+  return [semNomes ? el('p', { class: 'bi-note' }, 'Os nomes vêm da lista de operadores do servidor. Se não aparecerem, recarregue a página; se continuar, a lista ainda não foi configurada e só as chapas aparecem.') : '',
+    live(() => [card('PEÇA - MODELO', selecionado(pecasSel, 'Todos', 'peças selecionadas')), card('OPERADOR', selecionado(nomeSel, 'Todos', 'operadores selecionados')), card('HORAS PRODUZIDAS', `${f1(M.horasProd(slice(x.cube, x.F('cards'))))} h`), card('PEÇAS', fint(M.pecasDistintas(slice(x.cube, x.F('cards')))))]),
+    el('div', { class: 'bi-grid' }, vis(`${u.toUpperCase()} · PEÇA E MODELO`, t1, { vid: 't1' }), vis('OPERADOR', t2, { vid: 't2' }), vis('TEMPO PRODUZIDO VS PADRÃO (por chapa)', () => chartBox(combo), { vid: 'v3', wide: true }), vis('TEMPO DAS PEÇAS PRODUZIDAS · QTD', () => chartBox(tempoPecas(x, 'v5'), 'vscroll'), { vid: 'v5' }), vis('DETALHE DE CADA PEÇA', t3, { vid: 't3', wide: true }))];
 }
 
 // ---- Entrega: horas padrão ("horas entregues") x horas reais. One row = one piece; the standard hours come from the MATRIZ TEMPO (BAAN).
@@ -343,7 +331,7 @@ function pageEntrega(x) {
 }
 
 // ---- Auditoria dos dados: everything in the history that a person should look at (the app never changes the data by itself)
-function pageAuditoria(x) {
+export function auditoriaBlock(x) {
   const known = new Set(Object.keys(getOperators()));
   const res = auditData({ prod: x.base.prod, stops: x.base.stops, known: known.size ? known : null });
   const n = (lv) => res.filter((c) => c.level === lv && c.count).reduce((a, c) => a + c.count, 0), k = (lv) => res.filter((c) => c.level === lv && c.count).length;
@@ -362,7 +350,7 @@ function pageAuditoria(x) {
       { h: '', v: (r) => (r.c.count ? el('button', { type: 'button', class: 'bi-more', onclick: () => openRecords(`${r.c.title} (${r.c.count})`, r.c.head, r.c.rows, r.c.why) }, 'Ver linhas') : '—') }], rows, { order: 0 }), { vid: 'au', wide: true, filters: false, acts: [el('button', { type: 'button', onclick: xlsx }, '⬇ Auditoria completa (Excel)')] }))];
 }
 
-const BUILDERS = { auditoria: pageAuditoria, entrega: pageEntrega, diaria: pageDiaria, paradas: pageParadas, peca: pagePeca, operador: pageOperador, mensal: pageMensal };
+const BUILDERS = { geral: pageGeral, pessoas: pagePessoas, entrega: pageEntrega, paradas: pageParadas };
 const pageFilterSet = (col) => pageFilter().p[col] ?? new Set();
 
 // ---- quick date bar (Último dia, 7 dias, 30 dias, mês, De/Até) --------------------------------------------------
@@ -408,8 +396,6 @@ export async function renderBiUI(root, ctx) {
   const tabs = el('div', { class: 'bi-pages', role: 'group', 'aria-label': 'Página' }, PAGES[ui.g].map(([id, label]) => el('button', { type: 'button', 'aria-pressed': String(ui.page === id), onclick: () => { ui.page = id; ui.sel = null; renderBiUI(root, ctx); } }, label)));
   bar.append(seg, tabs);
   wrap.append(title, bar, main);
-  ctx.onPage?.(ui.page);            // "Folhas de hoje" is the old Painel: main.js shows it only on that page
-  if (ui.page === 'hoje') { root.replaceChildren(wrap); return; }
   root.replaceChildren(wrap);
   main.append(el('p', { class: 'bi-note' }, 'Lendo a base…'));
   let base;
@@ -444,7 +430,7 @@ export async function renderBiUI(root, ctx) {
   const noteFn = () => noteHost.replaceChildren(...(ui.sel ? [el('p', { class: 'bi-note' }, 'Filtro por clique ativo nos outros gráficos. ', el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.sel = null; drawMain(); } }, 'Limpar clique'), ' ', el('button', { type: 'button', class: 'bi-more', onclick: () => { const c = slice(cube, mergeF(pageFilter(), ui.sel.f())); if (ui.sel.side === 's') openRecords(`Paradas (${c.S.length})`, STOP_HEAD, c.S.map(stopRow)); else openRecords(`Produções (${c.P.length})`, PROD_HEAD, c.P.map(prodRow)); } }, 'Ver registros'))] : []));
   let built = false;
   function drawMain() {
-    if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { prune(); drawMain(); }), alertsStrip(x), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }
+    if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { prune(); drawMain(); }), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }
     else REG.forEach((r) => r.rebuild());          // like Power BI: the other visuals redraw, the page does not move
     noteFn();
   }

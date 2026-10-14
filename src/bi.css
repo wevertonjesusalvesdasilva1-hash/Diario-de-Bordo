@@ -187,3 +187,8 @@ body.pbi main { overflow-x: clip; }
 .bi-slicer header .hd button { overflow: visible; text-overflow: clip; font-size: .66rem; padding: .3rem .5rem; }
 .bi-slicer header .hd { display: flex; flex-wrap: wrap; gap: .3rem; }
 .bi-slicer header .hd button { flex: 1 1 auto; }
+
+/* per-chart filters live behind a button (less clutter) */
+.vf-host[hidden] { display: none !important; }
+.vf-btn { border: 1px solid var(--line2); background: transparent; color: var(--muted); border-radius: 8px; font: inherit; font-size: .75rem; padding: .15rem .5rem; cursor: pointer; }
+.vf-btn:hover, .vf-btn.on { color: var(--accent); border-color: var(--accent); }

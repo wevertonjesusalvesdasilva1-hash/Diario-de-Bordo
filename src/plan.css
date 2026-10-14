@@ -24,3 +24,11 @@
 .pl-strata-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .8rem; margin-top: .6rem; }
 .pl-strata-grid h5 { margin: 0 0 .3rem; font-size: .8rem; color: var(--muted); }
 @media (max-width: 640px) { .plan { padding-left: 38px; } .pl-node { left: -38px; width: 34px; height: 34px; } .plan::before { left: 15px; } .pl-vh { margin-left: 0; } }
+.pl-sec { display: grid; gap: .8rem; }
+.pl-sec > header h3, .pl-audit > summary h3 { margin: 0; font: 700 1.05rem var(--f-head, inherit); }
+.pl-sec > header h3::after, .pl-audit > summary h3::after { display: none; }
+.pl-sec > header p, .pl-audit > summary p { margin: .15rem 0 0; color: var(--muted); font-size: .82rem; }
+.pl-audit { border: 1px solid var(--line2); border-radius: 16px; padding: .7rem 1rem; background: var(--panel); }
+.pl-audit > summary { cursor: pointer; list-style: none; }
+.pl-audit > summary::-webkit-details-marker { display: none; }
+.pl-audit-body { display: grid; gap: .8rem; margin-top: .8rem; }
