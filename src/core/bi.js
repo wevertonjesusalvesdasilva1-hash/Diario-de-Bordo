@@ -36,7 +36,8 @@ export function buildCube(base, nameOf = () => '') {
 export const PD = { data: (r) => r.d, mes: (r) => r.mes, m: (r) => r.m, pm: (r) => r.pm, peca: (r) => r.p, t: (r) => r.t, cf: (r) => r.cf, nome: (r) => r.nome, t1: (r) => r.t1s, t2: (r) => r.t2s, t3: (r) => r.t3s };
 export const SD = { data: (r) => r.d, mes: (r) => r.mes, m: (r) => r.m, mo: (r) => r.mo, t: (r) => r.t, c: (r) => r.c, ds: (r) => r.ds };
 
-const active = (f) => Object.entries(f ?? {}).filter(([, v]) => v && v.size);
+// an empty Set means "nothing matches" (the callers drop a slicer's filter when it has no selection)
+const active = (f) => Object.entries(f ?? {}).filter(([, v]) => v);
 const matches = (act, dims, r) => { for (const [k, set] of act) if (!set.has(dims[k](r))) return false; return true; };
 
 // ---- filter context → visible rows (the relationships applied) ---------------------------------------------

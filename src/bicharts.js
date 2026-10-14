@@ -1,6 +1,6 @@
 // Small SVG charts for the BI pages (columns, bars, combo with a line on a second axis). No library.
 const SVG = 'http://www.w3.org/2000/svg';
-export const PALETTE = ['#4472C4', '#ED7D31', '#A5A5A5', '#FFC000', '#5B9BD5', '#70AD47'];
+export const PALETTE = ['#8b5cf6', '#c4b5fd', '#7ee34f', '#ff7a5c', '#f5b942', '#38bdf8'];   // the Painel's colors
 
 export function el(tag, attrs = {}, ...kids) {
   const ns = attrs.svg === true;
@@ -37,7 +37,7 @@ export function drawChart(box, spec) {
   const avail = Math.max(box.clientWidth || 360, 240);
   const sel = selected && selected.size ? selected : null;
   const pickAttrs = (c) => (onPick ? { class: `pick${sel && !sel.has(c.key) ? ' dim' : ''}`, tabindex: 0, role: 'button', onclick: () => onPick(c.key), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(c.key); } } } : { class: sel && !sel.has(c.key) ? 'dim' : '' });
-  const legend = series.length > 1 || line ? el('div', { class: 'bi-leg' }, series.map((s) => el('span', {}, el('i', { style: `background:${s.color}` }), s.name)), line ? el('span', {}, el('i', { style: `background:${line.color ?? '#C00000'}` }), line.name) : null) : null;
+  const legend = series.length > 1 || line ? el('div', { class: 'bi-leg' }, series.map((s) => el('span', {}, el('i', { style: `background:${s.color}` }), s.name)), line ? el('span', {}, el('i', { style: `background:${line.color ?? '#ff7a5c'}` }), line.name) : null) : null;
 
   if (orient === 'h') {
     const rowH = 24 * Math.max(1, stacked ? 1 : series.length) * (series.length > 1 && !stacked ? 0.8 : 1) + 6, labW = Math.min(170, Math.max(60, Math.max(...cats.map((c) => String(c.label).length)) * 6.4));
@@ -93,7 +93,7 @@ export function drawChart(box, spec) {
   closeGroup(cats.length);
   if (line) {
     const pts = cats.map((c, i) => (line.vals[i] == null ? null : [left + i * step + step / 2, ly(line.vals[i])]));
-    const col = line.color ?? '#C00000';
+    const col = line.color ?? '#ff7a5c';
     svg.append(S('polyline', { points: pts.filter(Boolean).map((p) => p.join(',')).join(' '), fill: 'none', stroke: col, 'stroke-width': 2 }));
     pts.forEach((p, i) => { if (!p) return; svg.append(S('circle', { cx: p[0], cy: p[1], r: 3, fill: col }, S('title', {}, `${cats[i].label}\n${line.name}: ${(line.fmt ?? String)(line.vals[i])}`))); if (cats.length <= 16) svg.append(S('text', { x: p[0], y: p[1] - 7, 'text-anchor': 'middle', style: `font-size:10px;fill:${col}` }, (line.fmt ?? String)(line.vals[i]))); });
   }

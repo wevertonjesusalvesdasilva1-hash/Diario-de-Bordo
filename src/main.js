@@ -571,7 +571,7 @@ function setView(v) {
   for (const p of state.pages) renderPage(p);
   updateSummary();
   if (state.tab === 'analysis') renderAnalysis();
-  if (state.tab === 'panel') renderPanel();
+  if (state.tab === 'panel') renderPanelTab();
 }
 
 function updateSummary() {
@@ -813,8 +813,6 @@ function resetReview(edited = false) {
 function updateReviewUi() {
   const any = okPages().length > 0;
   $('tabs').hidden = false;                 // the BI tab works without any sheet
-  $('tab-panel').disabled = !any;
-  if (!any && state.tab === 'panel') showTab('read');
   $('okbox').hidden = !any;
   $('tab-analysis').disabled = !state.reviewed;
   $('tab-lock').textContent = state.reviewed ? 'aprovada' : 'precisa do OK';
@@ -836,17 +834,17 @@ function showTab(name) {
   $('view-analysis').hidden = name !== 'analysis';
   $('tab-read').classList.toggle('on', name === 'read');
   $('tab-analysis').classList.toggle('on', name === 'analysis');
-  $('view-panel').hidden = name !== 'panel';
-  $('view-bi').hidden = name !== 'bi';
-  $('stats').hidden = $('upload').hidden = name === 'bi';   // the BI works on the saved history, not on the sheets being read
-  $('tab-bi').classList.toggle('on', name === 'bi');
+  const hist = name === 'panel' && pbMode === 'hist';
+  $('pbmode').hidden = name !== 'panel';
+  $('view-panel').hidden = !(name === 'panel' && pbMode === 'now');
+  $('view-bi').hidden = !hist;
+  $('stats').hidden = $('upload').hidden = hist;   // the history works on the saved base, not on the sheets being read
   $('tab-panel').classList.toggle('on', name === 'panel');
   $('tab-panel').setAttribute('aria-selected', String(name === 'panel'));
   $('tab-read').setAttribute('aria-selected', String(name === 'read'));
   $('tab-analysis').setAttribute('aria-selected', String(name === 'analysis'));
   if (name === 'analysis') renderAnalysis();
-  if (name === 'panel') renderPanel();
-  if (name === 'bi') renderBi();
+  if (name === 'panel') renderPanelTab();
 }
 
 function giveOk() {
@@ -1163,6 +1161,12 @@ const MOT_COLOR = Object.fromEntries(MOTIVOS_ALL.map((m, i) => [m, `var(--m${i})
 MOT_COLOR['SEM MOTIVO'] = 'var(--muted)';
 const motColor = (m) => MOT_COLOR[m] ?? 'var(--muted)';
 
+let pbMode = 'hist';   // "Painel BI": 'hist' = the history (BI reports) · 'now' = the sheets being read
+try { pbMode = localStorage.getItem('mt-pbmode') === 'now' ? 'now' : 'hist'; } catch { /* private mode */ }
+function renderPanelTab() {
+  $('pbmode').replaceChildren(...[['hist', 'Histórico (BI)'], ['now', 'Folhas de hoje']].map(([v, t]) => h('button', { type: 'button', 'aria-pressed': String(pbMode === v), onclick: () => { pbMode = v; try { localStorage.setItem('mt-pbmode', v); } catch { /* private mode */ } showTab('panel'); } }, t)));
+  if (pbMode === 'hist') renderBi(); else renderPanel();
+}
 function renderPanel() {
   const root = $('view-panel');
   const inc = includedPages();
@@ -1192,13 +1196,12 @@ function renderPanel() {
     filters: { groups: [], days: P.days, opt: panelOpt, onChange: (o) => { Object.assign(panelOpt, o); resetPanelSelection(); renderPanel(); } } });
 }
 $('tab-panel').addEventListener('click', () => showTab('panel'));
-$('tab-bi').addEventListener('click', () => showTab('bi'));
 
 // ---------------------------------------------------------------- base de dados (histórico) e BI
 function openSubmitBase() {
   openSubmit({
     pages: includedPages(), reviewed: state.reviewed, flagsOf: countFlags, toast, goRead: () => showTab('read'),
-    onDone: ({ g, batch, pages, result }) => { for (const p of pages) { p.submitted = { g, batch, at: new Date().toISOString(), prod: result.added.prod, stops: result.added.stops }; renderPage(p); } persist(0); if (state.tab === 'bi') renderBi(); },
+    onDone: ({ g, batch, pages, result }) => { for (const p of pages) { p.submitted = { g, batch, at: new Date().toISOString(), prod: result.added.prod, stops: result.added.stops }; renderPage(p); } persist(0); if (state.tab === 'panel' && pbMode === 'hist') renderBi(); },
   });
 }
 $('submitbase').addEventListener('click', openSubmitBase);

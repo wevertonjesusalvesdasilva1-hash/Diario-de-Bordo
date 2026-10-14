@@ -61,3 +61,20 @@
 
 .bi-vis > div { min-width: 0; }
 .bi-vis > header { min-width: 0; }
+
+.vf { display: flex; flex-wrap: wrap; gap: .35rem .6rem; align-items: center; font-size: .75rem; color: var(--muted); }
+.vf details { position: relative; }
+.vf summary { cursor: pointer; border: 1px solid var(--line2); border-radius: 8px; padding: .12rem .5rem; list-style: none; color: var(--ink); }
+.vf summary::-webkit-details-marker { display: none; }
+.vf-pop { position: absolute; z-index: 5; top: 1.7rem; left: 0; min-width: 150px; max-height: 220px; overflow: auto; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: .35rem; display: grid; gap: 2px; box-shadow: 0 10px 30px rgb(0 0 0 / .35); }
+.vf-pop label { display: flex; gap: .4rem; align-items: center; padding: .1rem .25rem; border-radius: 6px; cursor: pointer; color: var(--ink); }
+.vf-pop label:hover { background: var(--accent-soft); }
+.vf-d { display: inline-flex; gap: .3rem; align-items: center; }
+.vf-d input { font: inherit; font-size: .75rem; color: var(--ink); background: var(--panel2); border: 1px solid var(--line2); border-radius: 8px; padding: .08rem .3rem; color-scheme: dark light; }
+.vf-x { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; font-size: .75rem; padding: 0; }
+.bi.pn { gap: 14px; }
+.bi .bi-vis, .bi .bi-card, .bi .bi-slicer { border-radius: 20px; background: var(--cardbg); box-shadow: var(--cardsh); }
+.bi .bi-seg button[aria-pressed="true"], .bi .bi-pages button[aria-pressed="true"], #pbmode button[aria-pressed="true"] { background: var(--pv); color: #fff; border-color: var(--pv); }
+#pbmode { margin: 0 0 .8rem; }
+#pbmode button { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: .35rem .85rem; font: inherit; font-size: .88rem; cursor: pointer; }
+.bi-ch text { font-family: var(--f-mono, inherit); }
