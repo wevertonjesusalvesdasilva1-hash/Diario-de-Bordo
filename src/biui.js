@@ -1,6 +1,6 @@
 // "4 · BI": the Power BI reports (RAW and usinagem) rebuilt on the history. Numbers come from core/bi.js (the report's own measures).
 import './bi.css';
-import { buildCube, slice, M, options, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
+import { buildCube, slice, M, options, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
 import { dmy } from './core/history.js';
 import { loadBase } from './historico.js';
 import { getOperators, operatorName } from './core/operators.js';
@@ -13,6 +13,7 @@ const sk = (c) => SKIN[c] ?? c;
 const corPctS = (v) => sk(BI.corPct(v)), corGanhoS = (g) => sk(BI.corGanho(g)), corTempoS = (h) => sk(BI.corTempo(h)), corVariacaoS = (v) => sk(BI.corVariacao(v));
 
 const SEP = '\u0001';
+let slicerFills = [];
 const ddmm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const r6 = (v) => Math.round((v ?? 0) * 1e6) / 1e6;   // drop floating-point noise before rounding
 const f1 = (v) => r6(v).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -60,6 +61,7 @@ function slicerBox(title, side, col, cube, onChange) {
     } }), optLabel(col, v)))));
   }
   search.addEventListener('input', fill); fill();
+  slicerFills.push(fill);
   return box;
 }
 
@@ -67,7 +69,7 @@ function slicerBox(title, side, col, cube, onChange) {
 // pieces that redraw in place (no DOM replacement, so the page keeps its scroll) when a filter or a click changes
 const REG = [];
 function live(fn, cls = 'bi-cards') { const box = el('div', { class: cls }); box.rebuild = () => box.replaceChildren(...[].concat(fn())); REG.push(box); box.rebuild(); return box; }
-function card(title, value, color) { return el('div', { class: 'bi-card' }, el('small', {}, title), el('b', color ? { style: `color:${color}` } : {}, value)); }
+function card(title, value, color, sub) { return el('div', { class: 'bi-card' }, el('small', {}, title), el('b', color ? { style: `color:${color}` } : {}, value), sub ? el('span', { class: 'sub' }, sub) : ''); }
 const VSIDE = {};
 let curCube = null;
 const dateList = (side) => options(curCube, side, 'data');
@@ -98,7 +100,8 @@ function vis(title, build, { vid, side = 'p', wide = false, acts = [] } = {}) {
   const max = el('button', { type: 'button', 'aria-label': 'Ampliar', onclick: () => { const on = box.classList.toggle('max'); max.textContent = on ? '✕ Fechar' : '⤢'; } }, '⤢');
   box.rebuild = () => slot.replaceChildren(build());
   REG.push(box);
-  box.append(el('header', {}, el('h4', {}, title), el('div', { class: 'acts' }, acts, max)), visFilterBar(vid, side, box.rebuild), slot);
+  const xl = el('button', { type: 'button', 'aria-label': 'Baixar em Excel', title: 'Baixar os dados deste gráfico em Excel', onclick: async () => { const t = slot.firstElementChild?.getTable?.(); if (!t) return; const X = await import('xlsx'); const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([t.head, ...t.rows]), 'Dados'); X.writeFile(wb, `${title.replace(/[^\p{L}\p{N} ·-]+/gu, '').trim().slice(0, 60) || 'dados'}.xlsx`); } }, '⬇ Excel');
+  box.append(el('header', {}, el('h4', {}, title), el('div', { class: 'acts' }, acts, xl, max)), visFilterBar(vid, side, box.rebuild), slot);
   box.rebuild();
   return box;
 }
@@ -117,18 +120,60 @@ function table(cols, rows, { totals, order, desc = true, limit = 300 } = {}) {
     more.textContent = `Mostrar todas as ${fint(list.length)} linhas`;
   }
   draw(); wrap.append(box, more);
+  wrap.getTable = () => { let list = rows; if (sortCol != null) { const c = cols[sortCol], k = c.key ?? c.v; list = [...rows].sort((a, b) => { const x = k(a), y = k(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; }); } return { head: cols.map((c) => c.h), rows: list.map((r) => cols.map((c) => c.v(r))) }; };
   return wrap;
 }
 const rowsOf = (groups) => groups.map((g) => ({ vals: g.vals, c: g.c }));
 
+// ---- records (modal) ------------------------------------------------------------------------------------------
+function openRecords(title, head, rows, note) {
+  document.getElementById('bd-modal')?.remove();
+  const close = () => { box.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  const tbl = table(head.map((h, i) => ({ h, v: (r) => r[i], n: typeof rows[0]?.[i] === 'number' })), rows, { limit: 400 });
+  const box = el('div', { id: 'bd-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, el('div', { class: 'bd-box wide' },
+    el('div', { class: 'bd-head' }, el('h3', {}, title), el('button', { type: 'button', class: 'bd-x', 'aria-label': 'Fechar', onclick: close }, '✕')),
+    el('div', { class: 'bd-body' }, note ? el('p', { class: 'note' }, note) : '', tbl)));
+  box.addEventListener('click', (e) => { if (e.target === box) close(); });
+  document.body.append(box); document.addEventListener('keydown', onKey);
+}
+const times = (r) => [[r.i1, r.f1], [r.i2, r.f2], [r.i3, r.f3]].filter(([a, b]) => a || b).map(([a, b]) => `${a}–${b}`).join(' · ');
+const prodRow = (r) => [dmy(r.d), r.m, r.pm, r.cf, r.t, times(r.src), +r.h.toFixed(2), +r.tp.toFixed(2)];
+const PROD_HEAD = ['Data', 'Máquina', 'Peça e modelo', 'Chapa', 'Turno', 'Horários', 'Horas', 'Padrão (h)'];
+const stopRow = (s) => [dmy(s.d), s.m, s.c, s.t, s.mo, s.ds, s.i, s.f, +s.h.toFixed(2)];
+const STOP_HEAD = ['Data', 'Máquina', 'Chapa', 'Turno', 'Motivo', 'Descrição', 'Início', 'Final', 'Horas'];
+
 // ---- the pages ----------------------------------------------------------------------------------------------
 // ctx: { cube, g, F(vid) → filter for that visual, pick(vid, side, cols) → onPick, selOf(vid) → Set }
-function cardsRow(x, kind) {
+// the period right before the selected days (same number of days), for the "vs. período anterior" hint
+function prevSlice(x, side) {
+  const sel = pageFilter()[side].data;
+  if (!sel || !sel.size) return null;
+  const all = options(x.cube, side, 'data'), chosen = all.filter((d) => sel.has(d)), i = all.indexOf(chosen[0]), prev = all.slice(Math.max(0, i - chosen.length), i);
+  if (!prev.length) return null;
+  return slice(x.cube, (side === 's' ? withS : withP)(x.F('cards'), 'data', prev));
+}
+const arrow = (d, unit, dec = 1) => (Math.abs(d) < 0.05 ? '= igual ao período anterior' : `${d > 0 ? '▲ +' : '▼ −'}${Math.abs(d).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec })}${unit} vs. período anterior`);
+function cardsRow(x, kind, side = 'p') {
   return live(() => {
-    const c = slice(x.cube, x.F('cards'));
+    const c = slice(x.cube, x.F('cards')), pv = prevSlice(x, side);
     const res = kind === 'resumo' ? M.horasParadasResumo(c) : M.horasParadas(c), pct = M.pct(c);
-    return [card('PRODUÇÃO (peças)', fint(M.qtdPecas(c))), card('HORAS PRODUZIDAS', `${f1(M.horasProd(c))} h`), card('HORAS PARADAS', `${f1(res)} h`), card('DISPONIBILIDADE', fpct(pct), corPctS(pct))];
+    const resPrev = pv ? (kind === 'resumo' ? M.horasParadasResumo(pv) : M.horasParadas(pv)) : null;
+    const gap = (pct - META) * 100;
+    return [card('PRODUÇÃO (peças)', fint(M.qtdPecas(c)), null, pv ? arrow(M.qtdPecas(c) - M.qtdPecas(pv), '', 0) : ''),
+      card('HORAS PRODUZIDAS', `${f1(M.horasProd(c))} h`, null, pv ? arrow(M.horasProd(c) - M.horasProd(pv), ' h') : ''),
+      card(kind === 'resumo' ? 'HORAS PARADAS (todas do dia e máquina)' : 'HORAS PARADAS (das chapas filtradas)', `${f1(res)} h`, null, resPrev != null ? arrow(res - resPrev, ' h') : ''),
+      card('DISPONIBILIDADE', fpct(pct), corPctS(pct), `Meta ${Math.round(META * 100)}% · ${gap >= 0 ? '+' : '−'}${f1(Math.abs(gap))} pts${pv ? ' · ' + arrow((pct - M.pct(pv)) * 100, ' pts') : ''}`)];
   });
+}
+// top strip: what stands out in the current view + suspicious records
+function alertsStrip(x) {
+  return live(() => {
+    const f = x.F('cards'), items = destaques(x.cube, f, { unit: GROUPS[x.g].unit }), bad = anomalias(x.cube, f);
+    const out = items.map((d) => el('span', { class: `bi-al ${d.tone}` }, d.text));
+    if (bad.length) out.push(el('button', { type: 'button', class: 'bi-al bad act', onclick: () => openRecords(`Registros suspeitos (${bad.length})`, [...PROD_HEAD, 'Motivo'], bad.map(({ r, why }) => [...prodRow(r), why]), 'Confira estas linhas na folha ou no Excel: o horário digitado pode estar errado (por exemplo, hora que atravessa a meia-noite).') }, `⚠ ${bad.length} registro(s) suspeito(s) · ver`));
+    return out;
+  }, 'bi-alerts');
 }
 const unitCats = (groups) => groups.map((g) => ({ key: g.vals.join(SEP), label: blank(g.vals.at(-1)) }));
 
@@ -164,7 +209,7 @@ function pageParadas(x) {
     { h: 'TTL', v: (s) => hhmm(s.h), key: (s) => s.h, n: true }, { h: 'Início', v: (s) => s.i }, { h: 'Final', v: (s) => s.f }], S, { order: 6, totals: ['Total', '', '', '', '', '', hhmm(S.reduce((a, s) => a + s.h, 0)), '', ''] }); };
   const toggle = el('button', { type: 'button', onclick: () => { showTable = !showTable; toggle.textContent = showTable ? '📊 Ver gráfico' : '📋 Ver tabela'; vh.rebuild(); } }, '📋 Ver tabela');
   const vh = vis('HORAS PARADAS POR DIA', () => (showTable ? tbl() : chartBox(porDia)), { vid: 'v1', side: 's', wide: true, acts: [toggle] });
-  return [cardsRow(x, 'paradas'), el('div', { class: 'bi-grid' }, vh, vis('PARADAS POR TURNO', () => chartBox(porTurno), { vid: 'v2', side: 's' }), vis('PARETO DAS PARADAS', () => chartBox(par), { vid: 'v3', side: 's', wide: true }), vis(`HORAS DE PARADAS POR ${u.toUpperCase()}`, () => chartBox(porMaq), { vid: 'v4', side: 's' }))];
+  return [cardsRow(x, 'paradas', 's'), el('div', { class: 'bi-grid' }, vh, vis('PARADAS POR TURNO', () => chartBox(porTurno), { vid: 'v2', side: 's' }), vis('PARETO DAS PARADAS', () => chartBox(par), { vid: 'v3', side: 's', wide: true }), vis(`HORAS DE PARADAS POR ${u.toUpperCase()}`, () => chartBox(porMaq), { vid: 'v4', side: 's' }))];
 }
 
 const tpCols = (lead, tail = []) => [...lead,
@@ -200,7 +245,7 @@ function pageOperador(x) {
     return { cats: gr.map(({ g }) => ({ key: g.vals[0], label: blank(g.vals[0]) })), series: [{ name: 'Tempo (h)', vals: gr.map((r) => r.v), color: PALETTE[0] }, { name: 'TP Padrão (h)', vals: gr.map((r) => M.tp(r.g.c)), color: PALETTE[1] }],
       line: { name: '% Ganho', vals: gr.map((r) => M.ganho(r.g.c)), fmt: fpct0, color: '#ff7a5c', max: Math.max(0.5, ...gr.map((r) => Math.abs(M.ganho(r.g.c) ?? 0))), ticks: [0, 0.5] }, fmt: f1, onPick: x.pick('v3', 'p', ['cf']), selected: x.selOf('v3') }; };
   const semNomes = !Object.keys(getOperators()).length;
-  return [semNomes ? el('p', { class: 'bi-note' }, 'Os nomes vêm da lista de operadores (botão "Operadores" na tela de Conferência). Enquanto ela não estiver carregada neste aparelho, só aparecem as chapas.') : '',
+  return [semNomes ? el('p', { class: 'bi-note' }, 'Os nomes vêm da lista de operadores do servidor, carregada ao abrir o app. Se não aparecerem, recarregue a página; se continuar, a lista de operadores ainda não foi configurada e só as chapas aparecem.') : '',
     live(() => [card('OPERADOR', selecionado(nomeSel, 'Todos', 'operadores selecionados')), card('HORAS PRODUZIDAS', `${f1(M.horasProd(slice(x.cube, x.F('cards'))))} h`)]),
     el('div', { class: 'bi-grid' }, vis(`${u.toUpperCase()} · PEÇA · CHAPA`, t1, { vid: 't1' }), vis('OPERADOR', t2, { vid: 't2' }), vis('TEMPO PRODUZIDO VS PADRÃO (por chapa)', () => chartBox(combo), { vid: 'v3', wide: true }), vis('TEMPO DAS PEÇAS PRODUZIDAS · QTD', () => chartBox(tempoPecas(x, 'v5'), 'vscroll'), { vid: 'v5' }))];
 }
@@ -219,6 +264,25 @@ function pageMensal(x) {
 }
 const BUILDERS = { diaria: pageDiaria, paradas: pageParadas, peca: pagePeca, operador: pageOperador, mensal: pageMensal };
 const pageFilterSet = (col) => pageFilter().p[col] ?? new Set();
+
+// ---- quick date bar (Último dia, 7 dias, 30 dias, mês, De/Até) --------------------------------------------------
+const addDays = (iso, n) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+function quickBar(cube, side, apply) {
+  const dates = options(cube, side, 'data');
+  if (!dates.length) return '';
+  const last = dates.at(-1), f = pageFilter(), box = el('div', { class: 'bi-quick', role: 'group', 'aria-label': 'Período' });
+  const set = (arr) => { if (arr) f[side].data = new Set(arr); else delete f[side].data; ui.sel = null; slicerFills.forEach((fn) => fn()); apply(); mark(); };
+  const range = (a, b) => dates.filter((d) => d >= a && d <= b);
+  const from = el('input', { type: 'date', min: dates[0], max: last, 'aria-label': 'De (data)', onchange: () => custom() }), to = el('input', { type: 'date', min: dates[0], max: last, 'aria-label': 'Até (data)', onchange: () => custom() });
+  const custom = () => set(range(from.value || dates[0], to.value || last));
+  const btns = [['Tudo', () => set(null)], [`Último dia (${dmy(last).slice(0, 5)})`, () => set([last])], ['7 dias', () => set(range(addDays(last, -6), last))], ['30 dias', () => set(range(addDays(last, -29), last))], ['Mês do último dia', () => set(range(`${last.slice(0, 8)}01`, last))]]
+    .map(([t, fn], i) => el('button', { type: 'button', onclick: () => { active = i; fn(); } }, t));
+  let active = null;
+  function mark() { const n = f[side].data?.size ?? 0; btns.forEach((b, i) => b.setAttribute('aria-pressed', String(i === 0 ? n === 0 : i === active && n > 0))); }
+  box.append(el('span', { class: 'lbl' }, 'Período'), ...btns, el('label', { class: 'vf-d' }, 'De', from), el('label', { class: 'vf-d' }, 'Até', to));
+  mark();
+  return box;
+}
 
 // ---- shell --------------------------------------------------------------------------------------------------
 const mergeF = (a, b) => {
@@ -250,17 +314,18 @@ export async function renderBiUI(root, ctx) {
     selOf: (vid) => (ui.sel?.vid === vid ? ui.sel.keys : null),
     pick: (vid, sd, cols) => (key) => {
       if (ui.sel?.vid === vid) { if (ui.sel.keys.has(key)) ui.sel.keys.delete(key); else ui.sel.keys.add(key); if (!ui.sel.keys.size) ui.sel = null; }
-      else ui.sel = { vid, keys: new Set([key]), f() { const o = { p: {}, s: {} }; cols.forEach((c, i) => { o[sd][c] = new Set([...this.keys].map((k) => k.split(SEP)[i])); }); return o; } };
+      else ui.sel = { vid, side: sd, keys: new Set([key]), f() { const o = { p: {}, s: {} }; cols.forEach((c, i) => { o[sd][c] = new Set([...this.keys].map((k) => k.split(SEP)[i])); }); return o; } };
       drawMain();
     } };
+  slicerFills = [];
   const slicers = (SLICERS[ui.page] ?? []).map(([t, sd, col]) => slicerBox(t === '@unit' ? GROUPS[ui.g].unit : t, sd, col, cube, () => { ui.sel = null; drawMain(); }));
   side.replaceChildren(...slicers);
   const toggle = el('button', { type: 'button', class: 'ghost bi-filters-toggle', onclick: () => side.classList.toggle('open') }, '☰ Filtros');
   const noteHost = el('div', { class: 'bi-notehost' });
-  const noteFn = () => noteHost.replaceChildren(...(ui.sel ? [el('p', { class: 'bi-note' }, 'Filtro por clique ativo nos outros gráficos. ', el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.sel = null; drawMain(); } }, 'Limpar clique'))] : []));
+  const noteFn = () => noteHost.replaceChildren(...(ui.sel ? [el('p', { class: 'bi-note' }, 'Filtro por clique ativo nos outros gráficos. ', el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.sel = null; drawMain(); } }, 'Limpar clique'), ' ', el('button', { type: 'button', class: 'bi-more', onclick: () => { const c = slice(cube, mergeF(pageFilter(), ui.sel.f())); if (ui.sel.side === 's') openRecords(`Paradas (${c.S.length})`, STOP_HEAD, c.S.map(stopRow)); else openRecords(`Produções (${c.P.length})`, PROD_HEAD, c.P.map(prodRow)); } }, 'Ver registros'))] : []));
   let built = false;
   function drawMain() {
-    if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }
+    if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { drawMain(); }), alertsStrip(x), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }
     else REG.forEach((r) => r.rebuild());          // like Power BI: the other visuals redraw, the page does not move
     noteFn();
   }

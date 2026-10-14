@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCube, slice, M, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, corPct, corGanho, selecionado } from '../src/core/bi.js';
+import { buildCube, slice, M, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, corPct, corGanho, selecionado, anomalias, destaques } from '../src/core/bi.js';
 
 const P = (m, d, p, o, t, c, h, tp) => ({ m, d, p, o, c1: t === 1 ? c : '', i1: '', f1: '', c2: t === 2 ? c : '', i2: '', f2: '', c3: t === 3 ? c : '', i3: '', f3: '', t, ob: '', h, tp });
 const S = (m, d, c, t, mo, h) => ({ m, d, c, i: '08:00', f: '09:00', t, mo, ds: '', h });
@@ -55,4 +55,12 @@ test('cores e textos', () => {
   assert.equal(corGanho(-0.1), '#81C784'); assert.equal(corGanho(0.1), '#E57373'); assert.equal(corGanho(null), '#FFD966');
   assert.equal(selecionado(new Set()), 'Todos'); assert.equal(selecionado(new Set(['a'])), 'a'); assert.equal(selecionado(new Set(['a', 'b']), 'Todos', 'peças selecionadas'), '2 peças selecionadas');
   assert.equal(groupS(cube, {}, ['t']).length, 3);
+});
+
+test('registros suspeitos e destaques', () => {
+  assert.equal(anomalias(cube).length, 0);
+  const big = buildCube({ prod: [P('RAW05', '2026-08-03', 'A', 'X', 1, '100', 20, 8), P('RAW05', '2026-08-03', 'B', 'Y', 1, '100', 10, 8)], stops: [] });
+  assert.equal(anomalias(big).length, 2);
+  const d = destaques(cube, {});
+  assert.ok(d.some((x) => /Menor disponibilidade: RAW06/.test(x.text)) && d.some((x) => /Maior motivo de parada: SET-UP/.test(x.text)));
 });

@@ -21,7 +21,7 @@ export function buildCube(base, nameOf = () => '') {
     const cf = t === 3 && r.c3 ? r.c3 : t === 2 && r.c2 ? r.c2 : t === 1 && r.c1 ? r.c1 : '';
     const key = r.d + '|' + r.m;
     const o = { m: r.m, d: r.d, mes: monthOf(r.d), p: r.p, o: r.o, pm: `${r.p}-${r.o}`, t: t == null ? '' : String(t), cf, nome: cf ? nameOf(cf) || '' : '',
-      h: Number(r.h) || 0, tp: Number(r.tp) || 0, key, keyP: key + '|' + cf,
+      h: Number(r.h) || 0, tp: Number(r.tp) || 0, key, keyP: key + '|' + cf, src: r,
       t1: spanHours(r.i1, r.f1) ?? 0, t2: spanHours(r.i2, r.f2) ?? 0, t3: spanHours(r.i3, r.f3) ?? 0 };
     o.t1s = hm(o.t1); o.t2s = hm(o.t2); o.t3s = hm(o.t3);
     return o;
@@ -135,3 +135,31 @@ export function pareto(cube, f) {
 // distinct values of a column over the whole table (what a slicer lists)
 const MORDER = (v) => MONTHS.indexOf(v);
 export const options = (cube, side, col) => [...new Set((side === 'p' ? cube.prod : cube.stops).map((r) => (side === 'p' ? PD : SD)[col](r)))].filter((v) => v !== '' && v != null).sort(col === 'mes' ? (a, b) => MORDER(a) - MORDER(b) : natural);
+
+// suspicious records: a machine with more than 24 h produced in one day (impossible), or one record longer than 16 h
+export function anomalias(cube, f = {}) {
+  const { P } = slice(cube, f), perDay = new Map(), out = [];
+  for (const r of P) perDay.set(r.key, (perDay.get(r.key) || 0) + r.h);
+  for (const r of P) {
+    const day = perDay.get(r.key);
+    if (day > 24) out.push({ r, why: `${day.toFixed(1).replace('.', ',')} h no mesmo dia e máquina (o dia tem 24 h)` });
+    else if (r.h > 16) out.push({ r, why: `um único registro com ${r.h.toFixed(1).replace('.', ',')} h` });
+  }
+  return out;
+}
+// highlights for the top strip of a page: [{ tone: 'bad' | 'warn' | 'ok', text }]
+export function destaques(cube, f = {}, { unit = 'Máquina' } = {}) {
+  const out = [], c = slice(cube, f);
+  const g = groupP(cube, f, ['m']).map((x) => ({ m: x.vals[0], p: pct(x.c) })).filter((x) => Number.isFinite(x.p));
+  if (g.length > 1) {
+    const worst = [...g].sort((a, b) => a.p - b.p)[0], best = [...g].sort((a, b) => b.p - a.p)[0];
+    out.push({ tone: worst.p >= META ? 'ok' : 'bad', text: `Menor disponibilidade: ${worst.m} com ${(worst.p * 100).toFixed(1).replace('.', ',')}% (meta ${Math.round(META * 100)}%).` });
+    if (best.m !== worst.m) out.push({ tone: best.p >= META ? 'ok' : 'warn', text: `Maior disponibilidade: ${best.m} com ${(best.p * 100).toFixed(1).replace('.', ',')}%.` });
+  }
+  const par = pareto(cube, { p: f.p ?? {}, s: f.s ?? {} });
+  const tot = par.reduce((s2, x) => s2 + x.h, 0);
+  if (par.length && tot) out.push({ tone: 'warn', text: `Maior motivo de parada: ${par[0].mo || '(vazio)'}, ${(par[0].h / tot * 100).toFixed(0)}% das horas paradas (${par[0].h.toFixed(1).replace('.', ',')} h).` });
+  if (!out.length && c.P.length) out.push({ tone: 'ok', text: 'Nenhum destaque para os filtros escolhidos.' });
+  return out;
+}
+const pct = (c) => M.pct(c);

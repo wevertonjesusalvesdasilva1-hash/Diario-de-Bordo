@@ -1664,6 +1664,7 @@ async function loadOperators() {
     if (!operadores || !Object.keys(operadores).length) return;
     setOperators({ ...getOperators(), ...operadores });
     showOperators(); refreshAnalysis();
+    if (state.tab === 'panel') renderBi();      // the BI shows the operators' names
     document.querySelectorAll('input[data-f^="chapa"]').forEach((i) => { const sm = i.closest('td')?.querySelector('.opn'); if (sm) sm.textContent = operatorName(i.value); });
   } catch { /* offline or no API: names stay as they were */ }
 }

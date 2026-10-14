@@ -104,8 +104,18 @@ export function drawChart(box, spec) {
 export function chartBox(spec, cls = '') {
   const box = el('div', { class: `bi-ch ${cls}` });
   let last = 0;
-  const run = () => drawChart(box, typeof spec === 'function' ? spec() : spec);
+  const get = () => (typeof spec === 'function' ? spec() : spec);
+  const run = () => drawChart(box, get());
+  box.getTable = () => specToTable(get());
   queueMicrotask(() => { last = box.clientWidth; run(); });
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { const w = box.clientWidth; if (w && Math.abs(w - last) > 24) { last = w; run(); } }).observe(box);
   return box;
+}
+
+// the data behind a chart, as a table (for the Excel download)
+export function specToTable(spec) {
+  const grouped = spec.cats.some((c) => c.group != null);
+  const head = [...(grouped ? ['Grupo'] : []), 'Categoria', ...spec.series.map((s) => s.name), ...(spec.line ? [spec.line.name] : [])];
+  const rows = spec.cats.map((c, i) => [...(grouped ? [c.group ?? ''] : []), c.label, ...spec.series.map((s) => s.vals[i]), ...(spec.line ? [spec.line.vals[i]] : [])]);
+  return { head, rows };
 }
