@@ -2,3 +2,5 @@ node_modules
 dist
 .cache
 dist-single
+scripts/conferencia/arquivos
+scripts/conferencia/saida
