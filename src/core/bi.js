@@ -40,12 +40,15 @@ export const SD = { data: (r) => r.d, mes: (r) => r.mes, m: (r) => r.m, mo: (r) 
 
 // an empty Set means "nothing matches" (the callers drop a slicer's filter when it has no selection)
 const active = (f) => Object.entries(f ?? {}).filter(([, v]) => v);
+// a filter that lists EVERY value of the column filters nothing ("select all" = no filter)
+const domSize = (cube, side, col) => { const k = side + col; cube._dom ??= {}; return (cube._dom[k] ??= new Set((side === 'p' ? cube.prod : cube.stops).map((r) => (side === 'p' ? PD : SD)[col](r))).size); };
+const activeC = (cube, side, f) => Object.entries(f ?? {}).filter(([k, v]) => v && v.size < domSize(cube, side, k));
 const matches = (act, dims, r) => { for (const [k, set] of act) if (!set.has(dims[k](r))) return false; return true; };
 
 // ---- filter context → visible rows (the relationships applied) ---------------------------------------------
 // f = { p: { column: Set }, s: { column: Set } }   (p = Produção columns, s = Paradas columns)
 export function slice(cube, f = {}) {
-  const pa = active(f.p), sa = active(f.s);
+  const pa = activeC(cube, 'p', f.p), sa = activeC(cube, 's', f.s);
   const Pd = pa.length ? cube.prod.filter((r) => matches(pa, PD, r)) : cube.prod;
   const Sd = sa.length ? cube.stops.filter((r) => matches(sa, SD, r)) : cube.stops;
   let P = Pd, S = Sd, R = null;
@@ -143,7 +146,7 @@ export function pareto(cube, f) {
 
 // distinct values of a column over the whole table (what a slicer lists)
 const MORDER = (v) => MONTHS.indexOf(v);
-export const options = (cube, side, col) => [...new Set((side === 'p' ? cube.prod : cube.stops).map((r) => (side === 'p' ? PD : SD)[col](r)))].filter((v) => v !== '' && v != null).sort(col === 'mes' ? (a, b) => MORDER(a) - MORDER(b) : natural);
+export const options = (cube, side, col) => [...new Set((side === 'p' ? cube.prod : cube.stops).map((r) => (side === 'p' ? PD : SD)[col](r)))].filter((v) => v != null).sort(col === 'mes' ? (a, b) => MORDER(a) - MORDER(b) : natural);
 
 // suspicious records: a machine with more than 24 h produced in one day (impossible), or one record longer than 16 h
 export function anomalias(cube, f = {}) {
@@ -176,10 +179,10 @@ const pct = (c) => M.pct(c);
 // values a slicer can still offer: the ones that exist after the OTHER slicers of the same table (like Power BI's linked slicers)
 export function optionsFor(cube, side, col, f = {}) {
   const dims = side === 'p' ? PD : SD, rows = side === 'p' ? cube.prod : cube.stops;
-  const others = active(Object.fromEntries(Object.entries(f[side] ?? {}).filter(([k]) => k !== col && !(col === 'mes' && k === 'data'))));   // days narrow by month, never the other way around
+  const others = activeC(cube, side, Object.fromEntries(Object.entries(f[side] ?? {}).filter(([k]) => k !== col && !(col === 'mes' && k === 'data'))));   // days narrow by month, never the other way around
   const set = new Set();
   for (const r of rows) if (matches(others, dims, r)) set.add(dims[col](r));
-  return [...set].filter((v) => v !== '' && v != null).sort(col === 'mes' ? (a, b) => MORDER(a) - MORDER(b) : natural);
+  return [...set].filter((v) => v != null).sort(col === 'mes' ? (a, b) => MORDER(a) - MORDER(b) : natural);
 }
 
 // machine-days over 24 h (production + stops), following the date / machine filters of the page
