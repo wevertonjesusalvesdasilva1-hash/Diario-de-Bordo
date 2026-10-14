@@ -93,8 +93,10 @@ export function drawChart(box, full) {
   const nS = series.length, bwMin = spec.barW ?? 22, minStep = stacked ? 34 : Math.max(34, nS * bwMin + 10);
   const step = Math.max(minStep, Math.min(90, (avail - 100) / cats.length));
   const hasGroup = cats.some((c) => c.group != null);
-  const left = 58, right = line ? 46 : 12, top = 20, bottom = 46 + (hasGroup ? 16 : 0);
-  const W = Math.max(avail, left + right + cats.length * step), H = spec.height ?? 250, plotH = H - top - bottom;
+  // room for the (rotated) category labels: the longer the labels, the taller the bottom margin, and the chart grows by the same amount
+  const rotAny = step < 52 || cats.some((c) => String(c.label).length > 8), maxLab = Math.min(14, Math.max(...cats.map((c) => String(c.label).length)));
+  const bottom = (rotAny ? 26 + maxLab * 6.4 * 0.58 : 34) + (hasGroup ? 16 : 0), left = 58, right = line ? 46 : 12, top = 20;
+  const W = Math.max(avail, left + right + cats.length * step), H = (spec.height ?? 250) + (bottom - 46), plotH = H - top - bottom;
   const totals = cats.map((_, i) => (stacked ? series.reduce((s, x) => s + (x.vals[i] || 0), 0) : Math.max(...series.map((x) => x.vals[i] || 0))));
   const { max, ticks } = niceMax(Math.max(...totals, 0) * 1.1 || 1);
   const y = (v) => top + plotH - (v / max) * plotH;
@@ -123,7 +125,7 @@ export function drawChart(box, full) {
       if (stacked) acc += v;
     });
     if (stacked && nS > 1 && acc) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: 'font-weight:700;font-size:11px' }, fmt(acc)));   // total of the stack on top
-    const lab = clip(c.label, step < 44 ? 6 : 14), rot = step < 52 || String(c.label).length > 8;
+    const lab = clip(c.label, 14), rot = step < 52 || String(c.label).length > 8;
     g.append(S('text', rot ? { x: x0 + step / 2, y: H - bottom + 12, 'text-anchor': 'end', transform: `rotate(-35 ${x0 + step / 2} ${H - bottom + 12})`, class: 'mut' } : { x: x0 + step / 2, y: H - bottom + 14, 'text-anchor': 'middle', class: 'mut' }, lab));
     svg.append(g);
   });
