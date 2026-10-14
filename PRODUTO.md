@@ -237,3 +237,10 @@ Nos campos INÍCIO e FIM (produção e paradas, na conferência e na revisão r�
 - Há um único conjunto de filtros por grupo (RAW / usinagem): data, mês, robô e turno valem para **todas** as páginas e gráficos (inclusive "Só dias úteis"). Quem escolhe na tela de Produção vale também para Paradas.
 - O gráfico "Produção + paradas por dia (limite de 24 h)" respeita os filtros de data e mês (dia desmarcado não aparece).
 - "REAL × ENTREGUE POR ROBÔ" (pedido do supervisor) fica na página "Entrega (horas padrão)", em destaque no topo; seus filtros próprios ficam em "⚙ Filtros".
+
+## Base de dados editável (aba 5)
+
+- A aba "5 · Base de dados" mostra o histórico como uma planilha: **Produção**, **Paradas** e **Matriz de tempos**, com filtro de máquina, datas e busca. Cada linha tem "Salvar" e excluir; há "＋ Nova linha", "Salvar tudo" e "Desfazer a última alteração". Ao salvar, a base é atualizada para todos e os gráficos recalculam (horas e tempo padrão da linha são recalculados sozinhos).
+- No gráfico "Produção + paradas por dia", clicar numa barra a destaca; "▦ Abrir tabela" mostra embaixo, no mesmo quadro, as produções e paradas dos dias do gráfico, com as linhas da barra clicada em destaque e editáveis.
+- A matriz editada vale para todos (guardada no servidor) e passa a mandar no "tempo que o padrão previa". Enquanto ninguém salvar, vale a que veio com o app.
+- Textos do gráfico de entrega: "tempo real gasto" (azul) × "tempo que o padrão previa" (amarelo); acima de 100% = mais rápido que o padrão.

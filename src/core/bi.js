@@ -3,7 +3,7 @@
 //   01_Produção  one row per production record      02_Paradas  one row per stop      02_Paradas_resumo  stop hours per (date + machine)
 //   Produção ↔ Paradas_resumo : Chave (date + machine)                      — filters both ways
 //   Produção ↔ Paradas        : Chave parada (date + machine + chapa final)  — many-to-many, filters both ways
-import { spanHours, fmtHM, auditDays, standardByPieceModel, dayLoads, overWhy } from './history.js';
+import { spanHours, fmtHM, auditDays, standardByPieceModel, standardHours, matrixIsCustom, dayLoads, overWhy } from './history.js';
 
 export const META = 0.88;            // availability goal
 export const HORAS_DIA = 18.58;      // productive hours expected per machine per day
@@ -24,7 +24,8 @@ export function buildCube(base, nameOf = () => '') {
       h: Number(r.h) || 0, tp: Number(r.tp) || 0, key, keyP: key + '|' + cf, src: r,
       t1: spanHours(r.i1, r.f1) ?? 0, t2: spanHours(r.i2, r.f2) ?? 0, t3: spanHours(r.i3, r.f3) ?? 0 };
     // "hours delivered" (standard hours of the piece): the matrix value of the sheet; else the same piece+model on another machine; else none
-    if (o.tp > 0) { o.tpx = o.tp; o.tpSrc = 'matriz'; } else { const e = standardByPieceModel(o.p, o.o, o.m); o.tpx = e; o.tpSrc = e > 0 ? 'estimado' : 'sem'; }
+    const mx = matrixIsCustom() ? standardHours(o.m, o.p, o.o) : 0;   // the matrix edited in the app wins over the time saved with the record
+    if (mx > 0) { o.tpx = mx; o.tpSrc = 'matriz'; } else if (o.tp > 0) { o.tpx = o.tp; o.tpSrc = 'matriz'; } else { const e = standardByPieceModel(o.p, o.o, o.m); o.tpx = e; o.tpSrc = e > 0 ? 'estimado' : 'sem'; }
     o.t1s = hm(o.t1); o.t2s = hm(o.t2); o.t3s = hm(o.t3);
     return o;
   });

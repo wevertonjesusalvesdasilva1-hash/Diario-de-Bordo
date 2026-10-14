@@ -1,6 +1,7 @@
 // The history in the browser: reads the base (with a local copy so it is not downloaded again if nothing changed) and sends records.
 import { apiGet, apiSend } from './api.js';
 import { saveHist, loadHist } from './store.js';
+import { setMatrix, getMatrix } from './core/history.js';
 
 const mem = { raw: null, usi: null };
 const json = async (r) => r.json().catch(() => ({}));
@@ -10,6 +11,7 @@ export const emptyBase = () => ({ rev: 0, prod: [], stops: [], batches: [] });
 
 // the base of one group ('raw' | 'usi'): { rev, prod, stops, batches }
 export async function loadBase(g, { force = false } = {}) {
+  await loadMatriz();
   if (!mem[g]) mem[g] = (await loadHist(g)) ?? null;
   const cached = mem[g];
   const r = await apiGet(`/api/historico?g=${g}${cached && !force ? `&rev=${cached.rev}` : ''}`);
@@ -46,4 +48,28 @@ export async function restoreBase(g) {
   const r = await apiSend('POST', '/api/historico', { g, op: 'restore' });
   if (!r.ok) await fail(r);
   mem[g] = null; return json(r);
+}
+
+// edits of single records: changes = [{ kind: 'prod'|'stop', old, new }]  (new null = delete, old null = add)
+export async function editRecords(g, changes) {
+  const r = await apiSend('POST', '/api/historico', { g, op: 'edit', changes });
+  if (!r.ok) await fail(r);
+  mem[g] = null; return json(r);
+}
+
+// the standard times table (MATRIZ TEMPO), shared by the team; until someone saves it, the one that came with the app is used
+let mxRev = 0, mxLoaded = false;
+export const matrixRev = () => mxRev;
+export async function loadMatriz({ force = false } = {}) {
+  if (mxLoaded && !force) return getMatrix();
+  try {
+    const r = await apiGet('/api/historico?g=matriz');
+    if (r.ok) { const b = await json(r); mxRev = b.rev ?? 0; setMatrix(b.rows); mxLoaded = true; }
+  } catch { /* offline: the built-in matrix stays */ }
+  return getMatrix();
+}
+export async function saveMatriz(rows) {
+  const r = await apiSend('POST', '/api/historico', { g: 'matriz', op: 'set', rows });
+  if (!r.ok) await fail(r);
+  const b = await json(r); mxRev = b.rev; setMatrix(b.rows); mxLoaded = true; return getMatrix();
 }

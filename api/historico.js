@@ -4,6 +4,8 @@
 //        /api/historico  { g, op: 'replace', batch, label, prod, stops }  first chunk of a full import: keeps a copy of the old base
 //        /api/historico  { g, op: 'undo', batch }                          removes everything a batch brought (a mistaken submission)
 //        /api/historico  { g, op: 'restore' }                              brings back the copy made before the last 'replace'
+//        /api/historico  { g, op: 'edit', changes: [{ kind: 'prod'|'stop', old, new }] }  edits (old+new), deletes (new null) or adds (old null) single records
+//   g = 'matriz': the standard times table  GET → { rev, rows: [[machine, piece, model, hours]] };  POST { g: 'matriz', op: 'set', rows }
 // Needs the access code like every other API; without storage (BLOB_READ_WRITE_TOKEN) it answers 503.
 import { getStore } from './_store.js';
 import { accessRequired, checkAccess } from './_auth.js';
@@ -32,6 +34,19 @@ function cleanStop(g, r) {
   return { m: r.m, d: r.d, c: str(r.c, 12), i: r.i, f: r.f, t, mo: str(r.mo), ds: str(r.ds, 300), h: num(r.h) };
 }
 
+const sameRec = (a, b) => Object.keys(a).every((k) => k === 'b' || (a[k] ?? '') === (b[k] ?? ''));
+// matriz (standard times): one small list shared by the whole team
+async function matriz(req, res, body) {
+  const file = 'historico/matriz.json';
+  const text = await store.read(file);
+  let cur = { rev: 0, rows: null };
+  try { if (text) cur = JSON.parse(text); } catch { /* empty */ }
+  if (req.method === 'GET') return send(res, 200, cur);
+  if (body.op !== 'set' || !Array.isArray(body.rows) || body.rows.length > 5000) return send(res, 400, { error: 'Operação inválida' });
+  const rows = body.rows.map((r) => [str(r[0], 30), str(r[1], 80), str(r[2], 80), Math.max(0, Math.min(999, Number(r[3]) || 0))]).filter((r) => r[0] && r[1]);
+  await store.write(file, JSON.stringify({ rev: (cur.rev ?? 0) + 1, rows, at: new Date().toISOString() }));
+  return send(res, 200, { rev: (cur.rev ?? 0) + 1, rows });
+}
 async function read(g) {
   const text = await store.read(path(g));
   if (!text) return { rev: 0, prod: [], stops: [], batches: [] };
@@ -48,6 +63,7 @@ export default async function handler(req, res) {
   if (!store.ok()) return send(res, 503, { error: 'Armazenamento não configurado no servidor' });
   const q = req.query ?? {}, body = req.body ?? {};
   const g = req.method === 'GET' ? q.g : body.g;
+  if (g === 'matriz') { try { return await matriz(req, res, body); } catch (e) { return send(res, 500, { error: `Falha na matriz: ${String(e.message).slice(0, 120)}` }); } }
   if (g !== 'raw' && g !== 'usi') return send(res, 400, { error: 'Grupo inválido (use raw ou usi)' });
   try {
     if (req.method === 'GET') {
@@ -73,6 +89,25 @@ export default async function handler(req, res) {
       const bak = JSON.parse(text);
       await write(g, { ...bak, rev: cur.rev });
       return send(res, 200, { rev: cur.rev + 1, prod: bak.prod.length, stops: bak.stops.length });
+    }
+    if (op === 'edit') {
+      const ch = Array.isArray(body.changes) ? body.changes : [];
+      if (!ch.length || ch.length > 500) return send(res, 400, { error: 'Envie de 1 a 500 alterações' });
+      const prod = [...cur.prod], stops = [...cur.stops], done = { edit: 0, del: 0, add: 0, miss: 0 };
+      const batch = `ed${Date.now().toString(36)}`;
+      for (const c of ch) {
+        const isP = c?.kind === 'prod';
+        if (!isP && c?.kind !== 'stop') { done.miss++; continue; }
+        const list = isP ? prod : stops, clean = isP ? cleanProd : cleanStop;
+        const nw = c.new ? clean(g, c.new) : null;
+        if (c.new && !nw) { done.miss++; continue; }
+        if (!c.old) { if (nw) { list.push({ ...nw, b: batch }); done.add++; } continue; }
+        const idx = list.findIndex((r) => sameRec(c.old, r));
+        if (idx < 0) { done.miss++; continue; }
+        if (!nw) { list.splice(idx, 1); done.del++; } else { list[idx] = { ...nw, b: list[idx].b }; done.edit++; }
+      }
+      if (done.edit + done.del + done.add) await write(g, { ...cur, prod, stops });
+      return send(res, 200, { rev: cur.rev + 1, ...done });
     }
     if (op !== 'append' && op !== 'replace') return send(res, 400, { error: 'Operação inválida' });
     const inP = Array.isArray(body.prod) ? body.prod : [], inS = Array.isArray(body.stops) ? body.stops : [];

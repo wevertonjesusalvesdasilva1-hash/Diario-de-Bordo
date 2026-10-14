@@ -4,6 +4,7 @@ import { renderPanelUI, resetPanelSelection, panelMaxKey, closePanelMax, reopenP
 import { openSubmit, openBaseModal } from './basedados.js';
 import { renderBiUI, setBiGroup } from './biui.js';
 import { renderPlanUI, setPlanGroup } from './planui.js';
+import { renderDbUI, setDbGroup } from './dbview.js';
 import { readFiles, toCanvas, jpegB64, jpegUrl, shrinkCanvas } from './files.js';
 import { fitToBudget } from './core/fit.js';
 import { isTimeField, maskTime, finishTime, timeProblem } from './core/timemask.js';
@@ -559,7 +560,7 @@ const inView = (p) => effView() === 'all' || pageGroup(p) === effView();
 const machineInView = (m) => effView() === 'all' || machineGroup(m) === effView();
 function updateViewBar() {
   const bar = $('viewbar'), both = bothGroups();
-  bar.hidden = !both || state.tab === 'panel' || state.tab === 'plan';   // the BI and the Plano have their own RAW / Usinagem buttons
+  bar.hidden = !both || state.tab === 'panel' || state.tab === 'plan' || state.tab === 'db';   // the BI and the Plano have their own RAW / Usinagem buttons
   if (!both) return;
   const count = (g) => state.pages.filter((p) => (p.status === 'ok' || p.status === 'lendo') && pageGroup(p) === g).length;
   $('viewseg').replaceChildren(...[['all', 'Tudo', state.pages.filter((p) => p.status === 'ok' || p.status === 'lendo').length], ['raw', 'RAW', count('raw')], ['usi', 'Usinagem', count('usi')]]
@@ -574,6 +575,7 @@ function setView(v) {
   if (state.tab === 'analysis') { renderAnalysis(); renderPanel(); }
   if (state.tab === 'panel') renderPanelTab();
   if (state.tab === 'plan') renderPlan();
+  if (state.tab === 'db') renderDb();
 }
 
 function updateSummary() {
@@ -839,10 +841,12 @@ function showTab(name) {
   $('tab-analysis').classList.toggle('on', name === 'analysis');
   $('view-plan').hidden = name !== 'plan';
   $('tab-plan').classList.toggle('on', name === 'plan'); $('tab-plan').setAttribute('aria-selected', String(name === 'plan'));
+  $('view-db').hidden = name !== 'db';
+  $('tab-db').classList.toggle('on', name === 'db'); $('tab-db').setAttribute('aria-selected', String(name === 'db'));
   $('view-bi').hidden = name !== 'panel';
   $('view-panel').hidden = $('panel-now-title').hidden = name !== 'analysis';   // today's sheets live with the analysis of the day
-  $('stats').hidden = $('upload').hidden = name === 'panel' || name === 'plan';
-  document.body.classList.toggle('pbi', name === 'panel' || name === 'plan');   // the BI uses the full width of the screen
+  $('stats').hidden = $('upload').hidden = name === 'panel' || name === 'plan' || name === 'db';
+  document.body.classList.toggle('pbi', name === 'panel' || name === 'plan' || name === 'db');   // the BI uses the full width of the screen
   $('tab-panel').classList.toggle('on', name === 'panel');
   $('tab-panel').setAttribute('aria-selected', String(name === 'panel'));
   $('tab-read').setAttribute('aria-selected', String(name === 'read'));
@@ -850,6 +854,7 @@ function showTab(name) {
   if (name === 'analysis') { renderAnalysis(); renderPanel(); }
   if (name === 'panel') renderPanelTab();
   if (name === 'plan') renderPlan();
+  if (name === 'db') renderDb();
 }
 
 function giveOk() {
@@ -1170,6 +1175,10 @@ function renderPlan() {
   if (viewGroup !== 'all') setPlanGroup(viewGroup);
   renderPlanUI($('view-plan'), { toast, openBase: () => openBaseModal({ toast, reload: renderPlan }), onGroup: (g) => { if (bothGroups()) setView(g); } });
 }
+function renderDb() {
+  if (viewGroup !== 'all') setDbGroup(viewGroup);
+  renderDbUI($('view-db'), { toast, openBase: () => openBaseModal({ toast, reload: renderDb }), onGroup: (g) => { if (bothGroups()) setView(g); } });
+}
 function renderPanelTab() { renderBi(); }
 function renderPanel() {
   const root = $('view-panel');
@@ -1201,6 +1210,7 @@ function renderPanel() {
 }
 $('tab-panel').addEventListener('click', () => showTab('panel'));
 $('tab-plan').addEventListener('click', () => showTab('plan'));
+$('tab-db').addEventListener('click', () => showTab('db'));
 $('closelists').addEventListener('click', () => { $('listscard').hidden = true; window.scrollTo({ top: 0, behavior: 'smooth' }); });
 
 // ---------------------------------------------------------------- base de dados (histórico) e BI

@@ -91,3 +91,23 @@ test('linhas idênticas repetidas na mesma folha entram todas; reenvio não dupl
   const b = mergeRecords(a, { prod: [], stops: [s, { ...s }, { ...s }] }, 'b2');
   assert.equal(b.stops.length, 3); assert.equal(b.dup.stops, 3);
 });
+
+test('API do histórico: editar, excluir e incluir registros um a um; matriz de tempos compartilhada', async () => {
+  process.env.ACCESS_CODE = 'abc';
+  const st = mem(); useStore(st);
+  await call({ method: 'POST', body: { g: 'raw', op: 'append', batch: 'b1', prod: [P(), P({ i1: '13:00', f1: '15:00' })], stops: [S()] } });
+  const base = (await call({ query: { g: 'raw' } })).body;
+  const [p1, p2] = base.prod, s1 = base.stops[0];
+  let r = await call({ method: 'POST', body: { g: 'raw', op: 'edit', changes: [
+    { kind: 'prod', old: p1, new: { ...p1, f1: '10:30', h: 3.5 } }, { kind: 'prod', old: p2, new: null }, { kind: 'stop', old: s1, new: { ...s1, mo: 'OUTROS' } },
+    { kind: 'stop', old: null, new: S({ i: '12:00', f: '12:10', h: 0.17 }) }, { kind: 'prod', old: { ...p1, m: 'RAW99' }, new: null }] } });
+  assert.equal(r.code, 200); assert.deepEqual([r.body.edit, r.body.del, r.body.add, r.body.miss], [2, 1, 1, 1]);
+  const after = (await call({ query: { g: 'raw' } })).body;
+  assert.equal(after.prod.length, 1); assert.equal(after.prod[0].f1, '10:30'); assert.equal(after.prod[0].b, 'b1');
+  assert.equal(after.stops.length, 2); assert.equal(after.stops[0].mo, 'OUTROS');
+  assert.equal((await call({ method: 'POST', body: { g: 'raw', op: 'edit', changes: [{ kind: 'prod', old: p1, new: { ...p1, m: 'XX' } }] } })).body.miss, 1);
+  assert.deepEqual((await call({ query: { g: 'matriz' } })).body, { rev: 0, rows: null });
+  r = await call({ method: 'POST', body: { g: 'matriz', op: 'set', rows: [['RAW05', 'LANÇA', 'PC210F-10M0', '4,5'.replace(',', '.')], ['', 'x', 'y', 1]] } });
+  assert.equal(r.body.rows.length, 1);
+  assert.equal((await call({ query: { g: 'matriz' } })).body.rows[0][3], 4.5);
+});

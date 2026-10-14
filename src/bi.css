@@ -192,3 +192,4 @@ body.pbi main { overflow-x: clip; }
 .vf-host[hidden] { display: none !important; }
 .vf-btn { border: 1px solid var(--line2); background: transparent; color: var(--muted); border-radius: 8px; font: inherit; font-size: .75rem; padding: .15rem .5rem; cursor: pointer; }
 .vf-btn:hover, .vf-btn.on { color: var(--accent); border-color: var(--accent); }
+.bi-explain { margin: 0 0 8px; font-size: 12.5px; line-height: 1.45; max-width: 90ch; }

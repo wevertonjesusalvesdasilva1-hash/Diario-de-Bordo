@@ -37,12 +37,21 @@ const tnum = (v) => { const n = Number(clean(v)); return n === 1 || n === 2 || n
 export const groupOfMachine = (m) => (/^(UMC|HMC|NCBZ)/.test(m ?? '') ? 'usi' : 'raw');
 
 // ---- standard time (hours) by machine + piece + model, from the MATRIZ TEMPO
-const STD = new Map(PADRAO.map(([m, p, mo, h]) => [`${aliasKey(m)}|${aliasKey(p)}|${aliasKey(mo)}`, h]));
+let STD = new Map(), STD_PM = new Map();   // STD_PM: same group only (welding and machining have different standards for the same piece name)
+let matrix = PADRAO.map((r) => [...r]), custom = false;
+export const matrixIsCustom = () => custom;
+// the matrix in use: the shared one edited in the app (Base de dados → Matriz), or the one that came with the app
+export function setMatrix(rows) {
+  custom = !!(rows && rows.length);
+  matrix = (rows && rows.length ? rows : PADRAO).map(([m, p, mo, h]) => [m, p, mo, Number(h) || 0]);
+  STD = new Map(matrix.map(([m, p, mo, h]) => [`${aliasKey(m)}|${aliasKey(p)}|${aliasKey(mo)}`, h]));
+  STD_PM = new Map();
+  for (const [m, p, mo, h] of matrix) if (h > 0) { const k = `${groupOfMachine(m)}|${aliasKey(p)}|${aliasKey(mo)}`; (STD_PM.get(k) ?? STD_PM.set(k, []).get(k)).push(h); }
+}
+export const getMatrix = () => matrix.map((r) => [...r]);
+setMatrix(null);
 export const standardHours = (machine, peca, modelo) => STD.get(`${aliasKey(machine)}|${aliasKey(peca)}|${aliasKey(modelo)}`) ?? 0;
-// the same piece and model on ANOTHER machine (the matrix lists the standard per machine, but a piece takes the same standard time anywhere):
-// average of the machines that have it, or 0 when no machine has it
-const STD_PM = new Map();   // same group only: welding (RAW) and machining (usinagem) have different standards for the same piece name
-for (const [m, p, mo, h] of PADRAO) if (h > 0) { const k = `${groupOfMachine(m)}|${aliasKey(p)}|${aliasKey(mo)}`; (STD_PM.get(k) ?? STD_PM.set(k, []).get(k)).push(h); }
+// the same piece and model on ANOTHER machine (a piece takes the same standard time anywhere): average of the machines that have it, or 0
 export const standardByPieceModel = (peca, modelo, machine) => { const a = STD_PM.get(`${groupOfMachine(machine)}|${aliasKey(peca)}|${aliasKey(modelo)}`); return a ? a.reduce((x, y) => x + y, 0) / a.length : 0; };
 
 // ---- records. production: { m, d, p, o, c1, i1, f1, c2, i2, f2, c3, i3, f3, t, ob, h, tp }
@@ -173,15 +182,16 @@ export function clockParts(d, pairs) {
 // every machine-day with its production hours, stop hours and the hours counted twice (clock time shared by a production and a stop)
 export function dayLoads(prod, stops) {
   const days = new Map();
-  const get = (m, di) => { const k = `${di}|${m}`; if (!days.has(k)) days.set(k, { m, d: dayStr(di), ph: 0, sh: 0, np: 0, ns: 0, P: [], S: [] }); return days.get(k); };
-  const put = (m, d, pairs, h, isProd) => {
+  const get = (m, di) => { const k = `${di}|${m}`; if (!days.has(k)) days.set(k, { m, d: dayStr(di), ph: 0, sh: 0, np: 0, ns: 0, P: [], S: [], PR: new Set(), SR: new Set() }); return days.get(k); };
+  const put = (m, d, pairs, h, isProd, rec) => {
+    const mark = (x) => (isProd ? x.PR : x.SR).add(rec);
     const parts = clockParts(d, pairs);
-    if (!parts) { const x = get(m, dayIdx(d)); if (isProd) { x.ph += Number(h) || 0; } else x.sh += Number(h) || 0; return; }
-    for (const p of parts) { const x = get(m, p.day); (isProd ? x.P : x.S).push([p.a, p.b]); if (isProd) x.ph += (p.b - p.a) / 60; else x.sh += (p.b - p.a) / 60; }
+    if (!parts) { const x = get(m, dayIdx(d)); mark(x); if (isProd) { x.ph += Number(h) || 0; } else x.sh += Number(h) || 0; return; }
+    for (const p of parts) { const x = get(m, p.day); mark(x); (isProd ? x.P : x.S).push([p.a, p.b]); if (isProd) x.ph += (p.b - p.a) / 60; else x.sh += (p.b - p.a) / 60; }
   };
-  for (const r of prod) { put(r.m, r.d, [[r.i1, r.f1], [r.i2, r.f2], [r.i3, r.f3]], r.h, true); get(r.m, dayIdx(r.d)).np++; }
-  for (const r of stops) { put(r.m, r.d, [[r.i, r.f]], r.h, false); get(r.m, dayIdx(r.d)).ns++; }
-  return [...days.values()].map((x) => ({ m: x.m, d: x.d, ph: x.ph, sh: x.sh, tot: x.ph + x.sh, np: x.np, ns: x.ns, overlapH: (unionLen(x.P) + unionLen(x.S) - unionLen([...x.P, ...x.S])) / 60 }));
+  for (const r of prod) { put(r.m, r.d, [[r.i1, r.f1], [r.i2, r.f2], [r.i3, r.f3]], r.h, true, r); get(r.m, dayIdx(r.d)).np++; }
+  for (const r of stops) { put(r.m, r.d, [[r.i, r.f]], r.h, false, r); get(r.m, dayIdx(r.d)).ns++; }
+  return [...days.values()].map((x) => ({ m: x.m, d: x.d, ph: x.ph, sh: x.sh, tot: x.ph + x.sh, np: x.np, ns: x.ns, PR: [...x.PR], SR: [...x.SR], overlapH: (unionLen(x.P) + unionLen(x.S) - unionLen([...x.P, ...x.S])) / 60 }));
 }
 export function overWhy(x) {
   const why = [];
