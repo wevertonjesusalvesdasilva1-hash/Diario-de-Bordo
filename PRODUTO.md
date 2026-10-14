@@ -194,3 +194,6 @@ Quando há folhas de RAW **e** de usinagem na leitura, aparece abaixo das abas a
 - **Análise:** só os cards das máquinas do grupo; os filtros de máquina e de tipo mostram só o que existe nele.
 - **Painel:** todos os gráficos, tabelas de detalhes e exportações (PDF/Excel) usam só o grupo, com um selo "Só RAW" ou "Só usinagem" no título.
 Isso só muda o que é **mostrado**. O OK e a análise continuam sendo feitos com todas as folhas selecionadas, e os botões de baixar Excel mantêm as suas próprias opções ("selecionadas", "com todas", "só RAW", "só usinagem"). Se só houver um tipo de folha, a barra não aparece.
+
+### Campos de horário sempre em HH:MM
+Nos campos INÍCIO e FIM (produção e paradas, na conferência e na revisão rápida) só entram números e os dois pontos aparecem sozinhos: digitar 1,1,1,1 dá **11:11**; digitar 9,3,0 dá 9:30 e, ao sair do campo, **09:30**. Ao apagar com Backspace os dois pontos não travam o cursor. Ao sair do campo o horário vira sempre HH:MM (só a hora vira HH:00; um dígito de minuto vira 09:03). Hora acima de 23 ou minuto acima de 59 (por exemplo 12:60) fica marcado como dúvida e não entra na análise até ser corrigido. Letras são ignoradas.

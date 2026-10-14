@@ -3,6 +3,7 @@ import './panel.css';
 import { renderPanelUI, resetPanelSelection, panelMaxKey, closePanelMax, reopenPanelMax } from './panelui.js';
 import { readFiles, toCanvas, jpegB64, jpegUrl, shrinkCanvas } from './files.js';
 import { fitToBudget } from './core/fit.js';
+import { isTimeField, maskTime, finishTime, timeProblem } from './core/timemask.js';
 import { analyze, detectMachine } from './core/layout.js';
 import { analyze as analyseSheets, fmtDur } from './core/analysis.js';
 import { inkIn, cropToPaper } from './core/image.js';
@@ -455,6 +456,7 @@ const BAD = /inválid|ilegível|desconhecid|sem motivo|falta|iguais|corrigida|du
 const maskDate = (v) => { const d = String(v).replace(/\D/g, '').slice(0, 8); return d.length > 4 ? `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}` : d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d; };
 const withYear = (v) => (/^\d{2}\/\d{2}$/.test(v) ? `${v}/${$('year').value || new Date().getFullYear()}` : v);
 const dateAttrs = { inputmode: 'numeric', maxlength: 10, placeholder: 'DD/MM/AAAA', autocomplete: 'off' };
+const timeAttrs = { inputmode: 'numeric', maxlength: 5, placeholder: 'HH:MM', autocomplete: 'off' };
 
 const editTitle = (ed) => (String(ed.from ?? '').trim() ? `Alterado por você. A leitura tinha "${ed.from}"` : 'Preenchido por você. Estava em branco na leitura');
 
@@ -466,7 +468,7 @@ function fieldCell(p, kind, ri, row, [key, , , cls]) {
   if (ed0) attrs.title = editTitle(ed0); else if (auto0) attrs.title = auto0;
   const control = key === 'motivo'
     ? h('select', attrs, h('option', { value: '' }, '—'), [...MOTIVOS_ALL, ...(row.motivo && !MOTIVOS_ALL.includes(row.motivo) ? [row.motivo] : [])].map((m) => h('option', { value: m, selected: m === row.motivo }, m)))
-    : h('input', { ...attrs, ...(key === 'data' ? dateAttrs : {}), type: 'text', value: row[key] ?? '', spellcheck: false });
+    : h('input', { ...attrs, ...(key === 'data' ? dateAttrs : isTimeField(key) ? timeAttrs : {}), type: 'text', value: row[key] ?? '', spellcheck: false });
   const ed = row.edits?.[key];
   const auto = row.auto?.[key];
   const who = /^chapa/.test(key) ? operatorName(row[key]) : '';
@@ -617,12 +619,23 @@ function markEdited(td, ed) {
   if (ctl) ctl.title = ed ? editTitle(ed) : '';
 }
 
+// an impossible time is flagged like any other doubt (it stays out of the analysis until corrected)
+function markTimeProblem(input, value) {
+  const d = input.dataset, row = pageOf(d.p)?.[d.k]?.[Number(d.r)], td = input.closest('td');
+  if (!row || !td) return;
+  const why = timeProblem(value);
+  if (why) { row.flags = { ...(row.flags ?? {}), [d.f]: why }; td.classList.add('flag', 'bad'); input.title = 'Hora de 00 a 23 e minuto de 00 a 59'; }
+  else if (row.flags?.[d.f] === 'hora inválida') { delete row.flags[d.f]; td.classList.remove('flag', 'bad'); input.title = ''; }
+  updateSummary(); persist();
+}
+
 document.addEventListener('input', (e) => {
   const d = e.target.dataset;
   if (!d?.f) return;
   const row = pageOf(d.p)?.[d.k]?.[Number(d.r)];
   if (!row) return;
   if (d.f === 'data') e.target.value = maskDate(e.target.value);
+  if (isTimeField(d.f)) e.target.value = maskTime(e.target.value, { deleting: !!e.inputType?.startsWith('delete') });
   const before = row[d.f];
   row[d.f === 'desc' ? 'desc' : d.f] = e.target.value;
   recordEdit(row, d.f, before, e.target.value);
@@ -654,6 +667,11 @@ document.addEventListener('change', (e) => {
   if (d?.f && /^chapa/.test(d.f)) { const sm = e.target.closest('td')?.querySelector('.opn'); if (sm) sm.textContent = operatorName(e.target.value); }
   if (d?.f && /^(ini|fim|chapa)/.test(d.f) && d.k) { const pg = pageOf(d.p); if (pg) { refreshTurnos(pg); updateSummary(); persist(); } }
   if (d?.f === 'data') { const v = withYear(e.target.value); if (v !== e.target.value) { e.target.value = v; e.target.dispatchEvent(new Event('input', { bubbles: true })); } }
+  if (isTimeField(d?.f)) { // leaving a time field: always HH:MM; an impossible time (25:00, 12:60) stays marked as doubt
+    const v = finishTime(e.target.value);
+    if (v !== e.target.value) { e.target.value = v; e.target.dispatchEvent(new Event('input', { bubbles: true })); }
+    markTimeProblem(e.target, v);
+  }
   if (d?.act === 'machine') { const p = pageOf(d.p); const was = p.machine; p.machine = e.target.value; p.machineFlag = null; if (was !== p.machine) { const pe = p.edits?.machine; p.edits = { ...(p.edits ?? {}), machine: { from: pe ? pe.from : was, to: p.machine } }; if (p.edits.machine.from === p.machine) delete p.edits.machine; } renderPage(p); updateSummary(); persist(); return; }
   if (d?.act === 'include') { const p = pageOf(d.p); p.include = e.target.checked; renderPage(p); updateSummary(); persist(); return; }
   if (d?.f && e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1353,8 +1371,9 @@ function renderQR() {
   if (field) {
     input = field === 'motivo'
       ? h('select', { id: 'qrinput' }, h('option', { value: '' }, '—'), [...MOTIVOS_ALL, ...(row.motivo && !MOTIVOS_ALL.includes(row.motivo) ? [row.motivo] : [])].map((m) => h('option', { value: m, selected: m === row.motivo }, m)))
-      : h('input', { id: 'qrinput', type: 'text', value: row[field] ?? '', spellcheck: false, autocomplete: 'off', ...(field === 'data' ? dateAttrs : {}) });
+      : h('input', { id: 'qrinput', type: 'text', value: row[field] ?? '', spellcheck: false, autocomplete: 'off', ...(field === 'data' ? dateAttrs : isTimeField(field) ? timeAttrs : {}) });
     if (field === 'data') input.addEventListener('input', () => { input.value = maskDate(input.value); });
+    if (isTimeField(field)) input.addEventListener('input', (e) => { input.value = maskTime(input.value, { deleting: !!e.inputType?.startsWith('delete') }); });
     const sugg = suggestionChips(row, field);
     chips = sugg.length ? h('div', { class: 'chips' }, h('span', { class: 'note' }, 'Outras leituras:'), sugg.map((c) => h('button', { type: 'button', class: 'chip', dataset: { qr: 'chip', v: c.v } }, c.label))) : null;
   }
@@ -1371,13 +1390,14 @@ function qrConfirm() {
   const it = qr.items[qr.i];
   if (it?.field) {
     const el = $('qrinput');
-    const value = it.field === 'data' ? withYear((el?.value ?? '').trim()) : (el?.value ?? '').trim();
+    const value = it.field === 'data' ? withYear((el?.value ?? '').trim()) : isTimeField(it.field) ? finishTime(el?.value ?? '') : (el?.value ?? '').trim();
     const row = it.row, f = it.field;
     const kind = f === 'desc' ? 'desc' : f;
     const before = row[kind];
     row[kind] = value;
     recordEdit(row, kind, before, value);
     delete row.flags[f];
+    if (isTimeField(f) && timeProblem(value)) row.flags[f] = 'hora inválida';
     if (f === 'motivo' && !value) row.flags.motivo = 'sem motivo';
     learnFromEdit(row, f, value);
     qr.touched.add(it.p.id);
