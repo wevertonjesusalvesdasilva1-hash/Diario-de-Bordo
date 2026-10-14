@@ -27,7 +27,7 @@ const blank = (v) => (v === '' || v == null ? '(vazio)' : v);
 const GROUPS = { raw: { name: 'RAW (robôs)', unit: 'Robô', units: 'Robôs' }, usi: { name: 'Usinagem', unit: 'Máquina', units: 'Máquinas' } };
 const PAGES = { raw: [['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['mensal', 'Mensal']], usi: [['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador']] };
 
-const ui = { g: 'raw', page: 'diaria', filt: {}, vf: {}, sel: null, cubes: {} };
+const ui = { g: 'raw', page: 'diaria', filt: {}, vf: {}, lead: {}, sel: null, cubes: {} };
 try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui.g = s; } catch { /* no storage */ }
 
 export const setBiGroup = (g) => { if (GROUPS[g]) { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; } };
@@ -97,10 +97,29 @@ function vis(title, build, { vid, side = 'p', wide = false, acts = [] } = {}) {
   VSIDE[vid] = side;
   const box = el('section', { class: `bi-vis${wide ? ' wide' : ''}` }), slot = el('div');
   const max = el('button', { type: 'button', 'aria-label': 'Ampliar', onclick: () => { const on = box.classList.toggle('max'); max.textContent = on ? '✕ Fechar' : '⤢'; } }, '⤢');
+  box.vid = vid;
   box.rebuild = () => slot.replaceChildren(build());
+  const barHost = el('div');
+  box.rebuildBar = () => barHost.replaceChildren(visFilterBar(vid, side, changed));
+  // a change here is copied to the other charts of the page (they follow by default, and each one can still be changed on its own)
+  const changed = () => {
+    const pk = `${ui.g}.${ui.page}`, mine = ui.vf[`${pk}.${vid}`];
+    const lead = (ui.lead[pk] ??= { vid: null, own: new Set() });
+    if (lead.vid && lead.vid !== vid) { lead.own.add(vid); box.rebuild(); return; }   // someone else leads: this chart now has its own choice
+    lead.vid = vid; lead.own.delete(vid);
+    const empty = !mine.m.size && !mine.from && !mine.to;
+    for (const r of REG) {
+      if (!r.vid || r === box || lead.own.has(r.vid)) continue;
+      ui.vf[`${pk}.${r.vid}`] = { m: new Set(mine.m), from: mine.from, to: mine.to };
+      r.rebuildBar?.(); r.rebuild();
+    }
+    if (empty) { lead.vid = null; lead.own.clear(); }   // cleared: everything goes back to the default
+    box.rebuild();
+  };
   REG.push(box);
   const xl = el('button', { type: 'button', 'aria-label': 'Baixar em Excel', title: 'Baixar os dados deste gráfico em Excel', onclick: async () => { const t = slot.firstElementChild?.getTable?.(); if (!t) return; const X = await import('xlsx'); const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([t.head, ...t.rows]), 'Dados'); X.writeFile(wb, `${title.replace(/[^\p{L}\p{N} ·-]+/gu, '').trim().slice(0, 60) || 'dados'}.xlsx`); } }, '⬇ Excel');
-  box.append(el('header', {}, el('h4', {}, title), el('div', { class: 'acts' }, acts, xl, max)), visFilterBar(vid, side, box.rebuild), slot);
+  box.append(el('header', {}, el('h4', {}, title), el('div', { class: 'acts' }, acts, xl, max)), barHost, slot);
+  box.rebuildBar();
   box.rebuild();
   return box;
 }
