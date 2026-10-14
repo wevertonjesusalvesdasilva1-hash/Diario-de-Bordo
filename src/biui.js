@@ -28,7 +28,7 @@ const hhmm = (h) => { const m = Math.round((h || 0) * 60); return `${String(Math
 const blank = (v) => (v === '' || v == null ? '(vazio)' : v);
 
 const GROUPS = { raw: { name: 'RAW (robôs)', unit: 'Robô', units: 'Robôs' }, usi: { name: 'Usinagem', unit: 'Máquina', units: 'Máquinas' } };
-const PAGES = { raw: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['mensal', 'Mensal'], ['auditoria', 'Auditoria dos dados']], usi: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['auditoria', 'Auditoria dos dados']] };
+const PAGES = { raw: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['mensal', 'Mensal'], ['auditoria', 'Auditoria dos dados'], ['hoje', 'Folhas de hoje']], usi: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['auditoria', 'Auditoria dos dados'], ['hoje', 'Folhas de hoje']] };
 
 const ui = { g: 'raw', page: 'entrega', filt: {}, vf: {}, lead: {}, uteis: {}, multi: false, sel: null, cubes: {} };
 try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui.g = s; } catch { /* no storage */ }
@@ -406,6 +406,8 @@ export async function renderBiUI(root, ctx) {
   const tabs = el('div', { class: 'bi-pages', role: 'group', 'aria-label': 'Página' }, PAGES[ui.g].map(([id, label]) => el('button', { type: 'button', 'aria-pressed': String(ui.page === id), onclick: () => { ui.page = id; ui.sel = null; renderBiUI(root, ctx); } }, label)));
   bar.append(seg, tabs);
   wrap.append(title, bar, main);
+  ctx.onPage?.(ui.page);            // "Folhas de hoje" is the old Painel: main.js shows it only on that page
+  if (ui.page === 'hoje') { root.replaceChildren(wrap); return; }
   root.replaceChildren(wrap);
   main.append(el('p', { class: 'bi-note' }, 'Lendo a base…'));
   let base;
