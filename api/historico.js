@@ -5,7 +5,7 @@
 //        /api/historico  { g, op: 'undo', batch }                          removes everything a batch brought (a mistaken submission)
 //        /api/historico  { g, op: 'restore' }                              brings back the copy made before the last 'replace'
 //        /api/historico  { g, op: 'edit', changes: [{ kind: 'prod'|'stop', old, new }] }  edits (old+new), deletes (new null) or adds (old null) single records
-//   g = 'matriz': the standard times table  GET → { rev, rows: [[machine, piece, model, hours]] };  POST { g: 'matriz', op: 'set', rows }
+//   g = 'matriz': the standard times table  GET → { rev, rows: [[machine, piece, model, hours, observation]] };  POST { g: 'matriz', op: 'set', rows }
 // Needs the access code like every other API; without storage (BLOB_READ_WRITE_TOKEN) it answers 503.
 import { getStore } from './_store.js';
 import { accessRequired, checkAccess } from './_auth.js';
@@ -47,7 +47,7 @@ async function matriz(req, res, body) {
   try { if (text) cur = JSON.parse(text); } catch { /* empty */ }
   if (req.method === 'GET') return send(res, 200, cur);
   if (body.op !== 'set' || !Array.isArray(body.rows) || body.rows.length > 5000) return send(res, 400, { error: 'Operação inválida' });
-  const rows = body.rows.map((r) => [str(r[0], 30), str(r[1], 80), str(r[2], 80), Math.max(0, Math.min(999, Number(r[3]) || 0))]).filter((r) => r[0] && r[1]);
+  const rows = body.rows.map((r) => [str(r[0], 30), str(r[1], 80), str(r[2], 80), Math.max(0, Math.min(999, Number(r[3]) || 0)), str(r[4], 200)]).filter((r) => r[0] && r[1]);
   await store.write(file, JSON.stringify({ rev: (cur.rev ?? 0) + 1, rows, at: new Date().toISOString() }));
   return send(res, 200, { rev: (cur.rev ?? 0) + 1, rows });
 }

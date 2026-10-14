@@ -30,3 +30,6 @@
 .dbe td.act, .dbe th:last-child { position: sticky; right: 0; background: #151a24; box-shadow: -8px 0 8px -8px rgba(0,0,0,.6); }
 .dbe th:last-child { z-index: 2; }
 .dbe tr.hit td.act { background: #123943; } .dbe tr.dirty td.act { background: #3a3114; }
+
+.dbe-prov { margin-top: 18px; padding-top: 10px; border-top: 1px dashed rgba(251,191,36,.45); }
+.dbe input.c-obs { width: 260px; }

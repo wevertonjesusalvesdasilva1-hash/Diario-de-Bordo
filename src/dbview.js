@@ -3,7 +3,7 @@ import './bi.css';
 import { el } from './bicharts.js';
 import { loadBase, loadMatriz } from './historico.js';
 import { recordsEditor, matrixEditor } from './dbeditor.js';
-import { groupOfMachine, dmy } from './core/history.js';
+import { groupOfMachine, dmy, historyStandards, historyStandardOf, standardHours } from './core/history.js';
 
 const GROUPS = { raw: 'RAW (robôs)', usi: 'Usinagem' };
 const st = { g: 'raw', sub: 'prod', m: '', from: '', to: '', q: '' };
@@ -24,7 +24,11 @@ export async function renderDbUI(root, ctx) {
   const after = async () => { await loadBase(st.g, { force: true }); renderDbUI(root, ctx); };
   if (st.sub === 'mx') {
     const { getMatrix } = await import('./core/history.js');
-    body.replaceChildren(matrixEditor({ rows: getMatrix(), group: (m) => groupOfMachine(m) === st.g, toast, onSaved: after }));
+    // one line per machine + piece + model that has no time in the matrix and is using the average of its history
+    const hs = historyStandards(base.prod), prov = new Map();
+    for (const r of base.prod) { const v = historyStandardOf(hs, r.p, r.o); if (!v || !(r.h > 0 && r.h < 24) || Number(r.tp) > 0 || standardHours(r.m, r.p, r.o) > 0) continue; const k = `${r.m}|${r.p}|${r.o}`; if (!prov.has(k)) prov.set(k, { machine: r.m, machines: [r.m], piece: r.p, model: r.o, h: v.h, n: v.n, from: v.from, to: v.to, obs: v.obs }); }
+    const provisional = [...prov.values()].sort((a, b) => b.n - a.n || (a.piece < b.piece ? -1 : 1));
+    body.replaceChildren(matrixEditor({ rows: getMatrix(), group: (m) => groupOfMachine(m) === st.g, toast, onSaved: after, provisional }));
     return;
   }
   const kind = st.sub, all = kind === 'prod' ? base.prod : base.stops;

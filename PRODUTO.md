@@ -244,3 +244,9 @@ Nos campos INÍCIO e FIM (produção e paradas, na conferência e na revisão r�
 - No gráfico "Produção + paradas por dia", clicar numa barra a destaca; "▦ Abrir tabela" mostra embaixo, no mesmo quadro, as produções e paradas dos dias do gráfico, com as linhas da barra clicada em destaque e editáveis.
 - A matriz editada vale para todos (guardada no servidor) e passa a mandar no "tempo que o padrão previa". Enquanto ninguém salvar, vale a que veio com o app.
 - Textos do gráfico de entrega: "tempo real gasto" (azul) × "tempo que o padrão previa" (amarelo); acima de 100% = mais rápido que o padrão.
+
+## Tempo padrão provisório pela média do histórico
+
+- Para **COLAR-CENTER FRAME**, **SUB BRACKET** (caixa soldada) e **BRACKET** (trave soldada), que ainda não têm tempo na matriz, o padrão usado na entrega e na eficiência é a **média das produções delas no histórico** (por peça e modelo; só linhas com horas entre 0 e 24 h). Recalcula sozinho quando entram novas produções.
+- É sempre sinalizado: faixa azul na página Entrega (com "Ver quais": padrão usado, produções e período da média) e nota no cartão de peças. Nessas peças a eficiência tende a 100% por construção.
+- Na aba Base de dados → Matriz de tempos, a seção "Tempos provisórios pelo histórico" lista cada máquina + peça + modelo; "Fixar na matriz" (ou "Fixar todos") copia a linha com a observação "Média de N produções do histórico (período); não é tempo da matriz". A matriz agora tem a coluna **Observação**. Tempo na matriz sempre vence a média.

@@ -1,7 +1,7 @@
 // "4 · BI": the Power BI reports (RAW and usinagem) rebuilt on the history. Numbers come from core/bi.js (the report's own measures).
 import './bi.css';
 import { buildCube, slice, M, corEfic, options, optionsFor, auditoria24, dayRows, cardsBI, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
-import { dmy, dayLoads } from './core/history.js';
+import { dmy, dayLoads, historyStandardOf } from './core/history.js';
 import { loadBase, matrixRev } from './historico.js';
 import { recordsEditor } from './dbeditor.js';
 import { getOperators, operatorName } from './core/operators.js';
@@ -357,11 +357,11 @@ function pagePessoas(x) {
 function pageEntrega(x) {
   const u = GROUPS[x.g].unit;
   const cards = () => live(() => {
-    const c = slice(x.cube, x.F('cards')), e = M.efic(c), sem = M.pecasSemPadrao(c), est = M.pecasEstimadas(c);
+    const c = slice(x.cube, x.F('cards')), e = M.efic(c), sem = M.pecasSemPadrao(c), est = M.pecasEstimadas(c), hist = M.pecasPorHistorico(c);
     return [card('TEMPO QUE O PADRÃO PREVIA', `${f1(M.entrega(c))} h`, null, 'quanto as peças feitas deveriam levar, pela matriz de tempos'),
       card('TEMPO REAL GASTO', `${f1(M.realComPadrao(c))} h`, null, 'quanto essas mesmas peças realmente levaram'),
       card('EFICIÊNCIA', e == null ? '—' : fpct(e), corEficS(e), 'previsto ÷ real · acima de 100% = mais rápido que o padrão'),
-      card('PEÇAS', fint(M.qtdPecas(c)), null, `${fint(sem)} sem tempo padrão (${f1(M.horasSemPadrao(c))} h reais, fora da conta)${est ? ` · ${fint(est)} com padrão de outra máquina` : ''}`)];
+      card('PEÇAS', fint(M.qtdPecas(c)), null, `${fint(sem)} sem tempo padrão (${f1(M.horasSemPadrao(c))} h reais, fora da conta)${est ? ` · ${fint(est)} com padrão de outra máquina` : ''}${hist ? ` · ${fint(hist)} com padrão provisório (média do histórico)` : ''}`)];
   });
   const porDia = () => { const gr = groupP(x.cube, x.F('v1'), ['data']);
     return { kind: 'area', cats: gr.map((g) => ({ key: g.vals[0], label: ddmm(g.vals[0]) })), series: [{ name: 'Tempo que o padrão previa (h)', vals: gr.map((g) => M.entrega(g.c)), color: PALETTE[3] }, { name: 'Tempo real gasto (h)', vals: gr.map((g) => M.realComPadrao(g.c)), color: PALETTE[0] }], height: 280, fmt: f1, onPick: x.pick('v1', 'p', ['data']), selected: x.selOf('v1') }; };
@@ -385,7 +385,16 @@ function pageEntrega(x) {
     return [el('div', { class: 'bi-warnbar', role: 'status' }, el('span', {}, '⚠ ', el('b', {}, `${fint(sem)} peças (${f1(M.horasSemPadrao(c))} h reais) estão sem tempo padrão.`), ' Elas continuam contando em peças, horas produzidas e em todos os gráficos; só ficam fora da eficiência, porque não há padrão para comparar. '),
       el('button', { type: 'button', class: 'bi-more', onclick: () => openRecords(`Peças sem tempo padrão (${fint(sem)})`, ['Peça e modelo', u + 's', 'Peças', 'Horas reais'], rows, 'Cadastre o tempo na matriz (aba Base de dados → Matriz de tempos) e a eficiência passa a contar essas peças.') }, 'Ver quais'))];
   }, 'bi-alerts');
-  return [aviso, cards(),
+  // pieces that use the average of their own history as the standard (collar of the center frame, sub bracket, bracket): said plainly, with the numbers behind it
+  const infoHist = live(() => {
+    const c = slice(x.cube, x.F('cards')), n = M.pecasPorHistorico(c);
+    if (!n) return [];
+    const rows = rowsOf(groupP(x.cube, x.F('cards'), ['pm'])).filter((r) => r.c.P.some((p) => p.tpSrc === 'histórico')).map((r) => { const p = r.c.P.find((q) => q.tpSrc === 'histórico'), hs = historyStandardOf(x.cube.hstd, p.p, p.o);
+      return [r.vals[0], [...new Set(r.c.P.map((q) => q.m))].sort().join(', '), r.c.P.filter((q) => q.tpSrc === 'histórico').length, +p.tpx.toFixed(2), hs ? `${hs.n} produções · ${dmy(hs.from)} a ${dmy(hs.to)}` : '']; }).sort((a, b) => b[2] - a[2]);
+    return [el('div', { class: 'bi-warnbar bi-infobar', role: 'status' }, el('span', {}, 'ℹ ', el('b', {}, `${fint(n)} peças usam um tempo padrão provisório.`), ' Para colar do center frame, sub bracket e bracket ainda não há tempo na matriz; o padrão é a média do histórico delas. Por isso a eficiência dessas peças tende a 100%: serve para acompanhar, não para cobrar. '),
+      el('button', { type: 'button', class: 'bi-more', onclick: () => openRecords(`Padrão pela média do histórico (${fint(n)} peças)`, ['Peça e modelo', u + 's', 'Peças', 'Padrão usado (h)', 'Base do cálculo'], rows, 'Quando o tempo oficial entrar na matriz (aba Base de dados → Matriz de tempos), ele passa a valer no lugar da média.') }, 'Ver quais'))];
+  }, 'bi-alerts');
+  return [aviso, infoHist, cards(),
     el('div', { class: 'bi-grid' },
       vis(`TEMPO REAL × TEMPO PADRÃO POR ${u.toUpperCase()}`, explain(legendNote(), () => chartBox(porMaq)), { vid: 'v2', wide: true }),
       vis('POR DIA · tempo padrão × tempo real', explain('Cada dia: o que as peças feitas deveriam levar (padrão) contra o que realmente levaram. Quando a linha do padrão fica acima da real, o dia rendeu mais que o previsto.', () => chartBox(porDia)), { vid: 'v1' }),

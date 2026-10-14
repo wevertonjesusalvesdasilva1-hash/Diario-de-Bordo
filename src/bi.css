@@ -200,3 +200,4 @@ body.pbi main { overflow-x: clip; }
 .ex-chip { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 7px; vertical-align: -1px; } .ex-chip.round { border-radius: 50%; }
 
 .bi-warnbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 10px; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.45; background: rgba(251,191,36,.12); border: 1px solid rgba(251,191,36,.45); }
+.bi-infobar { background: rgba(96,165,250,.10); border-color: rgba(96,165,250,.45); }

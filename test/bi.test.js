@@ -104,3 +104,14 @@ test('filtro de data/máquina igual nos dois lados (filtro da página) corta cad
   assert.equal(M.horasProd(espelhado), M.horasProd(solo));
   assert.equal(espelhado.S.length, slice(cube, { p: {}, s: { data: d } }).S.length);
 });
+
+test('peças sem tempo na matriz (colar do center frame, sub bracket, bracket) usam a média do histórico e ficam sinalizadas', () => {
+  const mk = (p, o, h, d = '2026-08-03') => ({ m: 'RAW12', d, p, o, c1: '100', i1: '', f1: '', c2: '', i2: '', f2: '', c3: '', i3: '', f3: '', t: 1, ob: '', h, tp: 0 });
+  const c = buildCube({ prod: [mk('SUB BRACKET', 'D99-ZZ', 1), mk('SUB BRACKET', 'D99-ZZ', 2), mk('SUB BRACKET', 'D99-ZZ', 3, '2026-08-04'), mk('BRACKET', 'D99-ZZ', 0.5), mk('OUTRA PEÇA', 'D99-ZZ', 4)], stops: [] });
+  const s = slice(c, {});
+  assert.equal(M.pecasPorHistorico(s), 4);
+  assert.equal(s.P.find((r) => r.p === 'SUB BRACKET').tpx, 2);            // (1 + 2 + 3) / 3
+  assert.equal(M.entrega(slice(c, { p: { pm: new Set(['SUB BRACKET-D99-ZZ']) }, s: {} })), 6);
+  assert.equal(M.pecasSemPadrao(s), 1);                                       // a peça fora da lista continua sem padrão
+  assert.ok(c.hstd.size === 2 && [...c.hstd.values()].some((v) => v.n === 3 && /Média de 3 produções/.test(v.obs)));
+});

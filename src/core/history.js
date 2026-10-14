@@ -43,11 +43,32 @@ export const matrixIsCustom = () => custom;
 // the matrix in use: the shared one edited in the app (Base de dados → Matriz), or the one that came with the app
 export function setMatrix(rows) {
   custom = !!(rows && rows.length);
-  matrix = (rows && rows.length ? rows : PADRAO).map(([m, p, mo, h]) => [m, p, mo, Number(h) || 0]);
+  matrix = (rows && rows.length ? rows : PADRAO).map(([m, p, mo, h, obs]) => [m, p, mo, Number(h) || 0, obs ?? '']);
   STD = new Map(matrix.map(([m, p, mo, h]) => [`${aliasKey(m)}|${aliasKey(p)}|${aliasKey(mo)}`, h]));
   STD_PM = new Map();
   for (const [m, p, mo, h] of matrix) if (h > 0) { const k = `${groupOfMachine(m)}|${aliasKey(p)}|${aliasKey(mo)}`; (STD_PM.get(k) ?? STD_PM.set(k, []).get(k)).push(h); }
 }
+// Pieces the matrix does not have yet, whose standard time is provisionally the AVERAGE of their own history (asked by the supervisor):
+// the collar of the center frame (COLAR-CENTER FRAME), the SUB BRACKET (welded box) and the BRACKET (welded beam), all welded on RAW.
+// Kept apart from the matrix and always flagged ("padrão pelo histórico"); a time put in the matrix wins over it.
+export const HIST_FAMILIES = ['COLARCENTERFRAME', 'SUBBRACKET', 'BRACKET'];
+export const histFamily = (peca) => { const k = aliasKey(peca); return HIST_FAMILIES.find((f) => k.startsWith(f)) ?? null; };
+const histKey = (peca, modelo) => `${histFamily(peca)}|${aliasKey(modelo)}`;
+// records without any standard (not in the matrix, none saved with the record) → Map(key → { h: mean hours, n, from, to, pieces: Set of piece names, machines: Set, obs })
+export function historyStandards(prod) {
+  const acc = new Map();
+  for (const r of prod) {
+    if (!histFamily(r.p) || !(r.h > 0 && r.h < 24)) continue;
+    if (Number(r.tp) > 0 || standardHours(r.m, r.p, r.o) > 0 || standardByPieceModel(r.p, r.o, r.m) > 0) continue;
+    const k = histKey(r.p, r.o), a = acc.get(k) ?? { sum: 0, n: 0, from: r.d, to: r.d, pieces: new Set(), models: new Set(), machines: new Set() };
+    a.sum += r.h; a.n++; if (r.d < a.from) a.from = r.d; if (r.d > a.to) a.to = r.d; a.pieces.add(r.p); a.models.add(r.o); a.machines.add(r.m); acc.set(k, a);
+  }
+  const out = new Map();
+  for (const [k, a] of acc) out.set(k, { h: a.sum / a.n, n: a.n, from: a.from, to: a.to, pieces: [...a.pieces].sort(), models: [...a.models].sort(), machines: [...a.machines].sort(),
+    obs: `Média de ${a.n} produções do histórico (${dmy(a.from)} a ${dmy(a.to)}); não é tempo da matriz` });
+  return out;
+}
+export const historyStandardOf = (map, peca, modelo) => (histFamily(peca) ? map.get(histKey(peca, modelo)) ?? null : null);
 export const getMatrix = () => matrix.map((r) => [...r]);
 setMatrix(null);
 export const standardHours = (machine, peca, modelo) => STD.get(`${aliasKey(machine)}|${aliasKey(peca)}|${aliasKey(modelo)}`) ?? 0;

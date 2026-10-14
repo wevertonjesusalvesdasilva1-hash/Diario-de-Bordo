@@ -93,7 +93,7 @@ export function recordsEditor({ g, kind, records, focus = null, onSaved, toast =
 }
 
 // the standard-times matrix: [machine, piece, model, hours]
-export function matrixEditor({ rows, group, onSaved, toast = () => {} }) {
+export function matrixEditor({ rows, group, onSaved, toast = () => {}, provisional = [] }) {
   const host = el('section', { class: 'dbe' });
   let list = rows.map((r) => [...r]), q = '', page = 0, adding = null;
   const orig = rows.map((r) => r.join('|'));
@@ -104,17 +104,31 @@ export function matrixEditor({ rows, group, onSaved, toast = () => {} }) {
     const pages = Math.max(1, Math.ceil(idx.length / PS)); page = Math.min(page, pages - 1);
     const body = idx.slice(page * PS, (page + 1) * PS).map((i) => el('tr', {}, [0, 1, 2].map((k) => el('td', {}, el('input', { class: 'c-w', type: 'text', value: list[i][k], 'aria-label': ['Máquina', 'Peça', 'Modelo'][k], oninput: (e) => { list[i][k] = e.target.value.trim(); mark(); } }))),
       el('td', {}, el('input', { class: 'c-s', type: 'text', inputmode: 'decimal', value: String(list[i][3]).replace('.', ','), 'aria-label': 'Horas padrão', oninput: (e) => { list[i][3] = Number(e.target.value.replace(',', '.')) || 0; mark(); } })),
+      el('td', {}, el('input', { class: 'c-obs', type: 'text', value: list[i][4] ?? '', placeholder: 'ex.: média do histórico', 'aria-label': 'Observação', oninput: (e) => { list[i][4] = e.target.value; mark(); } })),
       el('td', { class: 'act' }, el('button', { type: 'button', class: 'dbe-x', title: 'Excluir', 'aria-label': 'Excluir linha', onclick: () => { list.splice(i, 1); mark(); draw(); } }, '🗑'))));
     const save = el('button', { type: 'button', class: 'primary', disabled: dirty() ? null : true, onclick: async () => { try { const r = await saveMatriz(list.filter((x) => x[0] && x[1])); toast('Matriz salva. Os gráficos de entrega já usam os tempos novos.'); await onSaved?.(r); } catch (e) { toast(e.message); } } }, 'Salvar matriz');
     const mark = () => { save.disabled = !dirty(); };
     const search = el('input', { type: 'search', class: 'dbe-q', placeholder: 'Buscar peça, modelo ou máquina', value: q, oninput: (e) => { q = e.target.value.toLowerCase(); page = 0; draw(); const s = host.querySelector('.dbe-q'); s?.focus(); s?.setSelectionRange(q.length, q.length); } });
     const pager = pages > 1 ? el('span', { class: 'dbe-pg' }, el('button', { type: 'button', class: 'ghost', disabled: page === 0 ? true : null, onclick: () => { page--; draw(); } }, '‹'), ` página ${page + 1} de ${pages} `, el('button', { type: 'button', class: 'ghost', disabled: page >= pages - 1 ? true : null, onclick: () => { page++; draw(); } }, '›')) : '';
     const add = adding ? el('div', { class: 'dbe-new' }, el('b', {}, 'Nova linha'), ...['Máquina', 'Peça', 'Modelo', 'Horas'].map((t, k) => el('label', { class: 'dbe-f c-w' }, t, el('input', { type: 'text', value: adding[k], oninput: (e) => { adding[k] = e.target.value; } }))),
-      el('button', { type: 'button', class: 'primary', onclick: () => { const [m, p, o, h] = adding; if (!m.trim() || !p.trim()) { toast('Preencha máquina e peça.'); return; } list.push([m.trim(), p.trim(), o.trim(), Number(String(h).replace(',', '.')) || 0]); adding = null; draw(); } }, 'Incluir'),
+      el('button', { type: 'button', class: 'primary', onclick: () => { const [m, p, o, h] = adding; if (!m.trim() || !p.trim()) { toast('Preencha máquina e peça.'); return; } list.push([m.trim(), p.trim(), o.trim(), Number(String(h).replace(',', '.')) || 0, '']); adding = null; draw(); } }, 'Incluir'),
       el('button', { type: 'button', class: 'ghost', onclick: () => { adding = null; draw(); } }, 'Cancelar')) : '';
     host.replaceChildren(el('div', { class: 'dbe-head' }, el('h5', {}, `Matriz de tempos padrão (${idx.length.toLocaleString('pt-BR')})`), el('span', { class: 'dbe-tools' }, search, pager, el('button', { type: 'button', class: 'ghost', onclick: () => { adding = ['', '', '', '']; draw(); } }, '＋ Nova linha'), save)),
       el('p', { class: 'bi-note' }, 'Tempo padrão, em horas, de uma peça e modelo em cada máquina. Salvar vale para todos e muda "horas entregues" e "eficiência" nos gráficos.'), add,
-      el('div', { class: 'dbe-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, ['Máquina', 'Peça', 'Modelo', 'Horas padrão', ''].map((t) => el('th', {}, t)))), el('tbody', {}, body))));
+      el('div', { class: 'dbe-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, ['Máquina', 'Peça', 'Modelo', 'Horas padrão', 'Observação', ''].map((t) => el('th', {}, t)))), el('tbody', {}, body))),
+      provisionalBlock());
+  }
+  // times the matrix does not have, taken from the average of each piece's own history: shown apart and always flagged; "Fixar na matriz" copies them in
+  function provisionalBlock() {
+    if (!provisional.length) return '';
+    const todo = provisional.filter((x) => !list.some((r) => r[0] === x.machine && r[1] === x.piece && r[2] === x.model));
+    const fix = (xs) => { for (const x of xs) list.push([x.machine, x.piece, x.model, +x.h.toFixed(2), x.obs]); draw(); };
+    return el('div', { class: 'dbe-prov' }, el('div', { class: 'dbe-head' }, el('h5', {}, `Tempos provisórios pelo histórico (${provisional.length})`),
+      el('span', { class: 'dbe-tools' }, todo.length ? el('button', { type: 'button', class: 'ghost', onclick: () => fix(todo) }, `Fixar todos na matriz (${todo.length})`) : '')),
+      el('p', { class: 'bi-note' }, 'Peças que ainda não têm tempo na matriz. O padrão usado nos gráficos é a média das produções delas no histórico. Ao fixar, a linha entra na matriz com a observação; depois clique em "Salvar matriz".'),
+      el('div', { class: 'dbe-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, ['Máquinas', 'Peça', 'Modelo', 'Média (h)', 'Produções', 'Período', 'Observação', ''].map((t) => el('th', {}, t)))),
+        el('tbody', {}, provisional.map((x) => { const done = !todo.includes(x); return el('tr', {}, el('td', { class: 'ro' }, x.machines.join(', ')), el('td', { class: 'ro' }, x.piece), el('td', { class: 'ro' }, x.model), el('td', { class: 'ro n' }, f2(x.h)), el('td', { class: 'ro n' }, String(x.n)), el('td', { class: 'ro' }, `${dmy(x.from)} a ${dmy(x.to)}`), el('td', { class: 'ro' }, x.obs),
+          el('td', { class: 'act' }, done ? el('span', { class: 'ro' }, 'na matriz') : el('button', { type: 'button', class: 'dbe-s', onclick: () => fix([x]) }, 'Fixar na matriz'))); })))));
   }
   draw();
   return host;

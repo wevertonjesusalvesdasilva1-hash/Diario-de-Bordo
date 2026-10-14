@@ -3,7 +3,7 @@
 //   01_Produção  one row per production record      02_Paradas  one row per stop      02_Paradas_resumo  stop hours per (date + machine)
 //   Produção ↔ Paradas_resumo : Chave (date + machine)                      — filters both ways
 //   Produção ↔ Paradas        : Chave parada (date + machine + chapa final)  — many-to-many, filters both ways
-import { spanHours, fmtHM, auditDays, standardByPieceModel, standardHours, matrixIsCustom, dayLoads, overWhy } from './history.js';
+import { spanHours, fmtHM, auditDays, standardByPieceModel, standardHours, matrixIsCustom, historyStandards, historyStandardOf, dayLoads, overWhy } from './history.js';
 
 export const META = 0.88;            // availability goal
 export const HORAS_DIA = 18.58;      // productive hours expected per machine per day
@@ -15,6 +15,7 @@ const sum = (rows, f) => { let s = 0; for (const r of rows) s += f(r) || 0; retu
 // ---- tables ------------------------------------------------------------------------------------------------
 // base: { prod: [...], stops: [...] } (history records); nameOf(chapa) → operator name or '' (the spreadsheet's REFERENCIAS tab)
 export function buildCube(base, nameOf = () => '') {
+  const hstd = historyStandards(base.prod);   // provisional standards (average of the piece's own history), see core/history.js
   const prod = base.prod.map((r) => {
     const t = r.t;
     // "Chapa final": the plate of the turn that finished the piece
@@ -25,14 +26,14 @@ export function buildCube(base, nameOf = () => '') {
       t1: spanHours(r.i1, r.f1) ?? 0, t2: spanHours(r.i2, r.f2) ?? 0, t3: spanHours(r.i3, r.f3) ?? 0 };
     // "hours delivered" (standard hours of the piece): the matrix value of the sheet; else the same piece+model on another machine; else none
     const mx = matrixIsCustom() ? standardHours(o.m, o.p, o.o) : 0;   // the matrix edited in the app wins over the time saved with the record
-    if (mx > 0) { o.tpx = mx; o.tpSrc = 'matriz'; } else if (o.tp > 0) { o.tpx = o.tp; o.tpSrc = 'matriz'; } else { const e = standardByPieceModel(o.p, o.o, o.m); o.tpx = e; o.tpSrc = e > 0 ? 'estimado' : 'sem'; }
+    if (mx > 0) { o.tpx = mx; o.tpSrc = 'matriz'; } else if (o.tp > 0) { o.tpx = o.tp; o.tpSrc = 'matriz'; } else { const e = standardByPieceModel(o.p, o.o, o.m); if (e > 0) { o.tpx = e; o.tpSrc = 'estimado'; } else { const hh = historyStandardOf(hstd, o.p, o.o); if (hh && o.h > 0 && o.h < 24) { o.tpx = hh.h; o.tpSrc = 'histórico'; } else { o.tpx = 0; o.tpSrc = 'sem'; } } }
     o.t1s = hm(o.t1); o.t2s = hm(o.t2); o.t3s = hm(o.t3);
     return o;
   });
   const stops = base.stops.map((s) => ({ m: s.m, d: s.d, mes: monthOf(s.d), c: s.c, t: s.t == null ? '' : String(s.t), mo: s.mo, ds: s.ds, i: s.i, f: s.f, h: Number(s.h) || 0, key: s.d + '|' + s.m + '|' + s.c, dm: s.d + '|' + s.m, src: s }));
   const resumo = new Map();
   for (const s of stops) resumo.set(s.dm, (resumo.get(s.dm) || 0) + s.h);
-  return { prod, stops, resumo };
+  return { prod, stops, resumo, hstd };
 }
 
 // columns usable in filters and groups
@@ -91,6 +92,7 @@ export const M = {
   pecasSemPadrao: (c) => c.P.filter((r) => !(r.tpx > 0)).length,
   horasSemPadrao: (c) => sum(c.P.filter((r) => !(r.tpx > 0)), (r) => r.h),
   pecasEstimadas: (c) => c.P.filter((r) => r.tpSrc === 'estimado').length,
+  pecasPorHistorico: (c) => c.P.filter((r) => r.tpSrc === 'histórico').length,
   efic: (c) => { const r = M.realComPadrao(c); return r ? M.entrega(c) / r : null; },
   // 06_tempo_target: SUMX(VALUES(ROBÔ), 18.58 × DISTINCTCOUNT(DATA)). The date count has no filter of its own inside SUMX, so it is the number of
   // distinct dates of ALL the machines in view; every machine in view gets that many days (a machine that did not work a day still owes its 18,58 h)
