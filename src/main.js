@@ -2,6 +2,7 @@ import './verificado.css';
 import './panel.css';
 import { renderPanelUI, resetPanelSelection, panelMaxKey, closePanelMax, reopenPanelMax } from './panelui.js';
 import { openSubmit, renderBaseCard } from './basedados.js';
+import { renderBiUI } from './biui.js';
 import { readFiles, toCanvas, jpegB64, jpegUrl, shrinkCanvas } from './files.js';
 import { fitToBudget } from './core/fit.js';
 import { isTimeField, maskTime, finishTime, timeProblem } from './core/timemask.js';
@@ -811,7 +812,8 @@ function resetReview(edited = false) {
 
 function updateReviewUi() {
   const any = okPages().length > 0;
-  $('tabs').hidden = !any;
+  $('tabs').hidden = false;                 // the BI tab works without any sheet
+  $('tab-panel').disabled = !any;
   if (!any && state.tab === 'panel') showTab('read');
   $('okbox').hidden = !any;
   $('tab-analysis').disabled = !state.reviewed;
@@ -836,6 +838,7 @@ function showTab(name) {
   $('tab-analysis').classList.toggle('on', name === 'analysis');
   $('view-panel').hidden = name !== 'panel';
   $('view-bi').hidden = name !== 'bi';
+  $('stats').hidden = $('upload').hidden = name === 'bi';   // the BI works on the saved history, not on the sheets being read
   $('tab-bi').classList.toggle('on', name === 'bi');
   $('tab-panel').classList.toggle('on', name === 'panel');
   $('tab-panel').setAttribute('aria-selected', String(name === 'panel'));
@@ -1200,10 +1203,7 @@ function openSubmitBase() {
 }
 $('submitbase').addEventListener('click', openSubmitBase);
 function renderBi() {
-  const root = $('view-bi');
-  const card = h('section', { class: 'card bd-card' });
-  root.replaceChildren(card);
-  renderBaseCard(card, { toast, reload: renderBi });
+  renderBiUI($('view-bi'), { toast, renderBase: (host) => renderBaseCard(host, { toast, reload: renderBi }) });
 }
 
 $('ok').addEventListener('click', giveOk);

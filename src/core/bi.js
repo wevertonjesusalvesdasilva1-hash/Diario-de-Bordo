@@ -1,0 +1,136 @@
+// BI engine: the data model, relationships and measures of the Power BI reports (RAW and usinagem), over the history records.
+// Pure functions (no DOM). Model, copied from the .pbix files:
+//   01_Produção  one row per production record      02_Paradas  one row per stop      02_Paradas_resumo  stop hours per (date + machine)
+//   Produção ↔ Paradas_resumo : Chave (date + machine)                      — filters both ways
+//   Produção ↔ Paradas        : Chave parada (date + machine + chapa final)  — many-to-many, filters both ways
+import { spanHours, fmtHM } from './history.js';
+
+export const META = 0.88;            // availability goal
+export const HORAS_DIA = 18.58;      // productive hours expected per machine per day
+const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+export const monthOf = (iso) => MONTHS[+iso.slice(5, 7) - 1] ?? '';
+const hm = (h) => (h ? fmtHM(Math.round(h * 60)) : '');   // hours → "HH:MM" (blank when zero), like the TOTAL - nºTURNO columns
+const sum = (rows, f) => { let s = 0; for (const r of rows) s += f(r) || 0; return s; };
+
+// ---- tables ------------------------------------------------------------------------------------------------
+// base: { prod: [...], stops: [...] } (history records); nameOf(chapa) → operator name or '' (the spreadsheet's REFERENCIAS tab)
+export function buildCube(base, nameOf = () => '') {
+  const prod = base.prod.map((r) => {
+    const t = r.t;
+    // "Chapa final": the plate of the turn that finished the piece
+    const cf = t === 3 && r.c3 ? r.c3 : t === 2 && r.c2 ? r.c2 : t === 1 && r.c1 ? r.c1 : '';
+    const key = r.d + '|' + r.m;
+    const o = { m: r.m, d: r.d, mes: monthOf(r.d), p: r.p, o: r.o, pm: `${r.p}-${r.o}`, t: t == null ? '' : String(t), cf, nome: cf ? nameOf(cf) || '' : '',
+      h: Number(r.h) || 0, tp: Number(r.tp) || 0, key, keyP: key + '|' + cf,
+      t1: spanHours(r.i1, r.f1) ?? 0, t2: spanHours(r.i2, r.f2) ?? 0, t3: spanHours(r.i3, r.f3) ?? 0 };
+    o.t1s = hm(o.t1); o.t2s = hm(o.t2); o.t3s = hm(o.t3);
+    return o;
+  });
+  const stops = base.stops.map((s) => ({ m: s.m, d: s.d, mes: monthOf(s.d), c: s.c, t: s.t == null ? '' : String(s.t), mo: s.mo, ds: s.ds, i: s.i, f: s.f, h: Number(s.h) || 0, key: s.d + '|' + s.m + '|' + s.c, dm: s.d + '|' + s.m }));
+  const resumo = new Map();
+  for (const s of stops) resumo.set(s.dm, (resumo.get(s.dm) || 0) + s.h);
+  return { prod, stops, resumo };
+}
+
+// columns usable in filters and groups
+export const PD = { data: (r) => r.d, mes: (r) => r.mes, m: (r) => r.m, pm: (r) => r.pm, peca: (r) => r.p, t: (r) => r.t, cf: (r) => r.cf, nome: (r) => r.nome, t1: (r) => r.t1s, t2: (r) => r.t2s, t3: (r) => r.t3s };
+export const SD = { data: (r) => r.d, mes: (r) => r.mes, m: (r) => r.m, mo: (r) => r.mo, t: (r) => r.t, c: (r) => r.c, ds: (r) => r.ds };
+
+const active = (f) => Object.entries(f ?? {}).filter(([, v]) => v && v.size);
+const matches = (act, dims, r) => { for (const [k, set] of act) if (!set.has(dims[k](r))) return false; return true; };
+
+// ---- filter context → visible rows (the relationships applied) ---------------------------------------------
+// f = { p: { column: Set }, s: { column: Set } }   (p = Produção columns, s = Paradas columns)
+export function slice(cube, f = {}) {
+  const pa = active(f.p), sa = active(f.s);
+  const Pd = pa.length ? cube.prod.filter((r) => matches(pa, PD, r)) : cube.prod;
+  const Sd = sa.length ? cube.stops.filter((r) => matches(sa, SD, r)) : cube.stops;
+  let P = Pd, S = Sd, R = null;
+  if (sa.length) { const k = new Set(Sd.map((s) => s.key)); P = Pd.filter((r) => k.has(r.keyP)); }
+  if (pa.length) { const k = new Set(Pd.map((r) => r.keyP)); S = Sd.filter((s) => k.has(s.key)); }
+  const filtered = pa.length > 0 || sa.length > 0;
+  const c = { P, S };
+  // Σ of Paradas_resumo (stop hours per date + machine) over the keys that survive on the production side
+  Object.defineProperty(c, 'resumo', { get() {
+    if (R == null) {
+      if (!filtered) R = sum([...cube.resumo.values()], (x) => x);
+      else { const keys = new Set(P.map((r) => r.key)); R = 0; for (const k of keys) R += cube.resumo.get(k) || 0; }
+    }
+    return R;
+  } });
+  return c;
+}
+export const withP = (f, col, vals) => ({ p: { ...(f?.p ?? {}), [col]: new Set([].concat(vals)) }, s: f?.s ?? {} });
+export const withS = (f, col, vals) => ({ p: f?.p ?? {}, s: { ...(f?.s ?? {}), [col]: new Set([].concat(vals)) } });
+export const without = (f, side, col) => { const o = { ...(f?.[side] ?? {}) }; delete o[col]; return { p: f?.p ?? {}, s: f?.s ?? {}, [side]: o }; };
+
+// ---- measures (names as in the model) ----------------------------------------------------------------------
+export const M = {
+  qtdPecas: (c) => c.P.length,                               // 01_qtde_pecas / SUM(peca_modelo_contagem)
+  horasProd: (c) => sum(c.P, (r) => r.h),                    // 03_somatempo_producao / SUM(TEMPO/DEC)
+  horasParadas: (c) => sum(c.S, (r) => r.h),                 // 10_Horas Paradas
+  horasParadasResumo: (c) => c.resumo,                       // SUM(02_Paradas_resumo[Contagem|Paradas])
+  tp: (c) => sum(c.P, (r) => r.tp),                          // SUM(TEMPO PADRÃO BAAN)
+  mediaHoras: (c) => (c.P.length ? sum(c.P, (r) => r.h) / c.P.length : null), // AVG(TEMPO/DEC)
+  pecasDistintas: (c) => new Set(c.P.map((r) => r.p)).size,  // DISTINCTCOUNT(PEÇA)
+  // 06_tempo_target: 18.58 h × distinct dates, for each machine in view
+  target: (c) => { const by = new Map(); for (const r of c.P) { let s = by.get(r.m); if (!s) by.set(r.m, (s = new Set())); s.add(r.d); } let t = 0; for (const s of by.values()) t += HORAS_DIA * s.size; return t; },
+  // 07_porcentagem (availability) = hours produced / target
+  pct: (c) => { const t = M.target(c); return t ? M.horasProd(c) / t : 0; },
+  // 16_% Ganho = (standard − real) / standard ; null (blank) when there is no standard time
+  ganho: (c) => { const tp = M.tp(c); return tp ? (tp - M.horasProd(c)) / tp : null; },
+};
+
+// ---- text and colors (the report's measures) ---------------------------------------------------------------
+export const fmtSigned = (v, dec = 0) => `${v < 0 ? '-' : '+'}${Math.abs(v * 100).toFixed(dec)}%`;
+export const ganhoTexto = (g) => (g == null ? '' : fmtSigned(g, 0));              // 16_Ganho Texto  "+0%;-0%"
+export const variacaoTexto = (pct) => fmtSigned(pct - META, 2);                    // 08_Variacao_Meta_Texto  "+0.00%;-0.00%"
+export const corVariacao = (pct) => (pct >= META ? '#70AD47' : '#C00000');         // 09_Cor_Variacao
+export const corPct = (pct) => (pct >= META ? '#81C784' : pct >= META * 0.9 ? '#FFD966' : '#E57373'); // 18_Cor %  (≥88% / ≥79,2% / abaixo)
+export const corTempo = (horasParadas) => (horasParadas > 2.23 ? '#E6A8A8' : '#4472C4');  // 05_Cor_Tempo
+export const corGanho = (g) => (g == null || g === 0 ? '#FFD966' : g < 0 ? '#81C784' : '#E57373');  // 17_Cor TP (RAW)
+export const corTPTotal = (real, padrao, group) => { // 17_Cor TP_Total
+  if (group === 'raw') { const g = padrao ? (padrao - real) / padrao : null; return corGanho(g); }
+  return real <= padrao * 0.9 ? '#81C784' : real <= padrao ? '#FFD966' : '#E57373';
+};
+// "10 peças selecionadas" cards (19_nome / 19_chapa)
+export function selecionado(set, todos = 'Todos', unid = 'selecionados') {
+  const n = set?.size ?? 0;
+  return n === 0 ? todos : n === 1 ? [...set][0] : `${n} ${unid}`;
+}
+
+// ---- group-by (the visuals) ---------------------------------------------------------------------------------
+const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+const natural = (a, b) => (/^\d+$/.test(a) && /^\d+$/.test(b) ? a - b : cmp(a, b));
+// rows of a visual that groups by Produção columns: one entry per combination that exists after filtering
+export function groupP(cube, f, cols) {
+  const { P } = slice(cube, f);
+  const seen = new Map();
+  for (const r of P) { const vals = cols.map((k) => PD[k](r)); const id = vals.join('\u0001'); if (!seen.has(id)) seen.set(id, vals); }
+  return [...seen.values()].sort((a, b) => { for (let i = 0; i < a.length; i++) { const c = natural(a[i], b[i]); if (c) return c; } return 0; })
+    .map((vals) => { let g = f; cols.forEach((k, i) => { g = withP(g, k, vals[i]); }); return { vals, c: slice(cube, g), f: g }; });
+}
+export function groupS(cube, f, cols) {
+  const { S } = slice(cube, f);
+  const seen = new Map();
+  for (const r of S) { const vals = cols.map((k) => SD[k](r)); const id = vals.join('\u0001'); if (!seen.has(id)) seen.set(id, vals); }
+  return [...seen.values()].sort((a, b) => { for (let i = 0; i < a.length; i++) { const c = natural(a[i], b[i]); if (c) return c; } return 0; })
+    .map((vals) => { let g = f; cols.forEach((k, i) => { g = withS(g, k, vals[i]); }); return { vals, c: slice(cube, g), f: g }; });
+}
+
+// Pareto of the stops: reasons ordered by hours, with the cumulative share. Rank and total ignore the "Motivo" slicer (ALL).
+export function pareto(cube, f) {
+  const all = groupS(cube, without(f, 's', 'mo'), ['mo']).map((g) => ({ mo: g.vals[0], h: M.horasParadas(g.c) }));
+  const total = all.reduce((s, x) => s + x.h, 0);
+  const rank = (h) => { const hs = [...new Set(all.map((x) => x.h))].sort((a, b) => b - a); return hs.indexOf(h) + 1; }; // dense, descending
+  const visible = groupS(cube, f, ['mo']).map((g) => ({ mo: g.vals[0], h: M.horasParadas(g.c) })).filter((x) => x.h > 0);
+  return visible.map((x) => {
+    const rk = rank(x.h);
+    const acc = all.filter((y) => rank(y.h) <= rk).reduce((s, y) => s + y.h, 0);
+    return { mo: x.mo, h: x.h, rank: rk, acc, pctAcc: total ? acc / total : 0 };
+  }).sort((a, b) => b.h - a.h || cmp(a.mo, b.mo));
+}
+
+// distinct values of a column over the whole table (what a slicer lists)
+const MORDER = (v) => MONTHS.indexOf(v);
+export const options = (cube, side, col) => [...new Set((side === 'p' ? cube.prod : cube.stops).map((r) => (side === 'p' ? PD : SD)[col](r)))].filter((v) => v !== '' && v != null).sort(col === 'mes' ? (a, b) => MORDER(a) - MORDER(b) : natural);

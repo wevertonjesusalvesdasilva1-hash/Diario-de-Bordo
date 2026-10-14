@@ -1,0 +1,63 @@
+/* BI pages (the Power BI reports, rebuilt). Colors for the data marks are fixed (same as the report); text follows the theme. */
+.bi { display: grid; gap: .9rem; }
+.bi-bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; }
+.bi-seg, .bi-pages { display: flex; flex-wrap: wrap; gap: .35rem; }
+.bi-seg button, .bi-pages button { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: .35rem .85rem; font: inherit; font-size: .88rem; cursor: pointer; }
+.bi-seg button[aria-pressed="true"], .bi-pages button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.bi-note { color: var(--muted); font-size: .85rem; margin: 0; }
+.bi-empty { border: 1px dashed var(--line); border-radius: 14px; padding: 1.4rem; text-align: center; display: grid; gap: .6rem; justify-items: center; }
+.bi-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: .9rem; align-items: start; }
+.bi-side { display: grid; gap: .6rem; position: sticky; top: .5rem; max-height: calc(100vh - 1rem); overflow: auto; }
+.bi-main { display: grid; gap: .8rem; min-width: 0; }
+.bi-filters-toggle { display: none; }
+.bi-slicer { border: 1px solid var(--line2); border-radius: 12px; background: var(--panel); padding: .5rem .6rem; display: grid; gap: .3rem; }
+.bi-slicer header { display: flex; justify-content: space-between; align-items: center; gap: .4rem; font-size: .8rem; font-weight: 600; color: var(--ink); }
+.bi-slicer header button { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; font-size: .75rem; padding: 0; }
+.bi-slicer input[type=search] { width: 100%; font: inherit; font-size: .8rem; padding: .25rem .4rem; border-radius: 8px; border: 1px solid var(--line2); background: var(--panel2); color: var(--ink); }
+.bi-slicer ul { list-style: none; margin: 0; padding: 0; max-height: 128px; overflow: auto; display: grid; gap: 1px; }
+.bi-slicer li label { display: flex; gap: .4rem; align-items: center; font-size: .8rem; padding: .12rem .2rem; border-radius: 6px; cursor: pointer; }
+.bi-slicer li label:hover { background: var(--accent-soft); }
+.bi-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .6rem; }
+.bi-card { border: 1px solid var(--line2); border-radius: 12px; background: var(--panel); padding: .6rem .8rem; display: grid; gap: .1rem; }
+.bi-card small { color: var(--muted); font-size: .72rem; letter-spacing: .04em; }
+.bi-card b { font-size: 1.5rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.bi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: .8rem; }
+.bi-grid .wide { grid-column: 1 / -1; }
+.bi-vis { border: 1px solid var(--line2); border-radius: 14px; background: var(--panel); padding: .6rem .7rem; display: grid; gap: .4rem; min-width: 0; align-content: start; }
+.bi-vis > header { display: flex; justify-content: space-between; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.bi-vis > header h4 { margin: 0; font-size: .82rem; letter-spacing: .04em; color: var(--ink); }
+.bi-vis > header .acts { display: flex; gap: .3rem; }
+.bi-vis > header button { border: 1px solid var(--line2); background: transparent; color: var(--muted); border-radius: 8px; font: inherit; font-size: .75rem; padding: .15rem .5rem; cursor: pointer; }
+.bi-vis > header button:hover { color: var(--accent); border-color: var(--accent); }
+.bi-vis.max { position: fixed; inset: .6rem; z-index: 60; overflow: auto; box-shadow: 0 0 0 100vmax rgb(0 0 0 / .55); }
+.bi-ch { overflow-x: auto; overflow-y: hidden; }
+.bi-ch.vscroll { overflow-y: auto; max-height: 340px; }
+.bi-ch svg { display: block; }
+.bi-ch text { fill: var(--ink); font-size: 11px; }
+.bi-ch .mut { fill: var(--muted); }
+.bi-ch .grid { stroke: var(--line2); stroke-width: 1; }
+.bi-ch .pick { cursor: pointer; }
+.bi-ch .dim { opacity: .3; }
+.bi-ch .pick:focus-visible rect { outline: 2px solid var(--accent); }
+.bi-leg { display: flex; flex-wrap: wrap; gap: .2rem .8rem; font-size: .75rem; color: var(--muted); }
+.bi-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: .3rem; vertical-align: -1px; }
+.bi-tbl { overflow: auto; max-height: 340px; border-radius: 10px; }
+.bi-tbl table { border-collapse: collapse; width: 100%; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.bi-tbl th, .bi-tbl td { padding: .28rem .5rem; border-bottom: 1px solid var(--line2); text-align: left; white-space: nowrap; }
+.bi-tbl th { position: sticky; top: 0; background: var(--panel2); cursor: pointer; user-select: none; font-weight: 600; z-index: 1; }
+.bi-tbl th[aria-sort]::after { content: ' ▾'; color: var(--accent); }
+.bi-tbl th[aria-sort="ascending"]::after { content: ' ▴'; }
+.bi-tbl td.n, .bi-tbl th.n { text-align: right; }
+.bi-tbl tfoot td { position: sticky; bottom: 0; background: var(--panel2); font-weight: 700; }
+.bi-tbl tbody tr:hover { background: var(--accent-soft); }
+.bi-tbl .dot { display: inline-block; min-width: 3.2em; text-align: center; border-radius: 6px; padding: .05rem .4rem; color: #1b1b1b; font-weight: 600; }
+.bi-more { justify-self: start; border: 1px solid var(--line2); background: none; color: var(--accent); border-radius: 8px; padding: .2rem .6rem; font: inherit; font-size: .78rem; cursor: pointer; }
+@media (max-width: 860px) {
+  .bi-layout { grid-template-columns: minmax(0, 1fr); }
+  .bi-side { position: static; max-height: none; display: none; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .bi-side.open { display: grid; }
+  .bi-filters-toggle { display: inline-flex; }
+}
+
+.bi-vis > div { min-width: 0; }
+.bi-vis > header { min-width: 0; }
