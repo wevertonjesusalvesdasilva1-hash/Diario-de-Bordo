@@ -153,3 +153,16 @@ body.pbi main { overflow-x: clip; }
 .bi-bar > * { min-width: 0; }
 
 .bd-head .hd { display: inline-flex; gap: .5rem; align-items: center; }
+
+/* period bar: three labelled groups instead of one long row of loose buttons */
+.bi-quick { display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; align-items: flex-end; padding: .55rem .8rem; border: 1px solid var(--line2); border-radius: 16px; background: var(--panel); }
+.qb-g { display: grid; gap: .25rem; }
+.bi-quick .lbl { font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.qb-seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 999px; padding: 2px; gap: 2px; }
+.bi-quick .qb-seg button { border: 0; border-radius: 999px; padding: .28rem .8rem; }
+.qb-range { display: inline-flex; align-items: center; gap: .4rem; }
+.qb-dash { color: var(--muted); }
+.qb-opts { display: inline-flex; flex-wrap: wrap; gap: .4rem; }
+.bi-quick .qb-opts button { padding: .28rem .8rem; }
+.bi-quick .qb-opts button::before { content: ''; display: inline-block; width: .7rem; height: .7rem; border: 1.5px solid currentColor; border-radius: 3px; margin-right: .4rem; vertical-align: -1px; }
+.bi-quick .qb-opts button[aria-pressed="true"]::before { background: #fff; box-shadow: inset 0 0 0 2px var(--pv); }

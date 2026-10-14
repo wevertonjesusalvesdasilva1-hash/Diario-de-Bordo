@@ -385,7 +385,9 @@ function quickBar(cube, side, apply) {
   } }, 'Só dias úteis');
   let active = null;
   function mark() { const n = f[side].data?.size ?? 0; btns.forEach((b, i) => b.setAttribute('aria-pressed', String(i === 0 ? n === 0 : i === active && n > 0))); }
-  box.append(el('span', { class: 'lbl' }, 'Período'), ...btns, el('label', { class: 'vf-d' }, 'De', from), el('label', { class: 'vf-d' }, 'Até', to), uteisBtn, multiBtn);
+  // three tidy groups: the period buttons (one joined control), the free interval, and the two switches
+  const grp = (label, ...kids) => el('div', { class: 'qb-g' }, el('span', { class: 'lbl' }, label), ...kids);
+  box.append(grp('Período', el('div', { class: 'qb-seg', role: 'group' }, ...btns)), grp('Intervalo', el('div', { class: 'qb-range' }, el('label', { class: 'vf-d' }, 'De', from), el('span', { class: 'qb-dash' }, '→'), el('label', { class: 'vf-d' }, 'Até', to))), grp('Opções', el('div', { class: 'qb-opts' }, uteisBtn, multiBtn)));
   mark();
   return box;
 }
