@@ -176,6 +176,7 @@ const legendNote = () => {
   return el('div', { class: 'bi-explain-box' }, el('p', {}, 'Para as mesmas peças de cada máquina:'),
     el('ul', {}, item(PALETTE[0], 'Tempo real gasto (h)', 'quanto tempo a máquina realmente levou, pelos horários da folha.'),
       item(PALETTE[3], 'Tempo que o padrão previa (h)', 'quanto tempo essas peças deveriam levar, segundo a matriz de tempos.'),
+      item('#94a3b8', 'Tempo real sem padrão (h) ⚠', 'peças que a matriz ainda não tem: foram produzidas e contam em horas e peças, mas ficam fora da eficiência. Complete a matriz na aba Base de dados.'),
       item('#fb7185', 'Eficiência (previsto ÷ real)', 'acima de 100%: a máquina foi mais rápida que o padrão (barra verde maior que a azul). Abaixo de 100%: demorou mais que o padrão.', true)));
 };
 const rowsOf = (groups) => groups.map((g) => ({ vals: g.vals, c: g.c }));
@@ -365,7 +366,7 @@ function pageEntrega(x) {
   const porDia = () => { const gr = groupP(x.cube, x.F('v1'), ['data']);
     return { kind: 'area', cats: gr.map((g) => ({ key: g.vals[0], label: ddmm(g.vals[0]) })), series: [{ name: 'Tempo que o padrão previa (h)', vals: gr.map((g) => M.entrega(g.c)), color: PALETTE[3] }, { name: 'Tempo real gasto (h)', vals: gr.map((g) => M.realComPadrao(g.c)), color: PALETTE[0] }], height: 280, fmt: f1, onPick: x.pick('v1', 'p', ['data']), selected: x.selOf('v1') }; };
   const porMaq = () => { const gr = groupP(x.cube, x.F('v2'), ['m']);
-    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Tempo real gasto (h)', vals: gr.map((g) => M.realComPadrao(g.c)), color: PALETTE[0] }, { name: 'Tempo que o padrão previa (h)', vals: gr.map((g) => M.entrega(g.c)), color: PALETTE[3] }],
+    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Tempo real gasto (h)', vals: gr.map((g) => M.realComPadrao(g.c)), color: PALETTE[0] }, { name: 'Tempo que o padrão previa (h)', vals: gr.map((g) => M.entrega(g.c)), color: PALETTE[3] }, { name: 'Tempo real sem padrão (h) ⚠', vals: gr.map((g) => M.horasSemPadrao(g.c)), color: '#94a3b8' }],
       lineAbove: true, line: { name: 'Eficiência (previsto ÷ real)', vals: gr.map((g) => M.efic(g.c)), fmt: fpct0, color: '#fb7185', ref: 1, refLabel: '100%' }, fmt: f1, onPick: x.pick('v2', 'p', ['m']), selected: x.selOf('v2') }; };
   const porPeca = () => { const gr = groupP(x.cube, x.F('v3'), ['pm']).filter((g) => M.entrega(g.c) > 0).map((g) => ({ g, v: M.entrega(g.c), e: M.efic(g.c) })).sort((a, b) => b.v - a.v);
     return { orient: 'h', cats: gr.map(({ g, e }) => ({ key: g.vals[0], label: g.vals[0], color: corEficS(e) })), series: [{ name: 'Tempo que o padrão previa (h)', vals: gr.map((r) => r.v), color: PALETTE[3] }], fmt: f1, tip: (i) => `real ${f1(M.realComPadrao(gr[i].g.c))} h · ${fpct0(gr[i].e)} · ${fint(M.qtdPecas(gr[i].g.c))} peças`, onPick: x.pick('v3', 'p', ['pm']), selected: x.selOf('v3') }; };
@@ -375,7 +376,16 @@ function pageEntrega(x) {
       { h: 'Eficiência', v: (r) => fpct(M.efic(r.c)), key: (r) => M.efic(r.c) ?? -1, n: true, bg: (r) => corEficS(M.efic(r.c)) }], rows, { order: 4, totals: (() => { const c = slice(x.cube, x.F('t1')); return ['Total', '', fint(M.qtdPecas(c)), f2(M.realComPadrao(c)), f2(M.entrega(c)), fpct(M.efic(c))]; })() }); };
   const semPadrao = () => { const rows = rowsOf(groupP(x.cube, x.F('t2'), ['pm'])).filter((r) => M.pecasSemPadrao(r.c) > 0);
     return table([{ h: 'Peça e modelo', v: (r) => r.vals[0] }, { h: u + 's', v: (r) => [...new Set(r.c.P.filter((p) => !(p.tpx > 0)).map((p) => p.m))].sort().join(', ') }, { h: 'Peças sem padrão', v: (r) => fint(M.pecasSemPadrao(r.c)), key: (r) => M.pecasSemPadrao(r.c), n: true }, { h: 'Horas reais', v: (r) => f2(M.horasSemPadrao(r.c)), key: (r) => M.horasSemPadrao(r.c), n: true }], rows, { order: 2 }); };
-  return [cards(),
+  // pieces without a standard time are never hidden: they count everywhere except in the efficiency, and this strip says so
+  const aviso = live(() => {
+    const c = slice(x.cube, x.F('cards')), sem = M.pecasSemPadrao(c);
+    if (!sem) return [];
+    const rows = rowsOf(groupP(x.cube, x.F('cards'), ['pm'])).filter((r) => M.pecasSemPadrao(r.c) > 0).sort((a, b) => M.horasSemPadrao(b.c) - M.horasSemPadrao(a.c))
+      .map((r) => [r.vals[0], [...new Set(r.c.P.filter((p) => !(p.tpx > 0)).map((p) => p.m))].sort().join(', '), M.pecasSemPadrao(r.c), +M.horasSemPadrao(r.c).toFixed(1)]);
+    return [el('div', { class: 'bi-warnbar', role: 'status' }, el('span', {}, '⚠ ', el('b', {}, `${fint(sem)} peças (${f1(M.horasSemPadrao(c))} h reais) estão sem tempo padrão.`), ' Elas continuam contando em peças, horas produzidas e em todos os gráficos; só ficam fora da eficiência, porque não há padrão para comparar. '),
+      el('button', { type: 'button', class: 'bi-more', onclick: () => openRecords(`Peças sem tempo padrão (${fint(sem)})`, ['Peça e modelo', u + 's', 'Peças', 'Horas reais'], rows, 'Cadastre o tempo na matriz (aba Base de dados → Matriz de tempos) e a eficiência passa a contar essas peças.') }, 'Ver quais'))];
+  }, 'bi-alerts');
+  return [aviso, cards(),
     el('div', { class: 'bi-grid' },
       vis(`TEMPO REAL × TEMPO PADRÃO POR ${u.toUpperCase()}`, explain(legendNote(), () => chartBox(porMaq)), { vid: 'v2', wide: true }),
       vis('POR DIA · tempo padrão × tempo real', explain('Cada dia: o que as peças feitas deveriam levar (padrão) contra o que realmente levaram. Quando a linha do padrão fica acima da real, o dia rendeu mais que o previsto.', () => chartBox(porDia)), { vid: 'v1' }),
