@@ -1,6 +1,6 @@
 // Small SVG charts for the BI pages (columns, bars, combo with a line on a second axis). No library.
 const SVG = 'http://www.w3.org/2000/svg';
-export const PALETTE = ['#8b5cf6', '#c4b5fd', '#7ee34f', '#ff7a5c', '#f5b942', '#38bdf8'];   // the Painel's colors
+export const PALETTE = ['#22d3ee', '#a78bfa', '#f472b6', '#a3e635', '#fbbf24', '#60a5fa'];   // neon on dark: translucent fills with bright edges
 
 export function el(tag, attrs = {}, ...kids) {
   const ns = attrs.svg === true;
@@ -16,6 +16,28 @@ export function el(tag, attrs = {}, ...kids) {
   return e;
 }
 const S = (tag, attrs, ...kids) => el(tag, { ...attrs, svg: true }, ...kids);
+// translucent gradient fill (bright edge is the stroke); cached per svg
+function paint(svg, color, dir = 'v') {
+  const cache = (svg._paint ??= new Map()), key = color + dir;
+  if (cache.has(key)) return cache.get(key);
+  let defs = svg.querySelector('defs'); if (!defs) { defs = S('defs'); svg.prepend(defs); }
+  const id = `bg${Math.random().toString(36).slice(2, 8)}`;
+  const [a, b] = dir === 'h' ? [0.1, 0.6] : dir === 'area' ? [0.5, 0.02] : [0.6, 0.08];
+  defs.append(S('linearGradient', { id, x1: 0, y1: 0, x2: dir === 'h' ? 1 : 0, y2: dir === 'h' ? 0 : 1 }, S('stop', { offset: '0%', 'stop-color': color, 'stop-opacity': a }), S('stop', { offset: '100%', 'stop-color': color, 'stop-opacity': b })));
+  cache.set(key, `url(#${id})`); return `url(#${id})`;
+}
+const bar = (svg, color, dir, glow, attrs) => S('rect', { ...attrs, rx: 3, fill: paint(svg, color, dir), stroke: color, 'stroke-width': 1.4, class: glow ? 'bar glow' : 'bar', style: `--c:${color}` });
+// smooth curve through the points (Catmull-Rom → Bézier), kept inside [lo, hi] vertically so it never dips below the axis
+function smooth(pts, lo, hi) {
+  if (pts.length < 2) return `M${pts[0][0]},${pts[0][1]}`;
+  const cl = (y) => Math.min(hi, Math.max(lo, y));
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] ?? p2;
+    d += ` C${p1[0] + (p2[0] - p0[0]) / 6},${cl(p1[1] + (p2[1] - p0[1]) / 6)} ${p2[0] - (p3[0] - p1[0]) / 6},${cl(p2[1] - (p3[1] - p1[1]) / 6)} ${p2[0]},${p2[1]}`;
+  }
+  return d;
+}
 const clip = (s, n) => { s = String(s ?? ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
 // nice axis maximum and ticks
@@ -37,7 +59,7 @@ export function drawChart(box, spec) {
   const avail = Math.max(box.clientWidth || 360, 240);
   const sel = selected && selected.size ? selected : null;
   const pickAttrs = (c) => (onPick ? { class: `pick${sel && !sel.has(c.key) ? ' dim' : ''}`, tabindex: 0, role: 'button', onclick: () => onPick(c.key), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(c.key); } } } : { class: sel && !sel.has(c.key) ? 'dim' : '' });
-  const legend = series.length > 1 || line ? el('div', { class: 'bi-leg' }, series.map((s) => el('span', {}, el('i', { style: `background:${s.color}` }), s.name)), line ? el('span', {}, el('i', { style: `background:${line.color ?? '#ff7a5c'}` }), line.name) : null) : null;
+  const legend = series.length > 1 || line ? el('div', { class: 'bi-leg' }, series.map((s) => el('span', {}, el('i', { style: `background:${s.color}` }), s.name)), line ? el('span', {}, el('i', { style: `background:${line.color ?? '#fb7185'}` }), line.name) : null) : null;
 
   if (orient === 'h') {
     const rowH = 24 * Math.max(1, stacked ? 1 : series.length) * (series.length > 1 && !stacked ? 0.8 : 1) + 6, labW = Math.min(200, Math.max(60, Math.min(26, Math.max(...cats.map((c) => String(c.label).length))) * 7.6));
@@ -50,7 +72,7 @@ export function drawChart(box, spec) {
         S('text', { x: labW - 6, y: y + rowH / 2, 'text-anchor': 'end', 'dominant-baseline': 'middle' }, clip(c.label, 26)));
       series.forEach((s, k) => {
         const w = Math.max(0, (s.vals[i] / max) * plot);
-        g.append(S('rect', { x: labW, y: y + k * bh, width: w, height: bh - 2, rx: 2, fill: c.color ?? s.color }),
+        g.append(bar(svg, c.color ?? s.color, 'h', cats.length * series.length <= 60, { x: labW, y: y + k * bh, width: w, height: bh - 2 }),
           S('text', { x: labW + w + 4, y: y + k * bh + bh / 2 - 1, 'dominant-baseline': 'middle', class: 'mut' }, fmt(s.vals[i]) + (tip ? ` · ${tip(i)}` : '')));
       });
       svg.append(g);
@@ -59,6 +81,7 @@ export function drawChart(box, spec) {
     return;
   }
 
+  if (spec.kind === 'area') return drawArea(box, spec, avail, legend, sel);
   // vertical columns
   const nS = series.length, bwMin = spec.barW ?? 22, minStep = stacked ? 34 : Math.max(34, nS * bwMin + 10);
   const step = Math.max(minStep, Math.min(90, (avail - 100) / cats.length));
@@ -82,7 +105,7 @@ export function drawChart(box, spec) {
     series.forEach((s, k) => {
       const v = s.vals[i] || 0, bx = stacked ? x0 + (step - bw) / 2 : x0 + (step - bw * nS) / 2 + k * bw;
       const yTop = y(stacked ? acc + v : v), hgt = Math.max(0, (stacked ? y(acc) : y(0)) - yTop);
-      g.append(S('rect', { x: bx, y: yTop, width: Math.max(1, bw - 1), height: hgt, rx: 2, fill: c.color ?? s.color }));
+      g.append(bar(svg, c.color ?? s.color, 'v', cats.length * nS <= 120, { x: bx, y: yTop, width: Math.max(1, bw - 1), height: hgt }));
       if (v && (bw >= 22 || (cats.length <= 14 && bw >= 14)) && !(stacked && hgt < 12)) g.append(S('text', { x: bx + bw / 2, y: stacked ? yTop + hgt / 2 : yTop - 3, 'text-anchor': 'middle', 'dominant-baseline': stacked ? 'middle' : 'auto', style: 'font-size:10px' }, fmt(v)));
       if (stacked) acc += v;
     });
@@ -93,9 +116,9 @@ export function drawChart(box, spec) {
   closeGroup(cats.length);
   if (line) {
     const pts = cats.map((c, i) => (line.vals[i] == null ? null : [left + i * step + step / 2, ly(line.vals[i])]));
-    const col = line.color ?? '#ff7a5c';
-    svg.append(S('polyline', { points: pts.filter(Boolean).map((p) => p.join(',')).join(' '), fill: 'none', stroke: col, 'stroke-width': 2 }));
-    pts.forEach((p, i) => { if (!p) return; svg.append(S('circle', { cx: p[0], cy: p[1], r: 3, fill: col }, S('title', {}, `${cats[i].label}\n${line.name}: ${(line.fmt ?? String)(line.vals[i])}`))); if (cats.length <= 16) svg.append(S('text', { x: p[0], y: p[1] - 7, 'text-anchor': 'middle', style: `font-size:10px;fill:${col}` }, (line.fmt ?? String)(line.vals[i]))); });
+    const col = line.color ?? '#fb7185';
+    const ok = pts.filter(Boolean); if (ok.length) svg.append(S('path', { d: smooth(ok, top, top + plotH), fill: 'none', stroke: col, 'stroke-width': 2.4, 'stroke-linecap': 'round', class: 'glow', style: `--c:${col}` }));
+    pts.forEach((p, i) => { if (!p) return; svg.append(S('circle', { cx: p[0], cy: p[1], r: 3.5, fill: '#fff', stroke: col, 'stroke-width': 2 }, S('title', {}, `${cats[i].label}\n${line.name}: ${(line.fmt ?? String)(line.vals[i])}`))); if (cats.length <= 16) svg.append(S('text', { x: p[0], y: p[1] - 7, 'text-anchor': 'middle', style: `font-size:10px;fill:${col}` }, (line.fmt ?? String)(line.vals[i]))); });
   }
   box.append(svg, legend ?? '');
 }
@@ -118,4 +141,33 @@ export function specToTable(spec) {
   const head = [...(grouped ? ['Grupo'] : []), 'Categoria', ...spec.series.map((s) => s.name), ...(spec.line ? [spec.line.name] : [])];
   const rows = spec.cats.map((c, i) => [...(grouped ? [c.group ?? ''] : []), c.label, ...spec.series.map((s) => s.vals[i]), ...(spec.line ? [spec.line.vals[i]] : [])]);
   return { head, rows };
+}
+
+// time series: one smooth glowing line per series over a translucent gradient; hovering a day shows a dashed guide and the values
+function drawArea(box, spec, avail, legend, sel) {
+  const { cats, series, fmt = String, onPick } = spec, n = cats.length;
+  const left = 58, right = 16, top = 16, bottom = 34, H = spec.height ?? 260, plotH = H - top - bottom;
+  const step = Math.max(26, (avail - left - right) / Math.max(1, n - 1)), W = Math.max(avail, left + right + (n - 1) * step);
+  const { max, ticks } = niceMax(Math.max(...series.flatMap((s) => s.vals), 0) * 1.1 || 1);
+  const x = (i) => left + i * step, y = (v) => top + plotH - (v / max) * plotH;
+  const svg = S('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img' });
+  ticks.forEach((t) => svg.append(S('line', { class: 'grid', x1: left, x2: W - right, y1: y(t), y2: y(t) }), S('text', { x: left - 6, y: y(t), 'text-anchor': 'end', 'dominant-baseline': 'middle', class: 'mut' }, fmt(t))));
+  const every = Math.max(1, Math.ceil(36 / step));
+  cats.forEach((c, i) => { if (i % every === 0) svg.append(S('text', { x: x(i), y: H - 12, 'text-anchor': 'middle', class: 'mut' }, c.label)); });
+  series.forEach((s) => {
+    const pts = s.vals.map((v, i) => [x(i), y(v || 0)]), base = top + plotH;
+    svg.append(S('path', { d: `${smooth(pts, top, base)} L${x(n - 1)},${base} L${x(0)},${base} Z`, fill: paint(svg, s.color, 'area'), stroke: 'none' }),
+      S('path', { d: smooth(pts, top, base), fill: 'none', stroke: s.color, 'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', class: 'glow', style: `--c:${s.color}` }));
+  });
+  const guide = S('line', { x1: 0, x2: 0, y1: top, y2: top + plotH, stroke: '#fff', 'stroke-dasharray': '4 4', opacity: 0, 'pointer-events': 'none' });
+  const dots = series.map((s) => S('circle', { r: 5, fill: '#fff', stroke: s.color, 'stroke-width': 3, opacity: 0, 'pointer-events': 'none' }));
+  svg.append(guide, ...dots);
+  cats.forEach((c, i) => {
+    const hit = S('rect', { x: x(i) - step / 2, y: top, width: step, height: plotH, fill: 'transparent', class: `pick${sel && !sel.has(c.key) ? ' dim' : ''}`, tabindex: 0,
+      onmouseenter: () => { guide.setAttribute('x1', x(i)); guide.setAttribute('x2', x(i)); guide.setAttribute('opacity', 0.7); dots.forEach((d, k) => { d.setAttribute('cx', x(i)); d.setAttribute('cy', y(series[k].vals[i] || 0)); d.setAttribute('opacity', 1); }); },
+      onmouseleave: () => { guide.setAttribute('opacity', 0); dots.forEach((d) => d.setAttribute('opacity', 0)); },
+      onclick: () => onPick?.(c.key) }, S('title', {}, `${c.label}\n${series.map((s) => `${s.name}: ${fmt(s.vals[i])}`).join('\n')}`));
+    svg.append(hit);
+  });
+  box.append(svg, legend ?? '');
 }

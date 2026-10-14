@@ -1503,10 +1503,10 @@ function showLock(msg) {
 $('lockform').addEventListener('submit', async (e) => {
   e.preventDefault();
   const r = await login($('lockcode').value.trim());
-  if (r.ok) { $('lock').hidden = true; $('lockcode').value = ''; loadOperators(); maybeResume(); } else showLock(r.error || 'Código inválido');
+  if (r.ok) { $('lock').hidden = true; $('lockcode').value = ''; loadOperators(); maybeResume(); showTab('panel'); } else showLock(r.error || 'Código inválido');
 });
 window.addEventListener('need-login', () => showLock('Digite o código de acesso'));
-checkLogin().then((st) => { if (st.required && !st.ok) showLock(); else { loadOperators(); maybeResume(); } });
+checkLogin().then((st) => { if (st.required && !st.ok) showLock(); else { loadOperators(); maybeResume(); showTab('panel'); } });
 
 function updateUsage() {
   $('usage-text').textContent = usageText();

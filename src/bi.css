@@ -100,3 +100,8 @@
 .bi-alerts { min-height: 4.4rem; align-content: flex-start; }
 .bi-quick .vf-d { font-size: .8rem; color: var(--muted); }
 .bi-quick button[aria-pressed="true"] { background: var(--pv); color: #fff; border-color: var(--pv); }
+
+.bi-ch .glow { filter: drop-shadow(0 0 4px var(--c)); }
+.bi-ch .bar { transition: opacity .2s; }
+.bi-ch .bar:hover { stroke-width: 2.2; }
+.bi-ch .pick:hover rect.bar { filter: drop-shadow(0 0 7px var(--c)); }

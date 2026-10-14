@@ -163,3 +163,12 @@ export function destaques(cube, f = {}, { unit = 'Máquina' } = {}) {
   return out;
 }
 const pct = (c) => M.pct(c);
+
+// values a slicer can still offer: the ones that exist after the OTHER slicers of the same table (like Power BI's linked slicers)
+export function optionsFor(cube, side, col, f = {}) {
+  const dims = side === 'p' ? PD : SD, rows = side === 'p' ? cube.prod : cube.stops;
+  const others = active(Object.fromEntries(Object.entries(f[side] ?? {}).filter(([k]) => k !== col && !(col === 'mes' && k === 'data'))));   // days narrow by month, never the other way around
+  const set = new Set();
+  for (const r of rows) if (matches(others, dims, r)) set.add(dims[col](r));
+  return [...set].filter((v) => v !== '' && v != null).sort(col === 'mes' ? (a, b) => MORDER(a) - MORDER(b) : natural);
+}

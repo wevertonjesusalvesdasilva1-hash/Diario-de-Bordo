@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCube, slice, M, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, corPct, corGanho, selecionado, anomalias, destaques } from '../src/core/bi.js';
+import { buildCube, slice, M, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, corPct, corGanho, selecionado, anomalias, destaques, optionsFor } from '../src/core/bi.js';
 
 const P = (m, d, p, o, t, c, h, tp) => ({ m, d, p, o, c1: t === 1 ? c : '', i1: '', f1: '', c2: t === 2 ? c : '', i2: '', f2: '', c3: t === 3 ? c : '', i3: '', f3: '', t, ob: '', h, tp });
 const S = (m, d, c, t, mo, h) => ({ m, d, c, i: '08:00', f: '09:00', t, mo, ds: '', h });
@@ -63,4 +63,11 @@ test('registros suspeitos e destaques', () => {
   assert.equal(anomalias(big).length, 2);
   const d = destaques(cube, {});
   assert.ok(d.some((x) => /Menor disponibilidade: RAW06/.test(x.text)) && d.some((x) => /Maior motivo de parada: SET-UP/.test(x.text)));
+});
+
+test('filtros ligados: os dias seguem o mês, o mês não some pelo dia', () => {
+  const f = { p: { mes: new Set(['agosto']) }, s: {} };
+  assert.deepEqual(optionsFor(cube, 'p', 'data', f), ['2026-08-01', '2026-08-02']);
+  const g = { p: { data: new Set(['2026-08-01']) }, s: {} };
+  assert.deepEqual(optionsFor(cube, 'p', 'mes', g), ['agosto', 'setembro']);
 });
