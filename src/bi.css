@@ -118,6 +118,28 @@
 
 .bi-quick .uteis[aria-pressed="true"] { background: var(--pv); color: #fff; border-color: var(--pv); }
 
-.bi-alerts { display: block; min-height: 15.5rem; }
+.bi-alerts { display: block; min-height: 14rem; }
 .bi-acards { padding-top: 4px; }
 .bi-acards .acard { min-height: 13.5rem; }
+
+/* notebook screens: the BI pages use the whole width and never scroll sideways */
+.bi-main { grid-template-columns: minmax(0, 1fr); }
+.bi-layout, .bi, #view-bi, #view-panel { min-width: 0; }
+body.pbi .top, body.pbi main { max-width: min(1760px, 100%); }
+body.pbi { overflow-x: hidden; }
+.bi-quick { max-width: 100%; }
+@media (max-width: 1280px) { .bi-layout { grid-template-columns: 180px minmax(0, 1fr); } .bi-acards .acard { flex-basis: 260px; } }
+.bi-acards.acards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); overflow: visible; scroll-snap-type: none; padding: 4px 0; }
+.bi-acards.acards > .acard { flex: none; min-width: 0; }
+.bi-alerts { min-height: 0; }
+.bi-acards.acards { grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 12px; }
+.bi-acards .acard { padding: 14px; gap: 8px; min-height: 12.5rem; }
+.bi-acards .ftop { flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+.bi-acards .kchip { max-width: 100%; }
+.bi-acards .fbig2 { flex-wrap: wrap; gap: 2px 8px; }
+.bi-acards .fbig2 b { font-size: 2rem; }
+.bi-acards .fmachine { font-size: 1.15rem; }
+.bi-acards.acards { grid-template-columns: repeat(auto-fit, minmax(188px, 1fr)); }
+.bi-acards .tbrief { font-size: .86rem; -webkit-line-clamp: 5; }
+.bi-acards .fbig2 b { font-size: 1.75rem; }
+.bi-quick button, .bi-quick .vf-d { font-size: .76rem; padding-block: .18rem; }

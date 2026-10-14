@@ -837,6 +837,7 @@ function showTab(name) {
   $('tab-analysis').classList.toggle('on', name === 'analysis');
   $('view-bi').hidden = $('view-panel').hidden = $('panel-now-title').hidden = name !== 'panel';   // indicators first, today's sheets at the end
   $('stats').hidden = $('upload').hidden = name === 'panel';
+  document.body.classList.toggle('pbi', name === 'panel');   // the BI uses the full width of the screen
   $('tab-panel').classList.toggle('on', name === 'panel');
   $('tab-panel').setAttribute('aria-selected', String(name === 'panel'));
   $('tab-read').setAttribute('aria-selected', String(name === 'read'));
