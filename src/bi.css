@@ -105,3 +105,7 @@
 .bi-ch .bar { transition: opacity .2s; }
 .bi-ch .bar:hover { stroke-width: 2.2; }
 .bi-ch .pick:hover rect.bar { filter: drop-shadow(0 0 7px var(--c)); }
+
+.bi-slicer header .hd { display: inline-flex; gap: .5rem; align-items: center; }
+.bi-slicer header .multi { color: var(--muted); border: 1px solid var(--line2); border-radius: 999px; padding: 0 .45rem; }
+.bi-slicer header .multi[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }

@@ -49,15 +49,23 @@ const fkey = () => `${ui.g}.${ui.page}`;
 const pageFilter = () => (ui.filt[fkey()] ??= { p: {}, s: {} });
 const optLabel = (col, v) => (col === 'data' ? dmy(v) : col === 't' ? `Turno ${v}` : v);
 
+// Like Power BI: a plain click selects only that item (click it again to clear); Ctrl/⌘ + click (or the "Vários" switch, for touch screens) adds or removes items
 function slicerBox(title, side, col, cube, onChange) {
   const f = pageFilter(), sets = () => f[side];
+  let multi = false;
   const list = el('ul'), search = el('input', { type: 'search', placeholder: 'Buscar', 'aria-label': `Buscar em ${title}` });
-  const box = el('section', { class: 'bi-slicer' }, el('header', {}, el('span', {}, title), el('button', { type: 'button', onclick: () => { delete sets()[col]; fill(); onChange(); } }, 'Limpar')), search, list);
+  const vary = el('button', { type: 'button', class: 'multi', 'aria-pressed': 'false', title: 'Ligado: cada clique soma ou tira um item (o mesmo que Ctrl + clique)', onclick: () => { multi = !multi; vary.setAttribute('aria-pressed', String(multi)); } }, 'Vários');
+  const box = el('section', { class: 'bi-slicer' }, el('header', {}, el('span', {}, title), el('span', { class: 'hd' }, vary, el('button', { type: 'button', onclick: () => { delete sets()[col]; fill(); onChange(); } }, 'Limpar'))), search, list);
+  function pick(v, add) {
+    const cur = sets()[col];
+    if (add) { const s2 = (sets()[col] ??= new Set()); if (s2.has(v)) s2.delete(v); else s2.add(v); if (!s2.size) delete sets()[col]; }
+    else if (cur && cur.size === 1 && cur.has(v)) delete sets()[col];
+    else sets()[col] = new Set([v]);
+    fill(); onChange();
+  }
   function fill() {
     const vals = optionsFor(cube, side, col, f), q = search.value.trim().toLowerCase(), cur = sets()[col];
-    list.replaceChildren(...vals.filter((v) => !q || optLabel(col, v).toLowerCase().includes(q)).map((v) => el('li', {}, el('label', {}, el('input', { type: 'checkbox', checked: cur?.has(v) || null, onchange: (e) => {
-      const s = (sets()[col] ??= new Set()); if (e.target.checked) s.add(v); else s.delete(v); if (!s.size) delete sets()[col]; onChange();
-    } }), optLabel(col, v)))));
+    list.replaceChildren(...vals.filter((v) => !q || optLabel(col, v).toLowerCase().includes(q)).map((v) => el('li', {}, el('label', {}, el('input', { type: 'checkbox', checked: cur?.has(v) || null, onclick: (e) => { e.preventDefault(); pick(v, e.ctrlKey || e.metaKey || multi); } }), optLabel(col, v)))));
   }
   search.addEventListener('input', fill); fill();
   slicerFills.push(fill);
