@@ -84,3 +84,6 @@
 .bi-ch rect { transition: opacity .2s; }
 @media (prefers-reduced-motion: reduce) { .bi-ch svg { animation: none; } }
 .bi-notehost { min-height: 2.1rem; }
+
+.bi-h2 { margin: .4rem 0 .6rem; font: 700 1.15rem var(--f-head, inherit); }
+#view-bi { margin-bottom: 1.6rem; }

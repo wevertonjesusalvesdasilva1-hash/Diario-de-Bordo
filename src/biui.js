@@ -229,11 +229,11 @@ const mergeF = (a, b) => {
 };
 
 export async function renderBiUI(root, ctx) {
-  const wrap = el('div', { class: 'bi pn' }), bar = el('div', { class: 'bi-bar' }), main = el('div'), side = el('aside', { class: 'bi-side' });
-  const seg = el('div', { class: 'bi-seg', role: 'group', 'aria-label': 'Grupo' }, Object.entries(GROUPS).map(([g, v]) => el('button', { type: 'button', 'aria-pressed': String(ui.g === g), onclick: () => { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; try { localStorage.setItem('bi.g', g); } catch { /* ignore */ } renderBiUI(root, ctx); } }, v.name)));
+  const wrap = el('div', { class: 'bi pn' }), bar = el('div', { class: 'bi-bar' }), title = el('h2', { class: 'bi-h2' }, 'Indicadores'), main = el('div'), side = el('aside', { class: 'bi-side' });
+  const seg = el('div', { class: 'bi-seg', role: 'group', 'aria-label': 'Grupo' }, Object.entries(GROUPS).map(([g, v]) => el('button', { type: 'button', 'aria-pressed': String(ui.g === g), onclick: () => { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; try { localStorage.setItem('bi.g', g); } catch { /* ignore */ } ctx.onGroup?.(g); renderBiUI(root, ctx); } }, v.name)));
   const tabs = el('div', { class: 'bi-pages', role: 'group', 'aria-label': 'Página' }, PAGES[ui.g].map(([id, label]) => el('button', { type: 'button', 'aria-pressed': String(ui.page === id), onclick: () => { ui.page = id; ui.sel = null; renderBiUI(root, ctx); } }, label)));
   bar.append(seg, tabs);
-  wrap.append(bar, main);
+  wrap.append(title, bar, main);
   const baseHost = el('section', { class: 'card bd-card' });
   root.replaceChildren(wrap);
   main.append(el('p', { class: 'bi-note' }, 'Lendo a base…'));

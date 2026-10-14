@@ -550,8 +550,6 @@ function includedPages() { return okPages().filter((p) => p.include); }
 // ---- "Visualizar": everything (default), only RAW or only usinagem. It filters what is SHOWN (sheets, cards, charts);
 // the OK and the analysis are still made on all the selected sheets, and exports keep their own buttons.
 let viewGroup = (() => { try { const v = localStorage.getItem('mt-view'); return v === 'raw' || v === 'usi' ? v : 'all'; } catch { return 'all'; } })();
-let pbMode = 'hist';   // "Painel BI": 'hist' = the history (BI reports) · 'now' = the sheets being read
-try { pbMode = localStorage.getItem('mt-pbmode') === 'now' ? 'now' : 'hist'; } catch { /* private mode */ }
 const pageGroup = (p) => (p.machine ? listGroup(p.machine) : (p.group ?? 'raw'));
 const machineGroup = (m) => (/^RAW/.test(m ?? '') ? 'raw' : /^(UMC|HMC|NCBZ)/.test(m ?? '') ? 'usi' : 'none');
 const bothGroups = () => { const g = new Set(state.pages.filter((p) => p.status === 'ok' || p.status === 'lendo').map(pageGroup)); return g.has('raw') && g.has('usi'); };
@@ -560,7 +558,7 @@ const inView = (p) => effView() === 'all' || pageGroup(p) === effView();
 const machineInView = (m) => effView() === 'all' || machineGroup(m) === effView();
 function updateViewBar() {
   const bar = $('viewbar'), both = bothGroups();
-  bar.hidden = !both || (state.tab === 'panel' && pbMode === 'hist');   // the BI has its own RAW / Usinagem switch
+  bar.hidden = !both;
   if (!both) return;
   const count = (g) => state.pages.filter((p) => (p.status === 'ok' || p.status === 'lendo') && pageGroup(p) === g).length;
   $('viewseg').replaceChildren(...[['all', 'Tudo', state.pages.filter((p) => p.status === 'ok' || p.status === 'lendo').length], ['raw', 'RAW', count('raw')], ['usi', 'Usinagem', count('usi')]]
@@ -831,18 +829,14 @@ function updateReviewUi() {
 }
 
 function showTab(name) {
-  if (name === 'panel' && state.tab !== 'panel' && viewGroup !== 'all') setBiGroup(viewGroup);   // entering the BI follows "Visualizar"
   state.tab = name;
   updateViewBar();
   $('view-read').hidden = name !== 'read';
   $('view-analysis').hidden = name !== 'analysis';
   $('tab-read').classList.toggle('on', name === 'read');
   $('tab-analysis').classList.toggle('on', name === 'analysis');
-  const hist = name === 'panel' && pbMode === 'hist';
-  $('pbmode').hidden = name !== 'panel';
-  $('view-panel').hidden = !(name === 'panel' && pbMode === 'now');
-  $('view-bi').hidden = !hist;
-  $('stats').hidden = $('upload').hidden = hist;   // the history works on the saved base, not on the sheets being read
+  $('view-bi').hidden = $('view-panel').hidden = $('panel-now-title').hidden = name !== 'panel';   // indicators first, today's sheets at the end
+  $('stats').hidden = $('upload').hidden = name === 'panel';
   $('tab-panel').classList.toggle('on', name === 'panel');
   $('tab-panel').setAttribute('aria-selected', String(name === 'panel'));
   $('tab-read').setAttribute('aria-selected', String(name === 'read'));
@@ -1165,10 +1159,7 @@ const MOT_COLOR = Object.fromEntries(MOTIVOS_ALL.map((m, i) => [m, `var(--m${i})
 MOT_COLOR['SEM MOTIVO'] = 'var(--muted)';
 const motColor = (m) => MOT_COLOR[m] ?? 'var(--muted)';
 
-function renderPanelTab() {
-  $('pbmode').replaceChildren(...[['hist', 'Histórico (BI)'], ['now', 'Folhas de hoje']].map(([v, t]) => h('button', { type: 'button', 'aria-pressed': String(pbMode === v), onclick: () => { pbMode = v; try { localStorage.setItem('mt-pbmode', v); } catch { /* private mode */ } showTab('panel'); } }, t)));
-  if (pbMode === 'hist') renderBi(); else renderPanel();
-}
+function renderPanelTab() { renderBi(); renderPanel(); }
 function renderPanel() {
   const root = $('view-panel');
   const inc = includedPages();
@@ -1203,12 +1194,13 @@ $('tab-panel').addEventListener('click', () => showTab('panel'));
 function openSubmitBase() {
   openSubmit({
     pages: includedPages(), reviewed: state.reviewed, flagsOf: countFlags, toast, goRead: () => showTab('read'),
-    onDone: ({ g, batch, pages, result }) => { for (const p of pages) { p.submitted = { g, batch, at: new Date().toISOString(), prod: result.added.prod, stops: result.added.stops }; renderPage(p); } persist(0); if (state.tab === 'panel' && pbMode === 'hist') renderBi(); },
+    onDone: ({ g, batch, pages, result }) => { for (const p of pages) { p.submitted = { g, batch, at: new Date().toISOString(), prod: result.added.prod, stops: result.added.stops }; renderPage(p); } persist(0); if (state.tab === 'panel') renderBi(); },
   });
 }
 $('submitbase').addEventListener('click', openSubmitBase);
 function renderBi() {
-  renderBiUI($('view-bi'), { toast, renderBase: (host) => renderBaseCard(host, { toast, reload: renderBi }) });
+  if (viewGroup !== 'all') setBiGroup(viewGroup);   // "Visualizar" (RAW / Usinagem) also picks the BI group
+  renderBiUI($('view-bi'), { toast, onGroup: (g) => { if (bothGroups()) setView(g); }, renderBase: (host) => renderBaseCard(host, { toast, reload: renderBi }) });
 }
 
 $('ok').addEventListener('click', giveOk);
