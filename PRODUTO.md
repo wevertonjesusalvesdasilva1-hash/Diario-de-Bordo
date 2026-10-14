@@ -187,3 +187,10 @@ No topo do painel há o botão discreto **⤓ Exportar**. Ele abre um menu com *
 - **PDF (apresentação):** slides em paisagem 16:9: capa, indicadores com o medidor de aproveitamento, motivo (rosca com a tabela), máquina e turno, mapa de calor, paradas por hora, maiores paradas e um anexo com todas as paradas (dia, máquina, motivo, início, fim, duração, operador e observação).
 - **Excel:** a primeira aba ("Apresentação") traz os mesmos slides como imagens; as outras são tabelas formatadas no mesmo tema (cabeçalho colorido, barras de dados e escala de cor no mapa de calor): Resumo, Por motivo, Por máquina, Por turno, Por hora, Mapa de calor e Paradas (com filtro e observação).
 - **Gráficos editáveis no Excel:** as abas Por motivo (rosca), Por máquina (barras), Por turno (colunas) e Por hora (área) trazem um gráfico nativo do Excel ao lado da tabela, ligado aos números da própria aba: dá para mudar cores, títulos e tipo, e ele acompanha se você editar os valores. Os gráficos são escritos no arquivo por `src/xlsxcharts.js` (a biblioteca `exceljs` não cria gráficos). O Excel usa `exceljs`, baixada só quando se exporta (arquivo separado).
+
+### Visualizar: tudo, só RAW ou só usinagem
+Quando há folhas de RAW **e** de usinagem na leitura, aparece abaixo das abas a barra **Visualizar: Tudo · RAW · Usinagem** (com o número de folhas de cada). A escolha vale para as três abas e fica lembrada:
+- **Conferência:** só as folhas do grupo escolhido ficam na lista, e os números do topo (folhas, produção, paradas, a conferir) passam a contar só elas.
+- **Análise:** só os cards das máquinas do grupo; os filtros de máquina e de tipo mostram só o que existe nele.
+- **Painel:** todos os gráficos, tabelas de detalhes e exportações (PDF/Excel) usam só o grupo, com um selo "Só RAW" ou "Só usinagem" no título.
+Isso só muda o que é **mostrado**. O OK e a análise continuam sendo feitos com todas as folhas selecionadas, e os botões de baixar Excel mantêm as suas próprias opções ("selecionadas", "com todas", "só RAW", "só usinagem"). Se só houver um tipo de folha, a barra não aparece.

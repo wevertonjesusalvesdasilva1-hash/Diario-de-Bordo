@@ -501,6 +501,7 @@ const machinesFor = (p) => (p.group ? MAQUINAS.filter((m) => listGroup(m) === p.
 function renderPage(p) {
   const root = $(`page-${p.id}`);
   if (!root) return;
+  root.hidden = !inView(p);
   root.classList.toggle('skipped', p.status === 'ok' && !p.include);
   const flags = p.status === 'ok' ? countFlags(p) : 0;
   const header = h('header', {},
@@ -541,13 +542,41 @@ function renderPage(p) {
 function okPages() { return state.pages.filter((p) => p.status === 'ok'); }
 function includedPages() { return okPages().filter((p) => p.include); }
 
+// ---- "Visualizar": everything (default), only RAW or only usinagem. It filters what is SHOWN (sheets, cards, charts);
+// the OK and the analysis are still made on all the selected sheets, and exports keep their own buttons.
+let viewGroup = (() => { try { const v = localStorage.getItem('mt-view'); return v === 'raw' || v === 'usi' ? v : 'all'; } catch { return 'all'; } })();
+const pageGroup = (p) => (p.machine ? listGroup(p.machine) : (p.group ?? 'raw'));
+const machineGroup = (m) => (/^RAW/.test(m ?? '') ? 'raw' : /^(UMC|HMC|NCBZ)/.test(m ?? '') ? 'usi' : 'none');
+const bothGroups = () => { const g = new Set(state.pages.filter((p) => p.status === 'ok' || p.status === 'lendo').map(pageGroup)); return g.has('raw') && g.has('usi'); };
+const effView = () => (bothGroups() ? viewGroup : 'all');
+const inView = (p) => effView() === 'all' || pageGroup(p) === effView();
+const machineInView = (m) => effView() === 'all' || machineGroup(m) === effView();
+function updateViewBar() {
+  const bar = $('viewbar'), both = bothGroups();
+  bar.hidden = !both;
+  if (!both) return;
+  const count = (g) => state.pages.filter((p) => (p.status === 'ok' || p.status === 'lendo') && pageGroup(p) === g).length;
+  $('viewseg').replaceChildren(...[['all', 'Tudo', state.pages.filter((p) => p.status === 'ok' || p.status === 'lendo').length], ['raw', 'RAW', count('raw')], ['usi', 'Usinagem', count('usi')]]
+    .map(([v, t, n]) => h('button', { type: 'button', class: viewGroup === v ? 'on' : '', onclick: () => setView(v) }, `${t} `, h('small', {}, `(${n})`))));
+}
+function setView(v) {
+  viewGroup = v;
+  try { localStorage.setItem('mt-view', v); } catch { /* private mode */ }
+  resetPanelSelection();
+  for (const p of state.pages) renderPage(p);
+  updateSummary();
+  if (state.tab === 'analysis') renderAnalysis();
+  if (state.tab === 'panel') renderPanel();
+}
+
 function updateSummary() {
   if (state.reviewed && sig() !== state.okSig) resetReview(true);
   const any = state.pages.length > 0;
   $('exportbar').hidden = !state.pages.some((p) => p.status === 'ok');
   updateReviewUi();
   $('tools').hidden = !any;
-  const inc = includedPages();
+  updateViewBar();
+  const incAll = includedPages(), inc = incAll.filter(inView);
   const { prod, stops } = allRows(inc);
   const flags = inc.reduce((n, p) => n + countFlags(p), 0);
   renderFiles();
@@ -556,8 +585,8 @@ function updateSummary() {
   $('dellast').textContent = last.length ? `Zerar última leitura (${last[0].file}) e subir novo arquivo` : 'Zerar última leitura';
   $('undo').hidden = !state.undo;
   const all = okPages().length;
-  $('selcount').textContent = all ? `${inc.length} de ${all} folha(s) selecionada(s)` : '';
-  $('xlsx').disabled = !inc.length;
+  $('selcount').textContent = all ? `${incAll.length} de ${all} folha(s) selecionada(s)` : '';
+  $('xlsx').disabled = !incAll.length;
   $('quick').textContent = flags ? `Revisão rápida (${flags})` : 'Revisão rápida';
   $('xlsxall').textContent = `Baixar Excel com todas (${all})`;
   const nRaw = groupPages('raw').length, nUsi = groupPages('usi').length;
@@ -1005,7 +1034,9 @@ function renderAnalysis() {
   const root = $('view-analysis');
   const a = state.analysis;
   if (!a) { root.replaceChildren(h('p', { class: 'note' }, 'Dê o OK na aba de conferência para gerar a análise.')); return; }
-  const report = a.report ?? [];
+  const hiddenN = a.report?.hidden ?? 0;
+  const report = (a.report ?? []).filter((c) => machineInView(c.machine));
+  report.hidden = hiddenN;
   const machines = [...new Set(report.map((c) => c.machine))].sort((x, y) => String(x).localeCompare(String(y), 'pt-BR'));
   if (anaMachine !== 'all' && !machines.includes(anaMachine)) anaMachine = 'all';
   const kindsPresent = KINDS.filter((k) => report.some((c) => c.kind === k.id));
@@ -1109,9 +1140,11 @@ function renderPanel() {
   const root = $('view-panel');
   const inc = includedPages();
   if (!inc.length) { root.replaceChildren(h('p', { class: 'note' }, 'Suba e leia uma folha para ver o painel.')); return; }
+  panelOpt.group = effView(); // the group comes from "Visualizar" (RAW / usinagem / tudo)
   const P = buildPanel(inc, panelOpt);
   const hasRaw = inc.some((p) => listGroup(p.machine) === 'raw'), hasUsi = inc.some((p) => listGroup(p.machine) === 'usi');
   const groups = [['all', 'Todas as máquinas']]; if (hasRaw && hasUsi) groups.push(['raw', 'Só RAW'], ['usi', 'Só usinagem']);
+  const viewLabel = { all: '', raw: 'Só RAW', usi: 'Só usinagem' }[panelOpt.group];
   const note = state.reviewed ? null : h('p', { class: 'note' }, 'Atenção: dados ainda não aprovados com o OK. Os números podem mudar após a conferência.');
   if (!P.byMachine.length) {
     const sel = (opts, cur, fn) => { const el = h('select', {}, opts.map(([v, t]) => h('option', { value: v, selected: String(v) === String(cur) }, t))); el.addEventListener('change', () => { fn(el.value); renderPanel(); }); return el; };
@@ -1120,7 +1153,7 @@ function renderPanel() {
       h('p', { class: 'note' }, 'Sem horários válidos para este filtro.')));
     return;
   }
-  const exportOpt = () => ({ sheets: inc.length, who: (c) => (c ? operatorName(c) || `chapa ${c}` : ''), groupLabel: (groups.find(([v]) => v === panelOpt.group) ?? [])[1] === 'Todas as máquinas' ? '' : (groups.find(([v]) => v === panelOpt.group) ?? [])[1] ?? '',
+  const exportOpt = () => ({ sheets: inc.length, who: (c) => (c ? operatorName(c) || `chapa ${c}` : ''), groupLabel: viewLabel,
     dayLabel: panelOpt.day === 'all' ? '' : `Dia ${(P.days.find((d) => String(d.key) === String(panelOpt.day)) ?? {}).label ?? ''}` });
   const onExport = async (fmt, theme) => {
     const mod = await import('./panelexport.js');
@@ -1128,7 +1161,8 @@ function renderPanel() {
     toast(fmt === 'pdf' ? `PDF gerado (${n} slides).` : 'Excel gerado, com os gráficos na aba "Apresentação".');
   };
   renderPanelUI(root, P, { fmtDur, motColor, toast, onExport, who: (c) => (c ? operatorName(c) || `chapa ${c}` : ''), note,
-    filters: { groups, days: P.days, opt: panelOpt, onChange: (o) => { Object.assign(panelOpt, o); resetPanelSelection(); renderPanel(); } } });
+    scopeLabel: viewLabel,
+    filters: { groups: [], days: P.days, opt: panelOpt, onChange: (o) => { Object.assign(panelOpt, o); resetPanelSelection(); renderPanel(); } } });
 }
 $('tab-panel').addEventListener('click', () => showTab('panel'));
 

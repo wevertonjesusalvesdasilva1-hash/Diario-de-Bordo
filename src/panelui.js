@@ -315,7 +315,7 @@ export function renderPanelUI(root, P, ctx) {
     h('b', {}, fmtDur(t.min)), h('div', {}, h('span', {}, `${t.machine} · ${t.motivo}`), h('small', {}, t.desc || `linha ${t.linha || '?'} · ${t.clock}`)),
     h('button', { type: 'button', class: 'ghost', dataset: { act: 'goto', p: t.page, k: t.table, r: t.ri } }, 'Ir para a linha')))) : h('p', { class: 'note' }, 'Nenhuma parada registrada.'));
 
-  ui.append(card('pn-head', h('h2', { class: 'ptitle' }, 'Painel · tempo parado'), filters, ctx.note ?? ''), kpis,
+  ui.append(card('pn-head', h('h2', { class: 'ptitle' }, 'Painel · tempo parado', ctx.scopeLabel ? h('span', { class: 'pn-scope' }, ctx.scopeLabel) : null), filters, ctx.note ?? ''), kpis,
     h('div', { class: 'pn-grid2' }, cardMot, cardDrill), heat, slot('cell', 'Detalhes do mapa de calor'),
     h('div', { class: 'pn-grid3' }, machines, cardGauge, shifts),
     h('div', { class: 'pn-pair' }, slot('machine', 'Detalhes da máquina'), slot('turno', 'Detalhes do turno')),

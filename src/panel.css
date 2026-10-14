@@ -225,3 +225,5 @@
 .pn-expb button:hover { transform: translateY(-2px); border-color: var(--pv); }
 .pn-expb .light { background: #fff; color: #15141c; } .pn-expb .dark { background: #0b0b12; color: #f2f2f7; }
 .pn-head { z-index: 6; }
+
+.viewbar { --pv: #7c3aed; --pg: rgb(124 58 237 / .35); --pbg: color-mix(in srgb, var(--ink) 6%, transparent); }

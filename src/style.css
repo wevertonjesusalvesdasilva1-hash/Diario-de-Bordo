@@ -778,3 +778,10 @@ td.auto.edited::after { content: "editado"; }
 .bar.inline .actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .bar.inline .actions button { flex: 0 1 auto; }
 #toast { bottom: 1.5rem; }
+
+/* Visualizar: tudo / RAW / usinagem */
+.viewbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; }
+.viewbar[hidden] { display: none; }
+.viewbar .vlabel { color: var(--muted); font: 600 .74rem var(--f-body); letter-spacing: .08em; text-transform: uppercase; }
+.viewbar .pn-seg button small { opacity: .75; font-weight: 500; }
+.pn-scope { margin-left: 12px; padding: 3px 12px; border-radius: 999px; background: var(--pv); color: #fff; font: 700 .72rem var(--f-body); vertical-align: middle; }
