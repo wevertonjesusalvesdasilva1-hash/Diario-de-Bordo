@@ -259,7 +259,7 @@ function pageGeral(x) {
       onPick: (key) => { ui.t24.key = ui.t24.key === key ? null : key; v24.rebuild(); }, selected: ui.t24.key ? new Set([ui.t24.key]) : null, rowsOf24: rows,
       tip: (i) => `${rows[i].m} · ${dmy(rows[i].d)} · total ${f1(rows[i].tot)} h${rows[i].tot > 24.0001 ? ' ⚠ passa de 24 h' : ''}${rows[i].overlapH > 0.01 ? ` · ${f1(rows[i].overlapH)} h no mesmo horário` : ''}` }; };
   const sel24 = el('select', { 'aria-label': 'O que mostrar', onchange: (e) => { load24 = e.target.value; v24.rebuild(); } },
-    el('option', { value: 'pior' }, `Pior ${u.toLowerCase()} de cada dia`), el('option', { value: 'acima' }, 'Só os dias acima de 24 h'), ...options(x.cube, 'p', 'm').map((m) => el('option', { value: m }, m)));
+    el('option', { value: 'pior' }, `${u} mais carregado de cada dia`), el('option', { value: 'acima' }, 'Só os dias com erro (passam de 24 h)'), ...options(x.cube, 'p', 'm').map((m) => el('option', { value: m }, `Só ${m}`)));
   // the chart and, under it, the records it is made of (editable); a clicked bar is highlighted in the table
   const tblBtn = el('button', { type: 'button', class: 'vf-btn', 'aria-expanded': 'false', onclick: () => { ui.t24.open = !ui.t24.open; v24.rebuild(); } }, '▦ Abrir tabela');
   const build24 = () => {
