@@ -1,6 +1,6 @@
 // "4 · BI": the Power BI reports (RAW and usinagem) rebuilt on the history. Numbers come from core/bi.js (the report's own measures).
 import './bi.css';
-import { buildCube, slice, M, options, optionsFor, auditoria24, cardsBI, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
+import { buildCube, slice, M, corEfic, options, optionsFor, auditoria24, cardsBI, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
 import { dmy } from './core/history.js';
 import { loadBase } from './historico.js';
 import { getOperators, operatorName } from './core/operators.js';
@@ -10,6 +10,7 @@ import * as BI from './core/bi.js';
 // the report's color rules are kept, painted with the Painel's palette
 const SKIN = { '#81C784': '#a3e635', '#70AD47': '#a3e635', '#FFD966': '#fbbf24', '#E57373': '#fb7185', '#C00000': '#fb7185', '#E6A8A8': '#fb7185', '#4472C4': '#22d3ee' };
 const sk = (c) => SKIN[c] ?? c;
+const corEficS = (e) => sk(corEfic(e));
 const corPctS = (v) => sk(BI.corPct(v)), corGanhoS = (g) => sk(BI.corGanho(g)), corTempoS = (h) => sk(BI.corTempo(h)), corVariacaoS = (v) => sk(BI.corVariacao(v));
 
 const SEP = '\u0001';
@@ -25,9 +26,9 @@ const hhmm = (h) => { const m = Math.round((h || 0) * 60); return `${String(Math
 const blank = (v) => (v === '' || v == null ? '(vazio)' : v);
 
 const GROUPS = { raw: { name: 'RAW (robôs)', unit: 'Robô', units: 'Robôs' }, usi: { name: 'Usinagem', unit: 'Máquina', units: 'Máquinas' } };
-const PAGES = { raw: [['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['mensal', 'Mensal']], usi: [['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador']] };
+const PAGES = { raw: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['mensal', 'Mensal']], usi: [['entrega', 'Entrega (horas padrão)'], ['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador']] };
 
-const ui = { g: 'raw', page: 'diaria', filt: {}, vf: {}, lead: {}, uteis: {}, multi: false, sel: null, cubes: {} };
+const ui = { g: 'raw', page: 'entrega', filt: {}, vf: {}, lead: {}, uteis: {}, multi: false, sel: null, cubes: {} };
 try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui.g = s; } catch { /* no storage */ }
 
 export const setBiGroup = (g) => { if (GROUPS[g]) { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; } };
@@ -39,6 +40,7 @@ const cubeFor = (g, base) => {
 
 // ---- slicers ------------------------------------------------------------------------------------------------
 const SLICERS = {
+  entrega: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['Turno', 'p', 't'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Nome do operador', 'p', 'nome']],
   diaria: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Turno', 'p', 't']],
   paradas: [['Dia', 's', 'data'], ['Mês', 's', 'mes'], ['@unit', 's', 'm'], ['Motivo', 's', 'mo'], ['Turno', 's', 't']],
   peca: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['Turno', 'p', 't'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm']],
@@ -301,7 +303,40 @@ function pageMensal(x) {
       totals: ['Total', fint(M.qtdPecas(tot)), f2(M.horasProd(tot)), f2(M.target(tot)), fpct(M.pct(tot)), variacaoTexto(M.pct(tot)), f2(M.mediaHoras(tot)), f2(M.horasParadas(tot))] }); };
   return [cardsRow(x, 'paradas'), el('div', { class: 'bi-grid' }, vis('PRODUTIVIDADE POR MÊS', () => chartBox(combo), { vid: 'v1', wide: true }), vis('TEMPO POR PEÇA E MODELO', () => chartBox(tempoPecas(x, 'v5'), 'vscroll'), { vid: 'v5' }), vis(`${u.toUpperCase()} · META ${Math.round(META * 100)}%`, tbl, { vid: 't1' }), vis('PEÇAS POR TURNO', () => chartBox(turno), { vid: 'v4' }))];
 }
-const BUILDERS = { diaria: pageDiaria, paradas: pageParadas, peca: pagePeca, operador: pageOperador, mensal: pageMensal };
+
+// ---- Entrega: horas padrão ("horas entregues") x horas reais. One row = one piece; the standard hours come from the MATRIZ TEMPO (BAAN).
+function pageEntrega(x) {
+  const u = GROUPS[x.g].unit;
+  const cards = () => live(() => {
+    const c = slice(x.cube, x.F('cards')), e = M.efic(c), sem = M.pecasSemPadrao(c), est = M.pecasEstimadas(c);
+    return [card('HORAS ENTREGUES (padrão)', `${f1(M.entrega(c))} h`, null, 'soma do tempo padrão das peças feitas'),
+      card('HORAS REAIS (das mesmas peças)', `${f1(M.realComPadrao(c))} h`, null, 'tempo gasto nas peças que têm padrão'),
+      card('EFICIÊNCIA', e == null ? '—' : fpct(e), corEficS(e), 'entregue ÷ real · 100% = igual ao padrão'),
+      card('PEÇAS', fint(M.qtdPecas(c)), null, `${fint(sem)} sem tempo padrão (${f1(M.horasSemPadrao(c))} h reais, fora da conta)${est ? ` · ${fint(est)} com padrão de outra máquina` : ''}`)];
+  });
+  const porDia = () => { const gr = groupP(x.cube, x.F('v1'), ['data']);
+    return { kind: 'area', cats: gr.map((g) => ({ key: g.vals[0], label: ddmm(g.vals[0]) })), series: [{ name: 'Horas entregues (padrão)', vals: gr.map((g) => M.entrega(g.c)), color: PALETTE[3] }, { name: 'Horas reais (mesmas peças)', vals: gr.map((g) => M.realComPadrao(g.c)), color: PALETTE[0] }], height: 280, fmt: f1, onPick: x.pick('v1', 'p', ['data']), selected: x.selOf('v1') }; };
+  const porMaq = () => { const gr = groupP(x.cube, x.F('v2'), ['m']);
+    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas reais (mesmas peças)', vals: gr.map((g) => M.realComPadrao(g.c)), color: PALETTE[0] }, { name: 'Horas entregues (padrão)', vals: gr.map((g) => M.entrega(g.c)), color: PALETTE[3] }],
+      line: { name: 'Eficiência', vals: gr.map((g) => M.efic(g.c)), fmt: fpct0, color: '#fb7185', min: 0, max: Math.max(1.2, ...gr.map((g) => M.efic(g.c) ?? 0)) }, fmt: f1, onPick: x.pick('v2', 'p', ['m']), selected: x.selOf('v2') }; };
+  const porPeca = () => { const gr = groupP(x.cube, x.F('v3'), ['pm']).filter((g) => M.entrega(g.c) > 0).map((g) => ({ g, v: M.entrega(g.c), e: M.efic(g.c) })).sort((a, b) => b.v - a.v);
+    return { orient: 'h', cats: gr.map(({ g, e }) => ({ key: g.vals[0], label: g.vals[0], color: corEficS(e) })), series: [{ name: 'Horas entregues', vals: gr.map((r) => r.v), color: PALETTE[3] }], fmt: f1, tip: (i) => `real ${f1(M.realComPadrao(gr[i].g.c))} h · ${fpct0(gr[i].e)} · ${fint(M.qtdPecas(gr[i].g.c))} peças`, onPick: x.pick('v3', 'p', ['pm']), selected: x.selOf('v3') }; };
+  const porOper = () => { const rows = rowsOf(groupP(x.cube, x.F('t1'), ['cf', 'nome'])).filter((r) => M.entrega(r.c) > 0);
+    return table([{ h: 'Chapa', v: (r) => blank(r.vals[0]) }, { h: 'Nome', v: (r) => blank(r.vals[1]) }, { h: 'Peças', v: (r) => fint(M.qtdPecas(r.c)), key: (r) => M.qtdPecas(r.c), n: true },
+      { h: 'Real (h)', v: (r) => f2(M.realComPadrao(r.c)), key: (r) => M.realComPadrao(r.c), n: true }, { h: 'Entregue (h)', v: (r) => f2(M.entrega(r.c)), key: (r) => M.entrega(r.c), n: true },
+      { h: 'Eficiência', v: (r) => fpct(M.efic(r.c)), key: (r) => M.efic(r.c) ?? -1, n: true, bg: (r) => corEficS(M.efic(r.c)) }], rows, { order: 4, totals: (() => { const c = slice(x.cube, x.F('t1')); return ['Total', '', fint(M.qtdPecas(c)), f2(M.realComPadrao(c)), f2(M.entrega(c)), fpct(M.efic(c))]; })() }); };
+  const semPadrao = () => { const rows = rowsOf(groupP(x.cube, x.F('t2'), ['pm'])).filter((r) => M.pecasSemPadrao(r.c) > 0);
+    return table([{ h: 'Peça e modelo', v: (r) => r.vals[0] }, { h: u + 's', v: (r) => [...new Set(r.c.P.filter((p) => !(p.tpx > 0)).map((p) => p.m))].sort().join(', ') }, { h: 'Peças sem padrão', v: (r) => fint(M.pecasSemPadrao(r.c)), key: (r) => M.pecasSemPadrao(r.c), n: true }, { h: 'Horas reais', v: (r) => f2(M.horasSemPadrao(r.c)), key: (r) => M.horasSemPadrao(r.c), n: true }], rows, { order: 2 }); };
+  return [cards(),
+    el('div', { class: 'bi-grid' },
+      vis('ENTREGA POR DIA · padrão × real', () => chartBox(porDia), { vid: 'v1', wide: true }),
+      vis(`REAL × ENTREGUE POR ${u.toUpperCase()}`, () => chartBox(porMaq), { vid: 'v2' }),
+      vis('ENTREGA POR PEÇA E MODELO (cor = eficiência)', () => chartBox(porPeca, 'vscroll'), { vid: 'v3' }),
+      vis('POR OPERADOR', porOper, { vid: 't1' }),
+      vis('PEÇAS SEM TEMPO PADRÃO (completar na matriz)', semPadrao, { vid: 't2' }))];
+}
+
+const BUILDERS = { entrega: pageEntrega, diaria: pageDiaria, paradas: pageParadas, peca: pagePeca, operador: pageOperador, mensal: pageMensal };
 const pageFilterSet = (col) => pageFilter().p[col] ?? new Set();
 
 // ---- quick date bar (Último dia, 7 dias, 30 dias, mês, De/Até) --------------------------------------------------

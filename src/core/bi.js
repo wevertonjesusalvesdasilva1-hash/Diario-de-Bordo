@@ -3,7 +3,7 @@
 //   01_Produção  one row per production record      02_Paradas  one row per stop      02_Paradas_resumo  stop hours per (date + machine)
 //   Produção ↔ Paradas_resumo : Chave (date + machine)                      — filters both ways
 //   Produção ↔ Paradas        : Chave parada (date + machine + chapa final)  — many-to-many, filters both ways
-import { spanHours, fmtHM, auditDays } from './history.js';
+import { spanHours, fmtHM, auditDays, standardByPieceModel } from './history.js';
 
 export const META = 0.88;            // availability goal
 export const HORAS_DIA = 18.58;      // productive hours expected per machine per day
@@ -23,6 +23,8 @@ export function buildCube(base, nameOf = () => '') {
     const o = { m: r.m, d: r.d, mes: monthOf(r.d), p: r.p, o: r.o, pm: `${r.p}-${r.o}`, t: t == null ? '' : String(t), cf, nome: cf ? nameOf(cf) || '' : '',
       h: Number(r.h) || 0, tp: Number(r.tp) || 0, key, keyP: key + '|' + cf, src: r,
       t1: spanHours(r.i1, r.f1) ?? 0, t2: spanHours(r.i2, r.f2) ?? 0, t3: spanHours(r.i3, r.f3) ?? 0 };
+    // "hours delivered" (standard hours of the piece): the matrix value of the sheet; else the same piece+model on another machine; else none
+    if (o.tp > 0) { o.tpx = o.tp; o.tpSrc = 'matriz'; } else { const e = standardByPieceModel(o.p, o.o); o.tpx = e; o.tpSrc = e > 0 ? 'estimado' : 'sem'; }
     o.t1s = hm(o.t1); o.t2s = hm(o.t2); o.t3s = hm(o.t3);
     return o;
   });
@@ -74,6 +76,13 @@ export const M = {
   tp: (c) => sum(c.P, (r) => r.tp),                          // SUM(TEMPO PADRÃO BAAN)
   mediaHoras: (c) => (c.P.length ? sum(c.P, (r) => r.h) / c.P.length : null), // AVG(TEMPO/DEC)
   pecasDistintas: (c) => new Set(c.P.map((r) => r.p)).size,  // DISTINCTCOUNT(PEÇA)
+  // hours delivered = standard hours of the pieces made (one row = one piece). Efficiency compares them with the REAL hours of the same pieces
+  entrega: (c) => sum(c.P, (r) => r.tpx),
+  realComPadrao: (c) => sum(c.P.filter((r) => r.tpx > 0), (r) => r.h),
+  pecasSemPadrao: (c) => c.P.filter((r) => !(r.tpx > 0)).length,
+  horasSemPadrao: (c) => sum(c.P.filter((r) => !(r.tpx > 0)), (r) => r.h),
+  pecasEstimadas: (c) => c.P.filter((r) => r.tpSrc === 'estimado').length,
+  efic: (c) => { const r = M.realComPadrao(c); return r ? M.entrega(c) / r : null; },
   // 06_tempo_target: 18.58 h × distinct dates, for each machine in view
   target: (c) => { const by = new Map(); for (const r of c.P) { let s = by.get(r.m); if (!s) by.set(r.m, (s = new Set())); s.add(r.d); } let t = 0; for (const s of by.values()) t += HORAS_DIA * s.size; return t; },
   // 07_porcentagem (availability) = hours produced / target
@@ -198,3 +207,6 @@ export function cardsBI(cube, f = {}, { unit = 'Máquina', days = 0 } = {}) {
   if (par.length && tot) out.push({ key: 'motivo', tone: 'warn', machine: par[0].mo || '(vazio)', title: 'Maior motivo de parada', people: [], big: `${Math.round((par[0].h / tot) * 100)}%`, bigLabel: `${f1h(par[0].h)} h paradas`, brief: `${par[0].mo || 'Parada sem motivo'} responde por ${f1h(par[0].h)} h de ${f1h(tot)} h paradas.`, foot: `${par.length} motivos`, detail: { title: 'Paradas por motivo', head: ['Motivo', 'Horas', '% do total', '% acumulado'], rows: par.map((x) => [x.mo || '(vazio)', +x.h.toFixed(2), `${f1h((x.h / tot) * 100)}%`, `${f1h(x.pctAcc * 100)}%`]) } });
   return out;
 }
+
+// efficiency colors (provisional: green from 100%, yellow from 85%)
+export const corEfic = (e) => (e == null ? '#A5A5A5' : e >= 1 ? '#81C784' : e >= 0.85 ? '#FFD966' : '#E57373');

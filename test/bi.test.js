@@ -82,3 +82,13 @@ test('auditoria de 24 h: produção + paradas da mesma máquina e dia', () => {
   assert.equal(r[0].tot, 29); assert.match(r[0].why, /3,0 h de produção e parada no mesmo horário/);
   assert.equal(auditoria24(buildCube({ prod: [prod[1]], stops }), {}).length, 0);   // 6 h + 3 h
 });
+
+test('entrega: horas padrão das peças x horas reais (uma linha, uma peça)', () => {
+  const mk = (m, p, o, h, tp) => ({ ...P(m, '2026-08-01', p, o, 1, '100', h, tp), p, o });
+  const c = buildCube({ prod: [mk('RAW05', 'LANÇA', 'PC500LC-10M0', 6, 5), mk('RAW05', 'LANÇA', 'PC500LC-10M0', 6, 5), mk('RAW05', 'PEÇA SEM PADRÃO', 'X1', 4, 0)], stops: [] });
+  const s = slice(c, {});
+  assert.equal(M.entrega(s), 10);                 // 2 peças × 5 h
+  assert.equal(M.realComPadrao(s), 12);           // só as peças que têm padrão
+  assert.ok(Math.abs(M.efic(s) - 10 / 12) < 1e-9);
+  assert.equal(M.pecasSemPadrao(s), 1); assert.equal(M.horasSemPadrao(s), 4);
+});

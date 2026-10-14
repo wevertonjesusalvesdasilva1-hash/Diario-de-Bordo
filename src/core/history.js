@@ -39,6 +39,11 @@ export const groupOfMachine = (m) => (/^(UMC|HMC|NCBZ)/.test(m ?? '') ? 'usi' : 
 // ---- standard time (hours) by machine + piece + model, from the MATRIZ TEMPO
 const STD = new Map(PADRAO.map(([m, p, mo, h]) => [`${aliasKey(m)}|${aliasKey(p)}|${aliasKey(mo)}`, h]));
 export const standardHours = (machine, peca, modelo) => STD.get(`${aliasKey(machine)}|${aliasKey(peca)}|${aliasKey(modelo)}`) ?? 0;
+// the same piece and model on ANOTHER machine (the matrix lists the standard per machine, but a piece takes the same standard time anywhere):
+// average of the machines that have it, or 0 when no machine has it
+const STD_PM = new Map();
+for (const [, p, mo, h] of PADRAO) if (h > 0) { const k = `${aliasKey(p)}|${aliasKey(mo)}`; (STD_PM.get(k) ?? STD_PM.set(k, []).get(k)).push(h); }
+export const standardByPieceModel = (peca, modelo) => { const a = STD_PM.get(`${aliasKey(peca)}|${aliasKey(modelo)}`); return a ? a.reduce((x, y) => x + y, 0) / a.length : 0; };
 
 // ---- records. production: { m, d, p, o, c1, i1, f1, c2, i2, f2, c3, i3, f3, t, ob, h, tp }
 //               stop:       { m, d, c, i, f, t, mo, ds, h }          (+ b: the batch that brought it)
