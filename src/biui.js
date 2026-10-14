@@ -127,7 +127,10 @@ const unitCats = (groups) => groups.map((g) => ({ key: g.vals.join(SEP), label: 
 
 function pageDiaria(x) {
   const u = GROUPS[x.g].unit;
-  const prodDia = () => { const gr = groupP(x.cube, x.F('v1'), ['data', 'm']); return { cats: gr.map((g) => ({ key: g.vals.join(SEP), label: g.vals[1], group: ddmm(g.vals[0]) })), series: [{ name: 'Horas', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }], fmt: (v) => f1(v), onPick: x.pick('v1', 'p', ['data', 'm']), selected: x.selOf('v1') }; };
+  // one group of columns per day, one color per machine (legend below); the day is the only axis label
+  const prodDia = () => { const gr = groupP(x.cube, x.F('v1'), ['data', 'm']); const days = [...new Set(gr.map((g) => g.vals[0]))], ms = [...new Set(gr.map((g) => g.vals[1]))].sort();
+    const at = new Map(gr.map((g) => [g.vals[0] + SEP + g.vals[1], M.horasProd(g.c)]));
+    return { cats: days.map((d) => ({ key: d, label: ddmm(d) })), series: ms.map((m, k) => ({ name: m, color: PALETTE[k % PALETTE.length], vals: days.map((d) => at.get(d + SEP + m) ?? 0) })), barW: 9, height: 280, fmt: f1, onPick: x.pick('v1', 'p', ['data']), selected: x.selOf('v1') }; };
   const turnoPecas = () => { const gr = groupP(x.cube, x.F('v2'), ['t']); return { cats: gr.map((g) => ({ key: g.vals[0], label: `Turno ${blank(g.vals[0])}` })), series: [{ name: 'Qtde peças', vals: gr.map((g) => M.qtdPecas(g.c)), color: PALETTE[0] }], fmt: fint, onPick: x.pick('v2', 'p', ['t']), selected: x.selOf('v2') }; };
   const disp = () => { const gr = groupP(x.cube, x.F('v3'), ['m']).map((g) => ({ g, v: M.pct(g.c) })).sort((a, b) => b.v - a.v); return { cats: gr.map(({ g, v }) => ({ key: g.vals[0], label: g.vals[0], color: corPctS(v) })), series: [{ name: 'Disponibilidade', vals: gr.map((r) => r.v), color: PALETTE[0] }], fmt: fpct, line: undefined, onPick: x.pick('v3', 'p', ['m']), selected: x.selOf('v3') }; };
   const prodPar = () => { const gr = groupP(x.cube, x.F('v4'), ['m']); return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: PALETTE[1] }], fmt: f1, onPick: x.pick('v4', 'p', ['m']), selected: x.selOf('v4') }; };

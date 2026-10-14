@@ -40,7 +40,7 @@ export function drawChart(box, spec) {
   const legend = series.length > 1 || line ? el('div', { class: 'bi-leg' }, series.map((s) => el('span', {}, el('i', { style: `background:${s.color}` }), s.name)), line ? el('span', {}, el('i', { style: `background:${line.color ?? '#ff7a5c'}` }), line.name) : null) : null;
 
   if (orient === 'h') {
-    const rowH = 24 * Math.max(1, stacked ? 1 : series.length) * (series.length > 1 && !stacked ? 0.8 : 1) + 6, labW = Math.min(170, Math.max(60, Math.max(...cats.map((c) => String(c.label).length)) * 6.4));
+    const rowH = 24 * Math.max(1, stacked ? 1 : series.length) * (series.length > 1 && !stacked ? 0.8 : 1) + 6, labW = Math.min(200, Math.max(60, Math.min(26, Math.max(...cats.map((c) => String(c.label).length))) * 7.6));
     const maxV = Math.max(...series.flatMap((s) => s.vals), 0) || 1, { max } = niceMax(maxV * 1.12);
     const W = avail, H = cats.length * rowH + 8, plot = W - labW - 70;
     const svg = S('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img' });
@@ -60,10 +60,10 @@ export function drawChart(box, spec) {
   }
 
   // vertical columns
-  const nS = series.length, minStep = stacked ? 34 : Math.max(34, nS * 22 + 10);
+  const nS = series.length, bwMin = spec.barW ?? 22, minStep = stacked ? 34 : Math.max(34, nS * bwMin + 10);
   const step = Math.max(minStep, Math.min(90, (avail - 100) / cats.length));
   const hasGroup = cats.some((c) => c.group != null);
-  const left = 46, right = line ? 46 : 12, top = 20, bottom = 46 + (hasGroup ? 16 : 0);
+  const left = 58, right = line ? 46 : 12, top = 20, bottom = 46 + (hasGroup ? 16 : 0);
   const W = Math.max(avail, left + right + cats.length * step), H = spec.height ?? 250, plotH = H - top - bottom;
   const totals = cats.map((_, i) => (stacked ? series.reduce((s, x) => s + (x.vals[i] || 0), 0) : Math.max(...series.map((x) => x.vals[i] || 0))));
   const { max, ticks } = niceMax(Math.max(...totals, 0) * 1.1 || 1);
@@ -83,7 +83,7 @@ export function drawChart(box, spec) {
       const v = s.vals[i] || 0, bx = stacked ? x0 + (step - bw) / 2 : x0 + (step - bw * nS) / 2 + k * bw;
       const yTop = y(stacked ? acc + v : v), hgt = Math.max(0, (stacked ? y(acc) : y(0)) - yTop);
       g.append(S('rect', { x: bx, y: yTop, width: Math.max(1, bw - 1), height: hgt, rx: 2, fill: c.color ?? s.color }));
-      if (v && (step >= 44 || cats.length <= 14) && !(stacked && hgt < 12)) g.append(S('text', { x: bx + bw / 2, y: stacked ? yTop + hgt / 2 : yTop - 3, 'text-anchor': 'middle', 'dominant-baseline': stacked ? 'middle' : 'auto', style: 'font-size:10px' }, fmt(v)));
+      if (v && (bw >= 22 || (cats.length <= 14 && bw >= 14)) && !(stacked && hgt < 12)) g.append(S('text', { x: bx + bw / 2, y: stacked ? yTop + hgt / 2 : yTop - 3, 'text-anchor': 'middle', 'dominant-baseline': stacked ? 'middle' : 'auto', style: 'font-size:10px' }, fmt(v)));
       if (stacked) acc += v;
     });
     const lab = clip(c.label, step < 44 ? 6 : 14), rot = step < 52 || String(c.label).length > 8;
