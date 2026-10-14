@@ -262,8 +262,8 @@ function pageGeral(x) {
     el('div', { class: 'bi-grid' },
       vis(`PRODUTIVIDADE POR ${u.toUpperCase()} · por dia`, () => chartBox(prodDia), { vid: 'v1', wide: true }),
       vis('DISPONIBILIDADE', () => chartBox(disp), { vid: 'v3' }), vis('HORAS PRODUZIDAS X PARADAS', () => chartBox(prodPar), { vid: 'v4' }),
-      x.g === 'usi' ? vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6' }) : '',
       v24,
+      vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6' }),
       vis('POR MÊS', () => chartBox(mes), { vid: 'v7' }),
       vis(`RESUMO POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, tbl, { vid: 't1', wide: true }))];
 }
