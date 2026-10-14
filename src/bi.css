@@ -115,3 +115,5 @@
 .bi-leg .lg[aria-pressed="true"] { color: var(--ink); border-color: var(--accent); background: var(--accent-soft); }
 .bi-leg .lg.off { opacity: .4; }
 .bi-leg .lg i { margin-right: .35rem; }
+
+.bi-quick .uteis[aria-pressed="true"] { background: var(--pv); color: #fff; border-color: var(--pv); }

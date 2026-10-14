@@ -27,7 +27,7 @@ const blank = (v) => (v === '' || v == null ? '(vazio)' : v);
 const GROUPS = { raw: { name: 'RAW (robôs)', unit: 'Robô', units: 'Robôs' }, usi: { name: 'Usinagem', unit: 'Máquina', units: 'Máquinas' } };
 const PAGES = { raw: [['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador'], ['mensal', 'Mensal']], usi: [['diaria', 'Diária'], ['paradas', 'Paradas'], ['peca', 'Peça produtividade'], ['operador', 'Operador']] };
 
-const ui = { g: 'raw', page: 'diaria', filt: {}, vf: {}, lead: {}, sel: null, cubes: {} };
+const ui = { g: 'raw', page: 'diaria', filt: {}, vf: {}, lead: {}, uteis: {}, sel: null, cubes: {} };
 try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui.g = s; } catch { /* no storage */ }
 
 export const setBiGroup = (g) => { if (GROUPS[g]) { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; } };
@@ -297,15 +297,22 @@ function quickBar(cube, side, apply) {
   const dates = options(cube, side, 'data');
   if (!dates.length) return '';
   const last = dates.at(-1), f = pageFilter(), box = el('div', { class: 'bi-quick', role: 'group', 'aria-label': 'Período' });
-  const set = (arr) => { if (arr) f[side].data = new Set(arr); else delete f[side].data; ui.sel = null; apply(); slicerFills.forEach((fn) => fn()); mark(); };
+  const pk = `${ui.g}.${ui.page}`, wk = (d) => { const w = new Date(`${d}T12:00:00Z`).getUTCDay(); return w >= 1 && w <= 5; };
+  const U = (ui.uteis[pk] ??= { on: false, prev: null });
+  const set = (arr) => { if (U.on) arr = (arr ?? dates).filter(wk); if (arr && arr.length === dates.length && !U.on) arr = null; if (arr) f[side].data = new Set(arr); else delete f[side].data; ui.sel = null; apply(); slicerFills.forEach((fn) => fn()); mark(); };
   const range = (a, b) => dates.filter((d) => d >= a && d <= b);
   const from = el('input', { type: 'date', min: dates[0], max: last, 'aria-label': 'De (data)', onchange: () => custom() }), to = el('input', { type: 'date', min: dates[0], max: last, 'aria-label': 'Até (data)', onchange: () => custom() });
   const custom = () => set(range(from.value || dates[0], to.value || last));
   const btns = [['Tudo', () => set(null)], [`Último dia (${dmy(last).slice(0, 5)})`, () => set([last])], ['7 dias', () => set(range(addDays(last, -6), last))], ['30 dias', () => set(range(addDays(last, -29), last))], ['Mês do último dia', () => set(range(`${last.slice(0, 8)}01`, last))]]
     .map(([t, fn], i) => el('button', { type: 'button', onclick: () => { active = i; fn(); } }, t));
+  const uteisBtn = el('button', { type: 'button', class: 'uteis', 'aria-pressed': String(U.on), title: 'Tira sábados e domingos (feriados não são tirados)', onclick: () => {
+    if (!U.on) { U.on = true; U.prev = f[side].data ? new Set(f[side].data) : null; set(f[side].data ? [...f[side].data] : null); }
+    else { U.on = false; const back = U.prev; U.prev = null; set(back ? [...back] : null); }
+    uteisBtn.setAttribute('aria-pressed', String(U.on));
+  } }, 'Só dias úteis');
   let active = null;
   function mark() { const n = f[side].data?.size ?? 0; btns.forEach((b, i) => b.setAttribute('aria-pressed', String(i === 0 ? n === 0 : i === active && n > 0))); }
-  box.append(el('span', { class: 'lbl' }, 'Período'), ...btns, el('label', { class: 'vf-d' }, 'De', from), el('label', { class: 'vf-d' }, 'Até', to));
+  box.append(el('span', { class: 'lbl' }, 'Período'), ...btns, el('label', { class: 'vf-d' }, 'De', from), el('label', { class: 'vf-d' }, 'Até', to), uteisBtn);
   mark();
   return box;
 }
