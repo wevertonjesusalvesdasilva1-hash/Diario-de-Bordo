@@ -98,10 +98,12 @@ export function drawChart(box, full) {
   const bottom = (rotAny ? 26 + maxLab * 6.4 * 0.58 : 34) + (hasGroup ? 16 : 0), left = 58, right = line ? 46 : 12, top = 20;
   const W = Math.max(avail, left + right + cats.length * step), H = (spec.height ?? 250) + (bottom - 46), plotH = H - top - bottom;
   const totals = cats.map((_, i) => (stacked ? series.reduce((s, x) => s + (x.vals[i] || 0), 0) : Math.max(...series.map((x) => x.vals[i] || 0))));
-  const { max, ticks } = niceMax(Math.max(...totals, 0) * 1.1 || 1);
+  const ref = spec.refLine;
+  const { max, ticks } = niceMax(Math.max(Math.max(...totals, 0) * 1.1, ref ? ref.value * 1.08 : 0) || 1);
   const y = (v) => top + plotH - (v / max) * plotH;
   const svg = S('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img' });
   (series.length ? ticks : [0, max]).forEach((t) => svg.append(S('line', { class: 'grid', x1: left, x2: W - right, y1: y(t), y2: y(t) }), series.length ? S('text', { x: left - 5, y: y(t), 'text-anchor': 'end', 'dominant-baseline': 'middle', class: 'mut' }, fmt(t)) : ''));
+  if (ref) svg.append(S('line', { x1: left, x2: W - right, y1: y(ref.value), y2: y(ref.value), stroke: ref.color ?? '#fbbf24', 'stroke-width': 1.6, 'stroke-dasharray': '6 5' }), S('text', { x: W - right - 2, y: y(ref.value) - 5, 'text-anchor': 'end', style: `fill:${ref.color ?? '#fbbf24'};font-size:11px;font-weight:700` }, ref.label ?? String(ref.value)));
   let ly = null, dup = false;
   if (line) {
     // a line that repeats a column series (same numbers) shares the columns' scale and needs no second axis or labels
@@ -124,7 +126,7 @@ export function drawChart(box, full) {
       if (v && (bw >= 22 || (cats.length <= 14 && bw >= 14)) && !(stacked && hgt < 12)) g.append(S('text', { x: bx + bw / 2, y: stacked ? yTop + hgt / 2 : yTop - 3, 'text-anchor': 'middle', 'dominant-baseline': stacked ? 'middle' : 'auto', style: 'font-size:10px' }, fmt(v)));
       if (stacked) acc += v;
     });
-    if (stacked && nS > 1 && acc) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: 'font-weight:700;font-size:11px' }, fmt(acc)));   // total of the stack on top
+    if (stacked && nS > 1 && acc) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:11px${c.alert ? ';fill:#fb7185' : ''}` }, (c.alert ? '⚠ ' : '') + fmt(acc)));   // total of the stack on top
     const lab = clip(c.label, 14), rot = step < 52 || String(c.label).length > 8;
     g.append(S('text', rot ? { x: x0 + step / 2, y: H - bottom + 12, 'text-anchor': 'end', transform: `rotate(-35 ${x0 + step / 2} ${H - bottom + 12})`, class: 'mut' } : { x: x0 + step / 2, y: H - bottom + 14, 'text-anchor': 'middle', class: 'mut' }, lab));
     svg.append(g);

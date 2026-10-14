@@ -170,8 +170,8 @@ export function clockParts(d, pairs) {
   }
   return out.length ? out : null;
 }
-// keepDay(machine, 'YYYY-MM-DD') → whether that machine-day takes part (default: all). Returns the machine-days over 24 h, biggest first.
-export function auditDays(prod, stops, keepDay = () => true) {
+// every machine-day with its production hours, stop hours and the hours counted twice (clock time shared by a production and a stop)
+export function dayLoads(prod, stops) {
   const days = new Map();
   const get = (m, di) => { const k = `${di}|${m}`; if (!days.has(k)) days.set(k, { m, d: dayStr(di), ph: 0, sh: 0, np: 0, ns: 0, P: [], S: [] }); return days.get(k); };
   const put = (m, d, pairs, h, isProd) => {
@@ -181,16 +181,19 @@ export function auditDays(prod, stops, keepDay = () => true) {
   };
   for (const r of prod) { put(r.m, r.d, [[r.i1, r.f1], [r.i2, r.f2], [r.i3, r.f3]], r.h, true); get(r.m, dayIdx(r.d)).np++; }
   for (const r of stops) { put(r.m, r.d, [[r.i, r.f]], r.h, false); get(r.m, dayIdx(r.d)).ns++; }
+  return [...days.values()].map((x) => ({ m: x.m, d: x.d, ph: x.ph, sh: x.sh, tot: x.ph + x.sh, np: x.np, ns: x.ns, overlapH: (unionLen(x.P) + unionLen(x.S) - unionLen([...x.P, ...x.S])) / 60 }));
+}
+// keepDay(machine, 'YYYY-MM-DD') → whether that machine-day takes part (default: all). Returns the machine-days over 24 h, biggest first.
+export function auditDays(prod, stops, keepDay = () => true) {
   const out = [];
-  for (const x of days.values()) {
-    const tot = x.ph + x.sh;
-    if (tot <= DAY_HOURS + 1e-4 || !keepDay(x.m, x.d)) continue;
-    const overlapH = (unionLen(x.P) + unionLen(x.S) - unionLen([...x.P, ...x.S])) / 60, why = [];
+  for (const x of dayLoads(prod, stops)) {
+    if (x.tot <= DAY_HOURS + 1e-4 || !keepDay(x.m, x.d)) continue;
+    const why = [];
     if (x.ph > DAY_HOURS + 1e-4) why.push('só a produção passa de 24 h');
     if (x.sh > DAY_HOURS + 1e-4) why.push('só as paradas passam de 24 h');
-    if (overlapH > 0.01) why.push(`${overlapH.toFixed(1).replace('.', ',')} h de produção e parada no mesmo horário (contadas duas vezes)`);
+    if (x.overlapH > 0.01) why.push(`${x.overlapH.toFixed(1).replace('.', ',')} h de produção e parada no mesmo horário (contadas duas vezes)`);
     if (!why.length) why.push('a soma passa de 24 h');
-    out.push({ m: x.m, d: x.d, ph: x.ph, sh: x.sh, tot, overlapH, np: x.np, ns: x.ns, why: why.join('; ') });
+    out.push({ ...x, why: why.join('; ') });
   }
   return out.sort((a, b) => b.tot - a.tot);
 }

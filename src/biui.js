@@ -1,7 +1,7 @@
 // "4 · BI": the Power BI reports (RAW and usinagem) rebuilt on the history. Numbers come from core/bi.js (the report's own measures).
 import './bi.css';
 import { buildCube, slice, M, corEfic, options, optionsFor, auditoria24, cardsBI, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
-import { dmy } from './core/history.js';
+import { dmy, dayLoads } from './core/history.js';
 import { loadBase } from './historico.js';
 import { getOperators, operatorName } from './core/operators.js';
 import { el, chartBox, PALETTE } from './bicharts.js';
@@ -238,6 +238,19 @@ function pageGeral(x) {
   const disp = () => { const gr = groupP(x.cube, x.F('v3'), ['m']).map((g) => ({ g, v: M.pct(g.c) })).sort((a, b) => b.v - a.v); return { cats: gr.map(({ g, v }) => ({ key: g.vals[0], label: g.vals[0], color: corPctS(v) })), series: [{ name: 'Disponibilidade', vals: gr.map((r) => r.v), color: PALETTE[0] }], fmt: fpct, onPick: x.pick('v3', 'p', ['m']), selected: x.selOf('v3') }; };
   const prodPar = () => { const gr = groupP(x.cube, x.F('v4'), ['m']); return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: PALETTE[1] }], fmt: f1, onPick: x.pick('v4', 'p', ['m']), selected: x.selOf('v4') }; };
   const turnoMaq = () => { const gr = groupP(x.cube, x.F('v6'), ['m', 't']); const ms = [...new Set(gr.map((g) => g.vals[0]))], ts = [...new Set(gr.map((g) => g.vals[1]))].sort(); return { cats: ms.map((m) => ({ key: m, label: m })), series: ts.map((t, k) => ({ name: t ? `Turno ${t}` : 'Sem turno', color: PALETTE[k], vals: ms.map((m) => M.horasProd((gr.find((g) => g.vals[0] === m && g.vals[1] === t) ?? { c: { P: [] } }).c)) })), stacked: true, fmt: f1, onPick: x.pick('v6', 'p', ['m']), selected: x.selOf('v6') }; };
+  // production + stops of each machine and day (midnight to midnight) against the 24 h line: a bar above the line is an error to fix
+  let load24 = 'pior';
+  const dias24 = () => { const c = slice(x.cube, x.F('v8')), L = dayLoads(c.P.map((r) => r.src), c.S.map((r) => r.src));
+    let rows;
+    if (load24 === 'acima') rows = L.filter((r) => r.tot > 24.0001).sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.m < b.m ? -1 : 1));
+    else if (load24 === 'pior') { const by = new Map(); for (const r of L) { const o = by.get(r.d); if (!o || r.tot > o.tot) by.set(r.d, r); } rows = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1)); }
+    else rows = L.filter((r) => r.m === load24).sort((a, b) => (a.d < b.d ? -1 : 1));
+    return { cats: rows.map((r) => ({ key: r.d + SEP + r.m, label: load24 === 'acima' ? `${ddmm(r.d)} ${r.m}` : ddmm(r.d), alert: r.tot > 24.0001 })), stacked: true, height: 280, refLine: { value: 24, label: 'limite: 24 h', color: '#fbbf24' }, fmt: f1,
+      series: [{ name: 'Produção (h)', vals: rows.map((r) => r.ph), color: PALETTE[0] }, { name: 'Paradas (h)', vals: rows.map((r) => r.sh), color: PALETTE[1] }],
+      tip: (i) => `${rows[i].m} · ${dmy(rows[i].d)} · total ${f1(rows[i].tot)} h${rows[i].tot > 24.0001 ? ' ⚠ passa de 24 h' : ''}${rows[i].overlapH > 0.01 ? ` · ${f1(rows[i].overlapH)} h no mesmo horário` : ''}` }; };
+  const sel24 = el('select', { 'aria-label': 'O que mostrar', onchange: (e) => { load24 = e.target.value; v24.rebuild(); } },
+    el('option', { value: 'pior' }, `Pior ${u.toLowerCase()} de cada dia`), el('option', { value: 'acima' }, 'Só os dias acima de 24 h'), ...options(x.cube, 'p', 'm').map((m) => el('option', { value: m }, m)));
+  const v24 = vis('PRODUÇÃO + PARADAS POR DIA (limite de 24 h)', () => chartBox(dias24), { vid: 'v8', wide: true, acts: [sel24] });
   const mes = () => { const gr = groupP(x.cube, x.F('v7'), ['mes']); const order = (m) => MESES.indexOf(m); gr.sort((a, b) => order(a.vals[0]) - order(b.vals[0]));
     return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: PALETTE[1] }], fmt: f1, onPick: x.pick('v7', 'p', ['mes']), selected: x.selOf('v7') }; };
   const tbl = () => { const rows = rowsOf(groupP(x.cube, x.F('t1'), ['m'])), tot = slice(x.cube, x.F('t1'));
@@ -250,6 +263,7 @@ function pageGeral(x) {
       vis(`PRODUTIVIDADE POR ${u.toUpperCase()} · por dia`, () => chartBox(prodDia), { vid: 'v1', wide: true }),
       vis('DISPONIBILIDADE', () => chartBox(disp), { vid: 'v3' }), vis('HORAS PRODUZIDAS X PARADAS', () => chartBox(prodPar), { vid: 'v4' }),
       x.g === 'usi' ? vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6' }) : '',
+      v24,
       vis('POR MÊS', () => chartBox(mes), { vid: 'v7' }),
       vis(`RESUMO POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, tbl, { vid: 't1', wide: true }))];
 }
