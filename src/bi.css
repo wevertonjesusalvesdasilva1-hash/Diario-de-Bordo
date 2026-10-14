@@ -109,3 +109,9 @@
 .bi-slicer header .hd { display: inline-flex; gap: .5rem; align-items: center; }
 .bi-slicer header .multi { color: var(--muted); border: 1px solid var(--line2); border-radius: 999px; padding: 0 .45rem; }
 .bi-slicer header .multi[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+.bi-leg .lg { border: 1px solid transparent; background: transparent; color: var(--muted); font: inherit; font-size: .75rem; padding: .1rem .5rem; border-radius: 999px; cursor: pointer; }
+.bi-leg .lg:hover { color: var(--ink); border-color: var(--line); }
+.bi-leg .lg[aria-pressed="true"] { color: var(--ink); border-color: var(--accent); background: var(--accent-soft); }
+.bi-leg .lg.off { opacity: .4; }
+.bi-leg .lg i { margin-right: .35rem; }

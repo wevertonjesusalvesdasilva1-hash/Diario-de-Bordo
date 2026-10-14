@@ -52,14 +52,21 @@ function niceMax(v) {
 
 // spec: { orient: 'v' | 'h', cats: [{ key, label, group?, color? }], series: [{ name, vals, color }], stacked, line: { name, vals, color, fmt, max? },
 //         fmt(v) → text, onPick(key), selected: Set<key>, height, tip(i) → extra tooltip text }
-export function drawChart(box, spec) {
+export function drawChart(box, full) {
   box.replaceChildren();
+  // legend as buttons: click = show only that series (click again = all); Ctrl/⌘ + click adds or removes series
+  const only = (box._only ??= new Set()), names = [...full.series.map((s) => s.name), ...(full.line ? [full.line.name] : [])];
+  for (const n of [...only]) if (!names.includes(n)) only.delete(n);
+  const toggle = (name, multi) => { if (multi) { if (only.has(name)) only.delete(name); else only.add(name); } else if (only.size === 1 && only.has(name)) only.clear(); else { only.clear(); only.add(name); } drawChart(box, full); };
+  const on = (n) => !only.size || only.has(n);
+  const spec = { ...full, series: full.series.filter((s) => on(s.name)), line: full.line && on(full.line.name) ? full.line : undefined };
   const { cats, series, fmt = String, orient = 'v', stacked = false, line, selected, onPick, tip } = spec;
   if (!cats.length) { box.append(el('p', { class: 'bi-note' }, 'Sem dados para os filtros escolhidos.')); return; }
   const avail = Math.max(box.clientWidth || 360, 240);
   const sel = selected && selected.size ? selected : null;
   const pickAttrs = (c) => (onPick ? { class: `pick${sel && !sel.has(c.key) ? ' dim' : ''}`, tabindex: 0, role: 'button', onclick: () => onPick(c.key), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(c.key); } } } : { class: sel && !sel.has(c.key) ? 'dim' : '' });
-  const legend = series.length > 1 || line ? el('div', { class: 'bi-leg' }, series.map((s) => el('span', {}, el('i', { style: `background:${s.color}` }), s.name)), line ? el('span', {}, el('i', { style: `background:${line.color ?? '#fb7185'}` }), line.name) : null) : null;
+  const lg = (name, color) => el('button', { type: 'button', class: `lg${on(name) ? '' : ' off'}`, 'aria-pressed': String(only.has(name)), title: 'Clique para ver só este; Ctrl + clique para somar', onclick: (e) => toggle(name, e.ctrlKey || e.metaKey) }, el('i', { style: `background:${color}` }), name);
+  const legend = full.series.length > 1 || full.line ? el('div', { class: 'bi-leg' }, full.series.map((s) => lg(s.name, s.color)), full.line ? lg(full.line.name, full.line.color ?? '#fb7185') : '') : null;
 
   if (orient === 'h') {
     const rowH = 24 * Math.max(1, stacked ? 1 : series.length) * (series.length > 1 && !stacked ? 0.8 : 1) + 6, labW = Math.min(200, Math.max(60, Math.min(26, Math.max(...cats.map((c) => String(c.label).length))) * 7.6));
