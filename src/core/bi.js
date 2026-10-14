@@ -92,8 +92,9 @@ export const M = {
   horasSemPadrao: (c) => sum(c.P.filter((r) => !(r.tpx > 0)), (r) => r.h),
   pecasEstimadas: (c) => c.P.filter((r) => r.tpSrc === 'estimado').length,
   efic: (c) => { const r = M.realComPadrao(c); return r ? M.entrega(c) / r : null; },
-  // 06_tempo_target: 18.58 h × distinct dates, for each machine in view
-  target: (c) => { const by = new Map(); for (const r of c.P) { let s = by.get(r.m); if (!s) by.set(r.m, (s = new Set())); s.add(r.d); } let t = 0; for (const s of by.values()) t += HORAS_DIA * s.size; return t; },
+  // 06_tempo_target: SUMX(VALUES(ROBÔ), 18.58 × DISTINCTCOUNT(DATA)). The date count has no filter of its own inside SUMX, so it is the number of
+  // distinct dates of ALL the machines in view; every machine in view gets that many days (a machine that did not work a day still owes its 18,58 h)
+  target: (c) => { const ms = new Set(), ds = new Set(); for (const r of c.P) { ms.add(r.m); ds.add(r.d); } return HORAS_DIA * ms.size * ds.size; },
   // 07_porcentagem (availability) = hours produced / target
   pct: (c) => { const t = M.target(c); return t ? M.horasProd(c) / t : 0; },
   // 16_% Ganho = (standard − real) / standard ; null (blank) when there is no standard time

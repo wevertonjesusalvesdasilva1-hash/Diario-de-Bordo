@@ -14,8 +14,9 @@ test('totais, meta e disponibilidade', () => {
   const c = slice(cube, {});
   assert.equal(M.horasProd(c), 30); assert.equal(M.qtdPecas(c), 4);
   assert.equal(M.horasParadas(c), 7); assert.equal(M.horasParadasResumo(c), 7);
-  assert.ok(Math.abs(M.target(c) - 18.58 * 3) < 1e-9);          // RAW05: 2 dias, RAW06: 1 dia
-  assert.ok(Math.abs(M.pct(c) - 30 / (18.58 * 3)) < 1e-9);
+  assert.ok(Math.abs(M.target(c) - 18.58 * 2 * 3) < 1e-9);      // como no Power BI: 2 robôs × 3 datas distintas (08-01, 08-02, 09-01)
+  assert.ok(Math.abs(M.pct(c) - 30 / (18.58 * 6)) < 1e-9);
+  assert.ok(Math.abs(M.target(slice(cube, { p: { m: new Set(['RAW05']) }, s: {} })) - 18.58 * 2) < 1e-9);   // um robô: só as datas dele
   assert.ok(Math.abs(M.ganho(c) - (28 - 30) / 28) < 1e-9);
   assert.equal(ganhoTexto(M.ganho(c)), '-7%');
   assert.equal(variacaoTexto(0.9), '+2.00%');
