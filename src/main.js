@@ -1,6 +1,7 @@
 import './verificado.css';
 import './panel.css';
 import { renderPanelUI, resetPanelSelection, panelMaxKey, closePanelMax, reopenPanelMax } from './panelui.js';
+import { openSubmit, renderBaseCard } from './basedados.js';
 import { readFiles, toCanvas, jpegB64, jpegUrl, shrinkCanvas } from './files.js';
 import { fitToBudget } from './core/fit.js';
 import { isTimeField, maskTime, finishTime, timeProblem } from './core/timemask.js';
@@ -68,7 +69,7 @@ function persist(delay = 400) {
   clearTimeout(saveTimer);
   sync?.changed();
   saveTimer = setTimeout(() => {
-    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo, markAdj, group }) => ({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo, markAdj, group }));
+    const keep = state.pages.filter((p) => p.status === 'ok' || p.status === 'erro').map(({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo, markAdj, group, submitted }) => ({ id, sid, label, file, batch, status, error, machine, machineFlag, date, include, single, dup, geomWarn, rowWarn, third, crop, prod, stops, edits, removedRows, sheet, sheetGeo, markAdj, group, submitted }));
     saveState({ dismissed: [...state.dismissed], checked: [...state.checked], pages: keep, nextId: state.nextId, batch: state.batch, reviewed: state.reviewed, okAt: state.okAt, okSig: state.okSig, ai: Array.isArray(state.ai) ? state.ai : null });
   }, delay);
 }
@@ -513,6 +514,7 @@ function renderPage(p) {
         p.machine && !machinesFor(p).includes(p.machine) ? h('option', { value: p.machine, selected: true }, p.machine) : null) : null,
       p.status === 'ok' && p.date ? h('span', { class: 'meta' }, p.date.slice(0, 5)) : null,
       p.machineFlag ? h('span', { class: 'tag bad' }, p.machineFlag) : null,
+      p.submitted ? h('span', { class: 'tag ok', title: `Enviada para a base de dados em ${new Date(p.submitted.at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` }, '✓ na base') : null,
       p.single ? h('span', { class: 'tag bad' }, 'só 1 leitura (a outra falhou)') : null,
       p.geomWarn ? h('span', { class: 'tag' }, 'grade da folha não reconhecida: confira os motivos') : null,
       p.rowWarn ? h('span', { class: 'tag bad' }, p.rowWarn) : null,
@@ -823,6 +825,7 @@ function updateReviewUi() {
   $('ok').hidden = state.reviewed;
   $('viewanalysis').hidden = !state.reviewed;
   $('undook').hidden = !state.reviewed;
+  $('submitbase').hidden = !state.reviewed;
 }
 
 function showTab(name) {
@@ -832,12 +835,15 @@ function showTab(name) {
   $('tab-read').classList.toggle('on', name === 'read');
   $('tab-analysis').classList.toggle('on', name === 'analysis');
   $('view-panel').hidden = name !== 'panel';
+  $('view-bi').hidden = name !== 'bi';
+  $('tab-bi').classList.toggle('on', name === 'bi');
   $('tab-panel').classList.toggle('on', name === 'panel');
   $('tab-panel').setAttribute('aria-selected', String(name === 'panel'));
   $('tab-read').setAttribute('aria-selected', String(name === 'read'));
   $('tab-analysis').setAttribute('aria-selected', String(name === 'analysis'));
   if (name === 'analysis') renderAnalysis();
   if (name === 'panel') renderPanel();
+  if (name === 'bi') renderBi();
 }
 
 function giveOk() {
@@ -1183,6 +1189,22 @@ function renderPanel() {
     filters: { groups: [], days: P.days, opt: panelOpt, onChange: (o) => { Object.assign(panelOpt, o); resetPanelSelection(); renderPanel(); } } });
 }
 $('tab-panel').addEventListener('click', () => showTab('panel'));
+$('tab-bi').addEventListener('click', () => showTab('bi'));
+
+// ---------------------------------------------------------------- base de dados (histórico) e BI
+function openSubmitBase() {
+  openSubmit({
+    pages: includedPages(), reviewed: state.reviewed, flagsOf: countFlags, toast, goRead: () => showTab('read'),
+    onDone: ({ g, batch, pages, result }) => { for (const p of pages) { p.submitted = { g, batch, at: new Date().toISOString(), prod: result.added.prod, stops: result.added.stops }; renderPage(p); } persist(0); if (state.tab === 'bi') renderBi(); },
+  });
+}
+$('submitbase').addEventListener('click', openSubmitBase);
+function renderBi() {
+  const root = $('view-bi');
+  const card = h('section', { class: 'card bd-card' });
+  root.replaceChildren(card);
+  renderBaseCard(card, { toast, reload: renderBi });
+}
 
 $('ok').addEventListener('click', giveOk);
 $('viewanalysis').addEventListener('click', () => showTab('analysis'));

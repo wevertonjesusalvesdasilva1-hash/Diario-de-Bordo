@@ -33,3 +33,6 @@ export const loadState = () => get(KEY);
 export const saveQueue = (files, job = null, group = null) => put(QUEUE, { files, job, group });
 export const loadQueue = () => get(QUEUE);
 export const clearQueue = () => put(QUEUE, null);
+// local copy of the history base (so it is not downloaded again while the server revision is the same)
+export const saveHist = (g, base) => put(`hist-${g}`, base);
+export const loadHist = (g) => get(`hist-${g}`);
