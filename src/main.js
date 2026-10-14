@@ -1120,7 +1120,14 @@ function renderPanel() {
       h('p', { class: 'note' }, 'Sem horários válidos para este filtro.')));
     return;
   }
-  renderPanelUI(root, P, { fmtDur, motColor, toast, who: (c) => (c ? operatorName(c) || `chapa ${c}` : ''), note,
+  const exportOpt = () => ({ sheets: inc.length, who: (c) => (c ? operatorName(c) || `chapa ${c}` : ''), groupLabel: (groups.find(([v]) => v === panelOpt.group) ?? [])[1] === 'Todas as máquinas' ? '' : (groups.find(([v]) => v === panelOpt.group) ?? [])[1] ?? '',
+    dayLabel: panelOpt.day === 'all' ? '' : `Dia ${(P.days.find((d) => String(d.key) === String(panelOpt.day)) ?? {}).label ?? ''}` });
+  const onExport = async (fmt, theme) => {
+    const mod = await import('./panelexport.js');
+    const n = fmt === 'pdf' ? await mod.exportPanelPdf(P, exportOpt(), theme) : await mod.exportPanelExcel(P, exportOpt(), theme);
+    toast(fmt === 'pdf' ? `PDF gerado (${n} slides).` : 'Excel gerado, com os gráficos na aba "Apresentação".');
+  };
+  renderPanelUI(root, P, { fmtDur, motColor, toast, onExport, who: (c) => (c ? operatorName(c) || `chapa ${c}` : ''), note,
     filters: { groups, days: P.days, opt: panelOpt, onChange: (o) => { Object.assign(panelOpt, o); resetPanelSelection(); renderPanel(); } } });
 }
 $('tab-panel').addEventListener('click', () => showTab('panel'));

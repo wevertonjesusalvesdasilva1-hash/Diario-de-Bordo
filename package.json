@@ -12,6 +12,7 @@
   "dependencies": {
     "@vercel/blob": "^2.8.1",
     "@vercel/functions": "^3.9.11",
+    "exceljs": "^4.4.0",
     "pdfjs-dist": "^4.10.38",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },

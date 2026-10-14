@@ -181,3 +181,9 @@ Se o app ficar aberto numa aba enquanto uma versão nova é publicada, aparece n
 
 ### Resumo e botões de exportar
 O resumo (folhas, linhas de produção, paradas e o que está pendente) e os botões **Copiar PRODUÇÃO**, **Copiar PARADAS** e **Baixar Excel** ficam dentro do cartão "Entrada de folhas", logo abaixo dos arquivos enviados, e rolam junto com a página. Não há mais barra fixa no rodapé cobrindo o conteúdo.
+
+### Exportar o painel (apresentação)
+No topo do painel há o botão discreto **⤓ Exportar**. Ele abre um menu com **PDF** e **Excel**, cada um com **Fundo branco** ou **Fundo escuro**. A exportação usa o filtro de grupo e de dia que estiver escolhido e os mesmos números da tela.
+- **PDF (apresentação):** slides em paisagem 16:9: capa, indicadores com o medidor de aproveitamento, motivo (rosca com a tabela), máquina e turno, mapa de calor, paradas por hora, maiores paradas e um anexo com todas as paradas (dia, máquina, motivo, início, fim, duração, operador e observação).
+- **Excel:** a primeira aba ("Apresentação") traz os mesmos slides como imagens; as outras são tabelas formatadas no mesmo tema (cabeçalho colorido, barras de dados e escala de cor no mapa de calor): Resumo, Por motivo, Por máquina, Por turno, Por hora, Mapa de calor e Paradas (com filtro e observação).
+- O Excel usa a biblioteca `exceljs`, baixada só quando se exporta (arquivo separado).

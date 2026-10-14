@@ -185,12 +185,29 @@ export function renderPanelUI(root, P, ctx) {
   const counters = [];
   const num = (to, fmt) => { const b = h('b', { class: 'pn-num' }, fmt(to)); counters.push({ b, to, fmt }); return b; };
 
+  // ---- export (minimal button: PDF slides or Excel, white or dark background)
+  const expBtn = h('button', { type: 'button', class: 'pn-exp', 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, '⤓ Exportar');
+  const expMenu = h('div', { class: 'pn-expmenu', role: 'menu', hidden: true });
+  const runExport = async (fmt, theme) => {
+    expMenu.hidden = true; expBtn.setAttribute('aria-expanded', 'false');
+    const old = expBtn.textContent; expBtn.textContent = 'Gerando…'; expBtn.disabled = true;
+    try { await ctx.onExport(fmt, theme); } catch (e) { ctx.toast?.(`Não consegui exportar: ${e.message ?? e}`); } finally { expBtn.textContent = old; expBtn.disabled = false; }
+  };
+  for (const [fmt, label, hint] of [['pdf', 'PDF', 'apresentação em slides'], ['xlsx', 'Excel', 'gráficos e tabelas formatados']]) {
+    expMenu.append(h('div', { class: 'pn-expg' }, h('b', {}, label), h('small', {}, hint),
+      h('div', { class: 'pn-expb' }, h('button', { type: 'button', class: 'light', onclick: () => runExport(fmt, 'light') }, 'Fundo branco'), h('button', { type: 'button', class: 'dark', onclick: () => runExport(fmt, 'dark') }, 'Fundo escuro'))));
+  }
+  expBtn.addEventListener('click', (e) => { e.stopPropagation(); expMenu.hidden = !expMenu.hidden; expBtn.setAttribute('aria-expanded', String(!expMenu.hidden)); });
+  const closeExp = (e) => { if (!ui.isConnected) { document.removeEventListener('click', closeExp); return; } if (!expMenu.contains(e.target)) { expMenu.hidden = true; expBtn.setAttribute('aria-expanded', 'false'); } };
+  document.addEventListener('click', closeExp);
+
   // ---- filters
   const { groups, days, opt, onChange } = ctx.filters;
   const filters = h('div', { class: 'pn-filters' },
     groups.length > 1 ? h('div', { class: 'pn-seg', role: 'group', 'aria-label': 'Grupo' }, groups.map(([v, t]) => h('button', { type: 'button', class: opt.group === v ? 'on' : '', onclick: () => onChange({ group: v, day: 'all' }) }, t))) : null,
     days.length > 1 ? h('label', { class: 'pn-day' }, 'Dia ', h('select', { onchange: (e) => onChange({ day: e.target.value }) },
-      [['all', 'Todos os dias'], ...days.map((d) => [d.key, d.label])].map(([v, t]) => h('option', { value: v, selected: String(v) === String(opt.day) }, t)))) : null);
+      [['all', 'Todos os dias'], ...days.map((d) => [d.key, d.label])].map(([v, t]) => h('option', { value: v, selected: String(v) === String(opt.day) }, t)))) : null,
+    h('div', { class: 'pn-expwrap' }, expBtn, expMenu));
 
   // ---- KPI row
   const maxHour = Math.max(1, ...P.byHour);
