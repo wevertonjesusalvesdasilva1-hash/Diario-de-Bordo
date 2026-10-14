@@ -3,7 +3,10 @@
 import './db.css';
 import { el } from './bicharts.js';
 import { editRecords, saveMatriz } from './historico.js';
-import { prodRecord, stopRecord, dmy } from './core/history.js';
+import { prodRecord, stopRecord, dmy, spanHours, fmtHM } from './core/history.js';
+// hh:mm of a time span (the spreadsheet's "1ºTURNO / 2ºTURNO / 3ºTURNO" total columns and the stop's TTL)
+const span = (a, b) => { const h = spanHours(a, b); return h == null ? '' : fmtHM(Math.round(h * 60)); };
+const turnTimes = (d) => [span(d.i1, d.f1) || '00:00', span(d.i2, d.f2) || '00:00', span(d.i3, d.f3) || '00:00'];
 
 const PROD_COLS = [['d', 'Data', 'date'], ['m', 'Máquina', 'm'], ['p', 'Peça', 'w'], ['o', 'Modelo', 'w'], ['c1', 'Chapa 1', 's'], ['i1', 'Início 1', 't'], ['f1', 'Fim 1', 't'], ['c2', 'Chapa 2', 's'], ['i2', 'Início 2', 't'], ['f2', 'Fim 2', 't'],
   ['c3', 'Chapa 3', 's'], ['i3', 'Início 3', 't'], ['f3', 'Fim 3', 't'], ['t', 'Turno', 'n'], ['ob', 'Observação', 'w']];
@@ -54,11 +57,15 @@ export function recordsEditor({ g, kind, records, focus = null, onSaved, toast =
       const inp = ([k, label, ty]) => {
         const d = drafts.get(r) ?? r;
         return el('td', {}, el('input', { class: `c-${ty}`, type: ty === 'date' ? 'date' : 'text', value: d[k] ?? '', 'aria-label': label, placeholder: ty === 't' ? 'hh:mm' : '', inputmode: ty === 'n' ? 'numeric' : null,
-          oninput: (e) => { const x = drafts.get(r) ?? drafts.set(r, { ...r }).get(r); x[k] = e.target.value; const dr = dirty(r); tr.classList.toggle('dirty', dr); sv.disabled = !dr; const [h, tp] = hoursOf(r); hc.textContent = f2(h); if (kind === 'prod') tc.textContent = f2(tp); bar.update(); } }));
+          oninput: (e) => { const x = drafts.get(r) ?? drafts.set(r, { ...r }).get(r); x[k] = e.target.value; const dr = dirty(r); tr.classList.toggle('dirty', dr); sv.disabled = !dr; fillSpans(); const [h, tp] = hoursOf(r); hc.textContent = f2(h); if (kind === 'prod') tc.textContent = f2(tp); bar.update(); } }));
       };
+      // totals as in the spreadsheet: 1º / 2º / 3º turno (hh:mm) for a production, tempo total (hh:mm) for a stop; they follow the edited times
+      const spanCells = kind === 'prod' ? [0, 1, 2].map(() => el('td', { class: 'ro n' })) : [el('td', { class: 'ro n' })];
+      const fillSpans = () => { const d = drafts.get(r) ?? r; if (kind === 'prod') turnTimes(d).forEach((v, i) => { spanCells[i].textContent = v; }); else spanCells[0].textContent = span(d.i, d.f); };
+      fillSpans();
       hc = el('td', { class: 'ro n' }, f2(hoursOf(r)[0])); tc = kind === 'prod' ? el('td', { class: 'ro n' }, f2(hoursOf(r)[1])) : '';
       sv = el('button', { type: 'button', class: 'dbe-s', disabled: dirty(r) ? null : true, onclick: () => save([r]) }, 'Salvar');
-      tr = el('tr', { class: `${focus?.has(r) ? 'hit' : ''}${dirty(r) ? ' dirty' : ''}` }, cols.map(inp), hc, tc, el('td', { class: 'act' }, sv, el('button', { type: 'button', class: 'dbe-x', 'aria-label': 'Excluir linha', title: 'Excluir', onclick: () => del(r) }, '🗑')));
+      tr = el('tr', { class: `${focus?.has(r) ? 'hit' : ''}${dirty(r) ? ' dirty' : ''}` }, cols.map(inp), ...spanCells, hc, tc, el('td', { class: 'act' }, sv, el('button', { type: 'button', class: 'dbe-x', 'aria-label': 'Excluir linha', title: 'Excluir', onclick: () => del(r) }, '🗑')));
       return tr;
     };
     const bar = {
@@ -68,7 +75,7 @@ export function recordsEditor({ g, kind, records, focus = null, onSaved, toast =
     const pager = pages > 1 ? el('span', { class: 'dbe-pg' }, el('button', { type: 'button', class: 'ghost', disabled: page === 0 ? true : null, onclick: () => { page--; draw(); } }, '‹'), ` página ${page + 1} de ${pages} `, el('button', { type: 'button', class: 'ghost', disabled: page >= pages - 1 ? true : null, onclick: () => { page++; draw(); } }, '›')) : '';
     const undo = last ? el('button', { type: 'button', class: 'ghost', onclick: async () => { const l = last; const rev = l.undo ?? l.ch.map((c) => ({ kind: c.kind, old: c.new, new: c.old })); try { await editRecords(l.g, rev); last = null; toast('Alteração desfeita.'); await onSaved?.(null); } catch (e) { toast(e.message); } } }, '↶ Desfazer a última alteração') : '';
     const newBtn = el('button', { type: 'button', class: 'ghost', onclick: () => { const d = kind === 'prod' ? { m: records[0]?.m ?? '', d: records[0]?.d ?? '' } : { m: records[0]?.m ?? '', d: records[0]?.d ?? '' }; adding = { ...d }; draw(); } }, '＋ Nova linha');
-    const head = el('tr', {}, cols.map((c) => el('th', {}, c[1])), el('th', { class: 'n' }, 'Horas'), kind === 'prod' ? el('th', { class: 'n' }, 'Padrão (h)') : '', el('th', {}, ''));
+    const head = el('tr', {}, cols.map((c) => el('th', {}, c[1])), ...(kind === 'prod' ? ['1º turno', '2º turno', '3º turno'] : ['Tempo total']).map((t) => el('th', { class: 'n' }, t)), el('th', { class: 'n' }, 'Horas'), kind === 'prod' ? el('th', { class: 'n' }, 'Padrão (h)') : '', el('th', {}, ''));
     const body = el('tbody', {}, shown.map(row));
     const addBox = adding ? addRow() : '';
     host.replaceChildren(
