@@ -99,9 +99,15 @@ export function drawChart(box, full) {
   const { max, ticks } = niceMax(Math.max(...totals, 0) * 1.1 || 1);
   const y = (v) => top + plotH - (v / max) * plotH;
   const svg = S('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img' });
-  ticks.forEach((t) => svg.append(S('line', { class: 'grid', x1: left, x2: W - right, y1: y(t), y2: y(t) }), S('text', { x: left - 5, y: y(t), 'text-anchor': 'end', 'dominant-baseline': 'middle', class: 'mut' }, fmt(t))));
-  let lmax = 1, ly = null;
-  if (line) { lmax = line.max ?? niceMax(Math.max(...line.vals.map((v) => v ?? 0), 0) * 1.1).max; ly = (v) => top + plotH - (v / lmax) * plotH; const lt = line.ticks ?? [0, lmax / 2, lmax]; lt.forEach((t) => svg.append(S('text', { x: W - right + 5, y: ly(t), 'dominant-baseline': 'middle', class: 'mut' }, (line.fmt ?? String)(t)))); }
+  (series.length ? ticks : [0, max]).forEach((t) => svg.append(S('line', { class: 'grid', x1: left, x2: W - right, y1: y(t), y2: y(t) }), series.length ? S('text', { x: left - 5, y: y(t), 'text-anchor': 'end', 'dominant-baseline': 'middle', class: 'mut' }, fmt(t)) : ''));
+  let ly = null, dup = false;
+  if (line) {
+    // a line that repeats a column series (same numbers) shares the columns' scale and needs no second axis or labels
+    dup = series.some((sr) => sr.vals.length === line.vals.length && sr.vals.every((v, i) => v === line.vals[i]));
+    const vs = line.vals.filter((v) => v != null), lo = dup ? 0 : (line.min ?? 0), hi = dup ? max : (line.max ?? niceMax(Math.max(...vs, 0) * 1.1).max);
+    ly = (v) => top + plotH - ((v - lo) / (hi - lo || 1)) * plotH;
+    if (!dup) (line.ticks ?? (lo < 0 && hi > 0 ? [lo, 0, hi] : [lo, (lo + hi) / 2, hi])).forEach((t) => svg.append(S('text', { x: W - right + 5, y: ly(t), 'dominant-baseline': 'middle', class: 'mut' }, (line.fmt ?? String)(t))));
+  }
   let prevGroup = null, gStart = 0;
   const closeGroup = (i) => { if (prevGroup == null || i <= gStart) return; const cx = left + ((gStart + i) / 2) * step; svg.append(S('text', { x: cx, y: H - 6, 'text-anchor': 'middle', class: 'mut' }, clip(prevGroup, 12)), S('line', { class: 'grid', x1: left + i * step, x2: left + i * step, y1: H - bottom + 2, y2: H - 2 })); };
   cats.forEach((c, i) => {
@@ -125,7 +131,7 @@ export function drawChart(box, full) {
     const pts = cats.map((c, i) => (line.vals[i] == null ? null : [left + i * step + step / 2, ly(line.vals[i])]));
     const col = line.color ?? '#fb7185';
     const ok = pts.filter(Boolean); if (ok.length) svg.append(S('path', { d: smooth(ok, top, top + plotH), fill: 'none', stroke: col, 'stroke-width': 2.4, 'stroke-linecap': 'round', class: 'glow', style: `--c:${col}` }));
-    pts.forEach((p, i) => { if (!p) return; svg.append(S('circle', { cx: p[0], cy: p[1], r: 3.5, fill: '#fff', stroke: col, 'stroke-width': 2 }, S('title', {}, `${cats[i].label}\n${line.name}: ${(line.fmt ?? String)(line.vals[i])}`))); if (cats.length <= 16) svg.append(S('text', { x: p[0], y: p[1] - 7, 'text-anchor': 'middle', style: `font-size:10px;fill:${col}` }, (line.fmt ?? String)(line.vals[i]))); });
+    pts.forEach((p, i) => { if (!p) return; svg.append(S('circle', { cx: p[0], cy: p[1], r: 3.5, fill: '#fff', stroke: col, 'stroke-width': 2 }, S('title', {}, `${cats[i].label}\n${line.name}: ${(line.fmt ?? String)(line.vals[i])}`))); if (cats.length <= 16 && !dup) svg.append(S('text', { x: p[0], y: p[1] - 7, 'text-anchor': 'middle', style: `font-size:10px;fill:${col}` }, (line.fmt ?? String)(line.vals[i]))); });
   }
   box.append(svg, legend ?? '');
 }

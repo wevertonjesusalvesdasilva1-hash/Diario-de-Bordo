@@ -271,7 +271,7 @@ function pageOperador(x) {
   const t2 = () => table(tpCols([{ h: 'Nome', v: (r) => blank(r.vals[0]) }]), avgOrder(0, rowsOf(groupP(x.cube, x.F('t2'), ['nome']))), { totals: tpTotals(slice(x.cube, x.F('t2')), ['Total']) });
   const combo = () => { const gr = groupP(x.cube, x.F('v3'), ['cf']).map((g) => ({ g, v: M.horasProd(g.c) })).sort((a, b) => b.v - a.v);
     return { cats: gr.map(({ g }) => ({ key: g.vals[0], label: blank(g.vals[0]) })), series: [{ name: 'Tempo (h)', vals: gr.map((r) => r.v), color: PALETTE[0] }, { name: 'TP Padrão (h)', vals: gr.map((r) => M.tp(r.g.c)), color: PALETTE[1] }],
-      line: { name: '% Ganho', vals: gr.map((r) => M.ganho(r.g.c)), fmt: fpct0, color: '#fb7185', max: Math.max(0.5, ...gr.map((r) => Math.abs(M.ganho(r.g.c) ?? 0))), ticks: [0, 0.5] }, fmt: f1, onPick: x.pick('v3', 'p', ['cf']), selected: x.selOf('v3') }; };
+      line: { name: '% Ganho', vals: gr.map((r) => M.ganho(r.g.c)), fmt: fpct0, color: '#fb7185', min: Math.min(0, ...gr.map((r) => M.ganho(r.g.c) ?? 0)), max: Math.max(0.5, ...gr.map((r) => M.ganho(r.g.c) ?? 0)) }, fmt: f1, onPick: x.pick('v3', 'p', ['cf']), selected: x.selOf('v3') }; };
   const semNomes = !Object.keys(getOperators()).length;
   return [semNomes ? el('p', { class: 'bi-note' }, 'Os nomes vêm da lista de operadores do servidor, carregada ao abrir o app. Se não aparecerem, recarregue a página; se continuar, a lista de operadores ainda não foi configurada e só as chapas aparecem.') : '',
     live(() => [card('OPERADOR', selecionado(nomeSel, 'Todos', 'operadores selecionados')), card('HORAS PRODUZIDAS', `${f1(M.horasProd(slice(x.cube, x.F('cards'))))} h`)]),
@@ -281,7 +281,7 @@ function pageOperador(x) {
 function pageMensal(x) {
   const u = GROUPS[x.g].unit;
   const combo = () => { const gr = groupP(x.cube, x.F('v1'), ['mes']); const order = (m) => ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'].indexOf(m); gr.sort((a, b) => order(a.vals[0]) - order(b.vals[0]));
-    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Pecas', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }], line: { name: 'Horas', vals: gr.map((g) => M.horasProd(g.c)), fmt: f1, color: PALETTE[1] }, fmt: f1, onPick: x.pick('v1', 'p', ['mes']), selected: x.selOf('v1') }; };
+    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }], line: { name: 'Total no mês (h)', vals: gr.map((g) => M.horasProd(g.c)), fmt: f1, color: PALETTE[1] }, fmt: f1, onPick: x.pick('v1', 'p', ['mes']), selected: x.selOf('v1') }; };
   const turno = () => { const gr = groupP(x.cube, x.F('v4'), ['t']); return { cats: gr.map((g) => ({ key: g.vals[0], label: `Turno ${blank(g.vals[0])}` })), series: [{ name: 'Peças', vals: gr.map((g) => M.qtdPecas(g.c)), color: PALETTE[0] }], fmt: fint, onPick: x.pick('v4', 'p', ['t']), selected: x.selOf('v4') }; };
   const tbl = () => { const rows = rowsOf(groupP(x.cube, x.F('t1'), ['m'])), tot = slice(x.cube, x.F('t1'));
     return table([{ h: u, v: (r) => r.vals[0] }, { h: 'Peças', v: (r) => fint(M.qtdPecas(r.c)), key: (r) => M.qtdPecas(r.c), n: true }, { h: 'Horas (h)', v: (r) => f2(M.horasProd(r.c)), key: (r) => M.horasProd(r.c), n: true }, { h: 'Target (h)', v: (r) => f2(M.target(r.c)), key: (r) => M.target(r.c), n: true },
