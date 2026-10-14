@@ -3,6 +3,7 @@
 import { jpegsToPdf } from './core/pdfimg.js';
 import { fmtDur } from './core/analysis.js';
 import { MOTIVOS_ALL } from './data/vocab.js';
+import { injectCharts } from './xlsxcharts.js';
 
 const W = 1920, H = 1080, M = 80;
 const FONT = '"Chakra Petch", "Segoe UI", system-ui, -apple-system, sans-serif';
@@ -264,6 +265,8 @@ export async function exportPanelExcel(P, opt, theme) {
   });
 
   // 2) data sheets
+  const charts = []; // native Excel charts, injected after the workbook is written
+  const PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
   const sheet = (name, head, rows, widths, opts = {}) => {
     const ws = wb.addWorksheet(name, { views: [{ showGridLines: false, state: 'frozen', ySplit: 1 }] });
     ws.addRow(head); rows.forEach((r) => ws.addRow(r));
@@ -276,6 +279,11 @@ export async function exportPanelExcel(P, opt, theme) {
     if (opts.autoFilter) ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: lastCol } };
     for (const bar of opts.bars ?? []) ws.addConditionalFormatting({ ref: `${bar}2:${bar}${lastRow}`, rules: [{ type: 'dataBar', priority: 1, minLength: 0, maxLength: 100, gradient: true, cfvo: [{ type: 'min' }, { type: 'max' }], color: { argb: `FF${vC}` } }] });
     if (opts.scale) ws.addConditionalFormatting({ ref: opts.scale(lastRow, lastCol), rules: [{ type: 'colorScale', priority: 2, cfvo: [{ type: 'num', value: 0 }, { type: 'max' }], color: [{ argb: `FF${theme === 'light' ? 'FFFFFF' : '16161F'}` }, { argb: `FF${vC}` }] }] });
+    if (opts.chart && rows.length) { // a 1-pixel picture makes ExcelJS create the drawing part the chart goes into
+      ws.addImage(wb.addImage({ base64: PIXEL, extension: 'png' }), { tl: { col: 0, row: 0 }, ext: { width: 1, height: 1 } });
+      charts.push({ sheetIndex: ws.id, from: { col: lastCol + 1, row: 1 }, to: { col: lastCol + 11, row: 22 },
+        spec: { ...opts.chart, sheet: name, catCol: 1, valCol: opts.chart.valCol ?? 2, firstRow: 2, cats: rows.map((r) => r[0]), vals: rows.map((r) => r[(opts.chart.valCol ?? 2) - 1]), T } });
+    }
     return ws;
   };
   const pct = (m) => (P.stopMin ? m / P.stopMin : 0);
@@ -284,17 +292,18 @@ export async function exportPanelExcel(P, opt, theme) {
     ['Maior parada', P.longest ? fmtDur(P.longest.min) : '—', P.longest ? `${P.longest.machine} · ${P.longest.motivo}` : ''], ['Filtro', opt.groupLabel || 'Todas as máquinas', opt.dayLabel || 'Todos os dias'],
     ['Gerado em', new Date().toLocaleString('pt-BR'), 'Maple Tapping · Diário de Bordo']], [26, 22, 44]);
   sum.getColumn(2).alignment = { horizontal: 'left' };
-  const mot = sheet('Por motivo', ['Motivo', 'Tempo parado (min)', 'Tempo', '% do parado', 'Vezes'], P.byMotivo.map((x) => [x.motivo, x.min, fmtDur(x.min), pct(x.min), x.count]), [30, 20, 12, 14, 10], { bars: ['B'] });
+  const mot = sheet('Por motivo', ['Motivo', 'Tempo parado (min)', 'Tempo', '% do parado', 'Vezes'], P.byMotivo.map((x) => [x.motivo, x.min, fmtDur(x.min), pct(x.min), x.count]), [30, 20, 12, 14, 10], { bars: ['B'], chart: { type: 'doughnut', title: 'Tempo parado por motivo', seriesName: 'Tempo parado (min)', colors: P.byMotivo.map((x) => motColor(T, x.motivo)) } });
   mot.getColumn(4).numFmt = '0.0%';
-  sheet('Por máquina', ['Máquina', 'Parado (min)', 'Parado', 'Produzindo (min)', 'Produzindo', '% parada', 'Paradas'], P.byMachine.map((m) => [m.name, m.stopMin, fmtDur(m.stopMin), m.prodMin, fmtDur(m.prodMin), m.pct / 100, m.count]), [18, 14, 12, 18, 14, 12, 10], { bars: ['B'] }).getColumn(6).numFmt = '0%';
-  sheet('Por turno', ['Turno', 'Parado (min)', 'Parado'], P.byTurno.map((x) => [x.turno === '?' ? 'Sem turno' : `Turno ${x.turno}`, x.min, fmtDur(x.min)]), [16, 14, 12], { bars: ['B'] });
-  sheet('Por hora', ['Hora', 'Parado (min)', 'Parado'], HOURS.map((hr) => [hh(hr), P.byHour[hr], fmtDur(P.byHour[hr])]), [10, 14, 12], { bars: ['B'] });
+  sheet('Por máquina', ['Máquina', 'Parado (min)', 'Parado', 'Produzindo (min)', 'Produzindo', '% parada', 'Paradas'], P.byMachine.map((m) => [m.name, m.stopMin, fmtDur(m.stopMin), m.prodMin, fmtDur(m.prodMin), m.pct / 100, m.count]), [18, 14, 12, 18, 14, 12, 10], { bars: ['B'], chart: { type: 'bar', title: 'Tempo parado por máquina (min)', seriesName: 'Parado (min)' } }).getColumn(6).numFmt = '0%';
+  sheet('Por turno', ['Turno', 'Parado (min)', 'Parado'], P.byTurno.map((x) => [x.turno === '?' ? 'Sem turno' : `Turno ${x.turno}`, x.min, fmtDur(x.min)]), [16, 14, 12], { bars: ['B'], chart: { type: 'column', title: 'Tempo parado por turno (min)', seriesName: 'Parado (min)' } });
+  sheet('Por hora', ['Hora', 'Parado (min)', 'Parado'], HOURS.map((hr) => [hh(hr), P.byHour[hr], fmtDur(P.byHour[hr])]), [10, 14, 12], { bars: ['B'], chart: { type: 'area', title: 'Paradas ao longo do dia (min por hora)', seriesName: 'Parado (min)' } });
   sheet('Mapa de calor', ['Máquina', ...HOURS.map(hh)], P.heat.map((r) => [r.machine, ...HOURS.map((hr) => r.hours[hr] || 0)]), [18, ...HOURS.map(() => 6)], { scale: (lr, lc) => `B2:${String.fromCharCode(64 + lc)}${lr}` });
   const sorted = [...P.all].sort((a, b) => b.min - a.min);
   sheet('Paradas', ['Dia', 'Folha', 'Máquina', 'Motivo', 'Início', 'Fim', 'Duração (min)', 'Duração', 'Turno', 'Operador', 'Chapa', 'Observação'],
     sorted.map((s) => [s.day, s.folha, s.machine, s.motivo, s.clock, s.fim, s.min, fmtDur(s.min), s.turno === '?' ? '' : s.turno, who(s.chapa) === `chapa ${s.chapa}` ? '' : who(s.chapa), s.chapa, s.desc || '']),
     [12, 22, 12, 22, 9, 9, 14, 11, 8, 28, 10, 50], { autoFilter: true, bars: ['G'] });
-  const buf = await wb.xlsx.writeBuffer();
+  let buf = await wb.xlsx.writeBuffer();
+  if (charts.length) { const JSZip = (await import('jszip')).default; buf = await injectCharts(JSZip, buf, charts); }
   save(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `painel-${theme === 'light' ? 'claro' : 'escuro'}-${new Date().toISOString().slice(0, 10)}.xlsx`);
   return cvs.length;
 }
