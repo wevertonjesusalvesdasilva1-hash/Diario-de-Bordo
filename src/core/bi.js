@@ -142,7 +142,9 @@ export function groupS(cube, f, cols) {
 export function pareto(cube, f) {
   const all = groupS(cube, without(f, 's', 'mo'), ['mo']).map((g) => ({ mo: g.vals[0], h: M.horasParadas(g.c) }));
   const total = all.reduce((s, x) => s + x.h, 0);
-  const rank = (h) => { const hs = [...new Set(all.map((x) => x.h))].sort((a, b) => b - a); return hs.indexOf(h) + 1; }; // dense, descending
+  const q = (h) => Math.round(h * 1e9) / 1e9;   // the same hours with different floating-point noise are a tie (1,0000000000000018 = 1,0000000000000009)
+  const hsAll = [...new Set(all.map((x) => q(x.h)))].sort((a, b) => b - a);
+  const rank = (h) => hsAll.indexOf(q(h)) + 1; // dense, descending
   const visible = groupS(cube, f, ['mo']).map((g) => ({ mo: g.vals[0], h: M.horasParadas(g.c) })).filter((x) => x.h > 0);
   return visible.map((x) => {
     const rk = rank(x.h);
