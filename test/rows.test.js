@@ -87,7 +87,7 @@ test('nomes de máquina: RAW, UMC, HMC e NCBZ em qualquer grafia', async () => {
   assert.equal(normMachine('RAW 12'), 'RAW12');
   assert.equal(normMachine('UMC-01'), 'UMC 01');
   assert.equal(normMachine('umc 2'), 'UMC 02');
-  assert.equal(normMachine('HMC16'), 'HMC 16');
+  assert.equal(normMachine('HMC16'), 'HMC-16');
   assert.equal(normMachine('NCBZ'), 'NCBZ');
   assert.equal(normMachine('XYZ'), '');
 });

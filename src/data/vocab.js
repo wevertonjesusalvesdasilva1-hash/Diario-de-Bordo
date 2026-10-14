@@ -30,7 +30,7 @@ export const MOTIVOS_ALL = [...MOTIVOS, ...MOTIVOS_EXTRA];
 // Máquinas atendidas pelo app. RAW (solda robotizada) é marcada por bolinha na folha;
 // as de usinagem vêm com o nome escrito/impresso no campo MÁQUINA.
 export const MAQUINAS_RAW = ['RAW05', 'RAW06', 'RAW09', 'RAW10', 'RAW11', 'RAW12'];
-export const MAQUINAS_USINAGEM = ['UMC 01', 'UMC 02', 'HMC 16', 'NCBZ'];
+export const MAQUINAS_USINAGEM = ['UMC 01', 'UMC 02', 'HMC-16', 'NCBZ'];
 export const MAQUINAS = [...MAQUINAS_RAW, ...MAQUINAS_USINAGEM];
 
 // Listas iniciais da usinagem (UMC 01, UMC 02, HMC 16, NCBZ), vistas nas folhas UMC. Edite na tela.

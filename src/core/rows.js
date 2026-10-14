@@ -23,7 +23,7 @@ export function normMachine(text) {
   let m;
   if ((m = /^RAW0?(\d{1,2})$/.exec(t))) return `RAW${m[1].padStart(2, '0')}`;
   if ((m = /^UMC0?(\d)$/.exec(t))) return `UMC 0${m[1]}`;
-  if ((m = /^HMC0?(\d{1,2})$/.exec(t))) return `HMC ${m[1].padStart(2, '0')}`;
+  if ((m = /^HMC0?(\d{1,2})$/.exec(t))) return `HMC-${m[1].padStart(2, '0')}`;
   if (/^NCB[Z2S]$/.test(t)) return 'NCBZ';
   return '';
 }

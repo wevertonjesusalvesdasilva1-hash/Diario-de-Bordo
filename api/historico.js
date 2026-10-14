@@ -14,21 +14,25 @@ const send = (res, status, body) => res.status(status).setHeader('Cache-Control'
 const store = new Proxy({}, { get: (_, k) => getStore()[k] });
 const path = (g) => `historico/${g}.json`;
 const MAX_PER_CALL = 3000;
-const MACHINES = { raw: /^RAW\d{2}$/, usi: /^(UMC 0[12]|HMC \d{2}|NCBZ)$/ };
+const MACHINES = { raw: /^RAW\d{2}$/, usi: /^(UMC 0[12]|HMC-\d{2}|NCBZ)$/ };
 
 // same keys as src/core/history.js (functions do not import from src/)
 const prodKey = (r) => ['P', r.m, r.d, r.p, r.o, r.c1, r.i1, r.f1, r.c2, r.i2, r.f2, r.c3, r.i3, r.f3].join('|');
 const stopKey = (r) => ['S', r.m, r.d, r.c, r.i, r.f, r.t ?? '', r.mo].join('|');
 
+// the base used to call it "HMC 16"; the control spreadsheet and the Power BI say "HMC-16"
+const fixM = (r) => (r && typeof r.m === 'string' && /^HMC \d{2}$/.test(r.m) ? { ...r, m: r.m.replace(' ', '-') } : r);
 const str = (v, n = 160) => (typeof v === 'string' ? v.slice(0, n) : '');
 const hm = (v) => (/^\d{2}:\d{2}$/.test(v) ? v : '');
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v < 1000 ? v : 0);
 function cleanProd(g, r) {
+  r = fixM(r);
   if (!r || typeof r !== 'object' || !MACHINES[g].test(r.m) || !/^\d{4}-\d{2}-\d{2}$/.test(r.d)) return null;
   const t = r.t === 1 || r.t === 2 || r.t === 3 ? r.t : null;
   return { m: r.m, d: r.d, p: str(r.p), o: str(r.o), c1: str(r.c1, 12), i1: hm(r.i1), f1: hm(r.f1), c2: str(r.c2, 12), i2: hm(r.i2), f2: hm(r.f2), c3: str(r.c3, 12), i3: hm(r.i3), f3: hm(r.f3), t, ob: str(r.ob, 300), h: num(r.h), tp: num(r.tp) };
 }
 function cleanStop(g, r) {
+  r = fixM(r);
   if (!r || typeof r !== 'object' || !MACHINES[g].test(r.m) || !/^\d{4}-\d{2}-\d{2}$/.test(r.d) || !hm(r.i) || !hm(r.f)) return null;
   const t = r.t === 1 || r.t === 2 || r.t === 3 ? r.t : null;
   return { m: r.m, d: r.d, c: str(r.c, 12), i: r.i, f: r.f, t, mo: str(r.mo), ds: str(r.ds, 300), h: num(r.h) };
@@ -50,7 +54,7 @@ async function matriz(req, res, body) {
 async function read(g) {
   const text = await store.read(path(g));
   if (!text) return { rev: 0, prod: [], stops: [], batches: [] };
-  try { const d = JSON.parse(text); return { rev: d.rev ?? 0, prod: d.prod ?? [], stops: d.stops ?? [], batches: d.batches ?? [] }; } catch { return { rev: 0, prod: [], stops: [], batches: [] }; }
+  try { const d = JSON.parse(text); return { rev: d.rev ?? 0, prod: (d.prod ?? []).map(fixM), stops: (d.stops ?? []).map(fixM), batches: d.batches ?? [] }; } catch { return { rev: 0, prod: [], stops: [], batches: [] }; }
 }
 const write = (g, d) => store.write(path(g), JSON.stringify({ ...d, rev: d.rev + 1, at: new Date().toISOString() }));
 
@@ -102,7 +106,7 @@ export default async function handler(req, res) {
         const nw = c.new ? clean(g, c.new) : null;
         if (c.new && !nw) { done.miss++; continue; }
         if (!c.old) { if (nw) { list.push({ ...nw, b: batch }); done.add++; } continue; }
-        const idx = list.findIndex((r) => sameRec(c.old, r));
+        const idx = list.findIndex((r) => sameRec(fixM(c.old), r));
         if (idx < 0) { done.miss++; continue; }
         if (!nw) { list.splice(idx, 1); done.del++; } else { list[idx] = { ...nw, b: list[idx].b }; done.edit++; }
       }

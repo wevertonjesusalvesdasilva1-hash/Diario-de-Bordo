@@ -19,9 +19,9 @@ test('horas: virada do dia, soma dos três turnos e tempo padrão da matriz', ()
   assert.equal(prodHours({ i1: '08:00', f1: '12:00', i2: '22:00', f2: '02:00', i3: '', f3: '' }), 8);
   assert.equal(isoDate('01/10/2026'), '2026-10-01'); assert.equal(isoDate(46296), '2026-10-01'); assert.equal(isoDate(''), '');
   assert.equal(prodRecord({ m: 'RAW09', d: '01/10/2026', p: '1° OP LANÇA', o: 'PC360LC-8M2', i1: '08:00', f1: '10:00', t: '1' }).tp, 7);
-  assert.equal(standardHours('HMC 16', 'MESA', 'PC360LC-8M2') > 0, true);
+  assert.equal(standardHours('HMC-16', 'MESA', 'PC360LC-8M2') > 0, true);
   assert.equal(stopRecord({ m: 'HMC-16', d: '01/10/2026', i: '07:50', f: '08:30', mo: ' TROCA DE PEÇA ' }).mo, 'TROCA DE PEÇA');
-  assert.equal(stopRecord({ m: 'HMC-16', d: '01/10/2026', i: '07:50', f: '08:30' }).m, 'HMC 16');
+  assert.equal(stopRecord({ m: 'HMC 16', d: '01/10/2026', i: '07:50', f: '08:30' }).m, 'HMC-16');
 });
 
 test('folhas validadas viram registros; linhas sem data ou horário ficam de fora e o mesmo registro não entra duas vezes', () => {

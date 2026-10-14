@@ -13,6 +13,8 @@ export const emptyBase = () => ({ rev: 0, prod: [], stops: [], batches: [] });
 export async function loadBase(g, { force = false } = {}) {
   await loadMatriz();
   if (!mem[g]) mem[g] = (await loadHist(g)) ?? null;
+  const fixM = (r) => (/^HMC \d{2}$/.test(r.m) ? { ...r, m: r.m.replace(' ', '-') } : r);
+  if (mem[g] && g === 'usi' && !mem[g].fixed) { mem[g] = { ...mem[g], prod: mem[g].prod.map(fixM), stops: mem[g].stops.map(fixM), fixed: true }; }
   const cached = mem[g];
   const r = await apiGet(`/api/historico?g=${g}${cached && !force ? `&rev=${cached.rev}` : ''}`);
   if (!r.ok) await fail(r);
