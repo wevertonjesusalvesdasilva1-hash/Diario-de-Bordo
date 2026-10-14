@@ -1,6 +1,6 @@
 // "4 · BI": the Power BI reports (RAW and usinagem) rebuilt on the history. Numbers come from core/bi.js (the report's own measures).
 import './bi.css';
-import { buildCube, slice, M, options, optionsFor, auditoria24, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
+import { buildCube, slice, M, options, optionsFor, auditoria24, cardsBI, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
 import { dmy } from './core/history.js';
 import { loadBase } from './historico.js';
 import { getOperators, operatorName } from './core/operators.js';
@@ -192,15 +192,26 @@ function cardsRow(x, kind, side = 'p') {
       card('DISPONIBILIDADE', fpct(pct), corPctS(pct), `Meta ${Math.round(META * 100)}% · ${gap >= 0 ? '+' : '−'}${f1(Math.abs(gap))} pts${pv ? ' · ' + arrow((pct - M.pct(pv)) * 100, ' pts') : ''}`)];
   });
 }
-// top strip: what stands out in the current view + suspicious records
+// top row: cards like the ones of the Análise tab (machine, chip, who, big number, short story, "Abrir")
+const TONE = { bad: '#fb7185', warn: '#fbbf24', ok: '#a3e635' };
+function biCard(c) {
+  const people = c.people?.length ? el('div', { class: 'oper-id' }, el('span', { class: 'olabel' }, 'Operador'), c.people.map((o) => el('div', { class: 'oname' }, el('b', {}, o.nome || `chapa ${o.chapa}`), o.nome ? el('small', {}, `chapa ${o.chapa}`) : ''))) : null;
+  const open = () => (c.detail ? openRecords(c.detail.title, c.detail.head, c.detail.rows) : c.open?.());
+  return el('article', { class: 'acard', style: `--kc:${TONE[c.tone]}`, tabindex: 0, role: 'button', 'aria-label': `${c.machine}: ${c.title}. Clique para abrir.`, onclick: open, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } } },
+    el('div', { class: 'ftop' }, el('strong', { class: 'fmachine' }, c.machine), el('span', { class: 'kchip' }, el('i'), c.title)),
+    people,
+    c.big ? el('div', { class: 'fbig2' }, el('b', {}, c.big), el('small', {}, c.bigLabel)) : null,
+    el('p', { class: 'tbrief' }, c.brief),
+    el('div', { class: 'ffoot' }, el('span', {}, c.foot), el('span', { class: 'fhint' }, 'Abrir ⤢')));
+}
 function alertsStrip(x) {
   return live(() => {
-    const f = x.F('cards'), items = destaques(x.cube, f, { unit: GROUPS[x.g].unit }), bad = anomalias(x.cube, f);
-    const out = items.map((d) => el('span', { class: `bi-al ${d.tone}` }, d.text));
-    const d24 = auditoria24(x.cube, f);
-    if (d24.length) out.push(el('button', { type: 'button', class: 'bi-al bad act', onclick: () => openRecords(`Dias acima de 24 h (${d24.length})`, ['Dia', 'Máquina', 'Produção (h)', 'Paradas (h)', 'Total (h)', 'Por quê'], d24.map((r) => [dmy(r.d), r.m, +r.ph.toFixed(2), +r.sh.toFixed(2), +r.tot.toFixed(2), r.why]), 'Uma máquina não pode ter mais de 24 h em um dia somando produção e paradas. Corrija as linhas na folha ou no Excel e importe de novo.') }, `⚠ ${d24.length} dia(s) acima de 24 h · ver`));
-    if (bad.length) out.push(el('button', { type: 'button', class: 'bi-al bad act', onclick: () => openRecords(`Registros suspeitos (${bad.length})`, [...PROD_HEAD, 'Motivo'], bad.map(({ r, why }) => [...prodRow(r), why]), 'Confira estas linhas na folha ou no Excel: o horário digitado pode estar errado (por exemplo, hora que atravessa a meia-noite).') }, `⚠ ${bad.length} registro(s) suspeito(s) · ver`));
-    return out;
+    const f = x.F('cards'), cards = cardsBI(x.cube, f, { unit: GROUPS[x.g].unit }), d24 = auditoria24(x.cube, f), bad = anomalias(x.cube, f);
+    if (d24.length) cards.push({ key: 'd24', tone: 'bad', machine: 'Auditoria de 24 h', title: 'Dias acima de 24 h', people: [], big: String(d24.length), bigLabel: 'dias de máquina', brief: 'Uma máquina não pode ter mais de 24 h num dia somando produção e paradas. Confira estes dias.', foot: 'Produção + paradas', detail: { title: `Dias acima de 24 h (${d24.length})`, head: ['Dia', 'Máquina', 'Produção (h)', 'Paradas (h)', 'Total (h)', 'Por quê'], rows: d24.map((r) => [dmy(r.d), r.m, +r.ph.toFixed(2), +r.sh.toFixed(2), +r.tot.toFixed(2), r.why]) } });
+    if (bad.length) cards.push({ key: 'susp', tone: 'warn', machine: 'Registros suspeitos', title: 'Horas fora do normal', people: [], big: String(bad.length), bigLabel: 'registros', brief: 'Registros com mais de 16 h ou em dias que passam de 24 h. O horário digitado pode estar errado.', foot: 'Conferir na folha', detail: { title: `Registros suspeitos (${bad.length})`, head: [...PROD_HEAD, 'Motivo'], rows: bad.map(({ r, why }) => [...prodRow(r), why]) } });
+    const order = { bad: 0, warn: 1, ok: 2 };
+    cards.sort((a, b) => order[a.tone] - order[b.tone]);
+    return cards.length ? [el('div', { class: 'acards bi-acards' }, cards.map(biCard))] : [];
   }, 'bi-alerts');
 }
 const unitCats = (groups) => groups.map((g) => ({ key: g.vals.join(SEP), label: blank(g.vals.at(-1)) }));

@@ -179,3 +179,22 @@ export function auditoria24(cube, f = {}) {
   const ok = (r, dims, a, b) => ['data', 'mes', 'm'].every((k) => { const sets = [a[k], b[k]].filter(Boolean); return sets.every((st) => st.has(dims[k](r))); });
   return auditDays(cube.prod.filter((r) => ok(r, PD, fp, fs)).map((r) => r.src), cube.stops.filter((r) => ok(r, SD, fp, fs)).map((r) => r.src));
 }
+
+// cards of the Indicadores top row (same idea as the cards of the Análise tab): who/what stands out in the current view.
+// Each one: { key, tone, machine, title, people, big, bigLabel, brief, foot, detail: { title, head, rows } }
+const f1h = (v) => v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const topPeople = (c, n = 2) => { const by = new Map(); for (const r of c.P) { if (!r.cf) continue; const x = by.get(r.cf) ?? { chapa: r.cf, nome: r.nome, h: 0 }; x.h += r.h; by.set(r.cf, x); } return [...by.values()].sort((a, b) => b.h - a.h).slice(0, n).map(({ chapa, nome }) => ({ chapa, nome })); };
+export function cardsBI(cube, f = {}, { unit = 'Máquina', days = 0 } = {}) {
+  const out = [], gm = groupP(cube, f, ['m']).map((g) => ({ m: g.vals[0], p: M.pct(g.c), c: g.c, h: M.horasProd(g.c), t: M.target(g.c) })).filter((x) => Number.isFinite(x.p));
+  const table = { head: [unit, 'Horas produzidas', 'Meta (h)', 'Disponibilidade', 'Desvio da meta'], rows: [...gm].sort((a, b) => b.p - a.p).map((x) => [x.m, +x.h.toFixed(2), +x.t.toFixed(2), `${f1h(x.p * 100)}%`, variacaoTexto(x.p)]) };
+  if (gm.length) {
+    const worst = [...gm].sort((a, b) => a.p - b.p)[0], best = [...gm].sort((a, b) => b.p - a.p)[0];
+    const tone = (p) => (p >= META ? 'ok' : p >= META * 0.9 ? 'warn' : 'bad');
+    const pts = (p) => `${f1h(Math.abs(p - META) * 100)} pontos ${p >= META ? 'acima' : 'abaixo'} da meta de ${Math.round(META * 100)}%`;
+    out.push({ key: 'pior', tone: tone(worst.p), machine: worst.m, title: 'Menor disponibilidade', people: topPeople(worst.c), big: `${f1h(worst.p * 100)}%`, bigLabel: `meta ${Math.round(META * 100)}%`, brief: `${worst.m} produziu ${f1h(worst.h)} h de ${f1h(worst.t)} h possíveis: ${pts(worst.p)}.`, foot: `Comparando ${gm.length} ${unit === 'Robô' ? 'robôs' : 'máquinas'}`, detail: { title: 'Disponibilidade por ' + unit.toLowerCase(), ...table } });
+    if (best.m !== worst.m) out.push({ key: 'melhor', tone: tone(best.p), machine: best.m, title: 'Maior disponibilidade', people: topPeople(best.c), big: `${f1h(best.p * 100)}%`, bigLabel: `meta ${Math.round(META * 100)}%`, brief: `${best.m} produziu ${f1h(best.h)} h de ${f1h(best.t)} h possíveis: ${pts(best.p)}.`, foot: `Comparando ${gm.length} ${unit === 'Robô' ? 'robôs' : 'máquinas'}`, detail: { title: 'Disponibilidade por ' + unit.toLowerCase(), ...table } });
+  }
+  const par = pareto(cube, { p: f.p ?? {}, s: f.s ?? {} }), tot = par.reduce((a, x) => a + x.h, 0);
+  if (par.length && tot) out.push({ key: 'motivo', tone: 'warn', machine: par[0].mo || '(vazio)', title: 'Maior motivo de parada', people: [], big: `${Math.round((par[0].h / tot) * 100)}%`, bigLabel: `${f1h(par[0].h)} h paradas`, brief: `${par[0].mo || 'Parada sem motivo'} responde por ${f1h(par[0].h)} h de ${f1h(tot)} h paradas.`, foot: `${par.length} motivos`, detail: { title: 'Paradas por motivo', head: ['Motivo', 'Horas', '% do total', '% acumulado'], rows: par.map((x) => [x.mo || '(vazio)', +x.h.toFixed(2), `${f1h((x.h / tot) * 100)}%`, `${f1h(x.pctAcc * 100)}%`]) } });
+  return out;
+}

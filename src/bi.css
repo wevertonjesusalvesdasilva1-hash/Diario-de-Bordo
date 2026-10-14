@@ -117,3 +117,7 @@
 .bi-leg .lg i { margin-right: .35rem; }
 
 .bi-quick .uteis[aria-pressed="true"] { background: var(--pv); color: #fff; border-color: var(--pv); }
+
+.bi-alerts { display: block; min-height: 15.5rem; }
+.bi-acards { padding-top: 4px; }
+.bi-acards .acard { min-height: 13.5rem; }
