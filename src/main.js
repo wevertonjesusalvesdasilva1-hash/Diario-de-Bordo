@@ -582,8 +582,10 @@ function updateSummary() {
   if (state.reviewed && sig() !== state.okSig) resetReview(true);
   const any = state.pages.length > 0;
   $('exportbar').hidden = !state.pages.some((p) => p.status === 'ok');
+  syncUpload();
   updateReviewUi();
   $('tools').hidden = !any;
+  $('stats').hidden = !any;   // empty state: the upload comes first
   updateViewBar();
   const incAll = includedPages(), inc = incAll.filter(inView);
   const { prod, stops } = allRows(inc);
@@ -610,7 +612,24 @@ function updateSummary() {
   $('s-conf').textContent = pct == null ? '—' : `${pct}%`;
   $('ring').setAttribute('stroke-dasharray', `${pct ?? 0} 100`);
   $('summary').textContent = `${inc.length} folha(s) · ${prod.length} linhas de produção · ${stops.length} paradas${flags ? ` · ${flags} célula(s) para conferir` : ' · nada pendente'}`;
+  const reading = state.pages.some((p) => p.status === 'lendo');
+  $('navbadge').hidden = !reading && !flags;
+  $('navbadge').textContent = reading ? '…' : String(flags);
+  $('navbadge').title = reading ? 'Lendo folhas' : `${flags} célula(s) para conferir`;
 }
+
+// "Enviar folhas": the big drop zones while there is nothing read; once there are sheets, a compact bar
+// ("+ Enviar mais folhas") so the sheets come first. Dragging a file over it opens it again.
+var uploadOpen = false; // var: updateSummary may run before this line
+function syncUpload() {
+  const any = state.pages.length > 0, compact = any && !uploadOpen;
+  $('upload').classList.toggle('compact', compact);
+  $('upmore').hidden = !any;
+  $('upmore').textContent = compact ? '+ Enviar mais folhas' : 'Recolher';
+  $('upmore').setAttribute('aria-expanded', String(!compact));
+}
+$('upmore').addEventListener('click', () => { uploadOpen = $('upload').classList.contains('compact'); syncUpload(); });
+$('upload').addEventListener('dragenter', () => { if (!uploadOpen && state.pages.length) { uploadOpen = true; syncUpload(); } });
 
 // ---------------------------------------------------------------- events
 
@@ -816,8 +835,8 @@ function resetReview(edited = false) {
 
 function updateReviewUi() {
   const any = okPages().length > 0;
-  $('tabs').hidden = false;                 // the BI tab works without any sheet
   $('okbox').hidden = !any;
+  document.body.classList.toggle('has-actionbar', any && state.tab === 'read');
   $('tab-analysis').disabled = !state.reviewed;
   $('tab-lock').textContent = state.reviewed ? 'aprovada' : 'precisa do OK';
   $('okbox').classList.toggle('done', state.reviewed);
@@ -830,32 +849,47 @@ function updateReviewUi() {
   $('viewanalysis').hidden = !state.reviewed;
   $('undook').hidden = !state.reviewed;
   $('submitbase').hidden = !state.pages.length;   // always there once a sheet is read; the screen says what is still in doubt and offers "subir mesmo assim"
+  // step 3 of the stepper: same action as the button of the action bar
+  const inc = includedPages(), sent = inc.length && inc.every((p) => p.submitted);
+  $('step-base').disabled = !state.pages.length;
+  $('step-base').classList.toggle('done', !!sent);
+  $('step-base-st').textContent = sent ? 'enviadas' : '';
+  $('tab-analysis').classList.toggle('done', state.reviewed);
 }
 
+// Sections of the top bar: Painel BI · Plano de ação · Leitura de folhas (steps: enviar e conferir → análise) · Base de dados
+var lastFolhas = 'read'; // var: showTab may run before this line
 function showTab(name) {
   state.tab = name;
+  const folhas = name === 'read' || name === 'analysis';
+  if (folhas) lastFolhas = name;
   updateViewBar();
+  $('sec-folhas').hidden = !folhas;
   $('view-read').hidden = name !== 'read';
   $('view-analysis').hidden = name !== 'analysis';
-  $('tab-read').classList.toggle('on', name === 'read');
-  $('tab-analysis').classList.toggle('on', name === 'analysis');
-  $('view-plan').hidden = name !== 'plan';
-  $('tab-plan').classList.toggle('on', name === 'plan'); $('tab-plan').setAttribute('aria-selected', String(name === 'plan'));
-  $('view-db').hidden = name !== 'db';
-  $('tab-db').classList.toggle('on', name === 'db'); $('tab-db').setAttribute('aria-selected', String(name === 'db'));
-  $('view-bi').hidden = name !== 'panel';
   $('view-panel').hidden = $('panel-now-title').hidden = name !== 'analysis';   // today's sheets live with the analysis of the day
-  $('stats').hidden = $('upload').hidden = name === 'panel' || name === 'plan' || name === 'db';
-  document.body.classList.toggle('pbi', name === 'panel' || name === 'plan' || name === 'db');   // the BI uses the full width of the screen
-  $('tab-panel').classList.toggle('on', name === 'panel');
-  $('tab-panel').setAttribute('aria-selected', String(name === 'panel'));
-  $('tab-read').setAttribute('aria-selected', String(name === 'read'));
-  $('tab-analysis').setAttribute('aria-selected', String(name === 'analysis'));
+  $('view-bi').hidden = name !== 'panel';
+  $('view-plan').hidden = name !== 'plan';
+  $('view-db').hidden = name !== 'db';
+  for (const [id, on] of [['tab-panel', name === 'panel'], ['tab-plan', name === 'plan'], ['tab-folhas', folhas], ['tab-db', name === 'db']]) {
+    $(id).classList.toggle('on', on);
+    if (on) $(id).setAttribute('aria-current', 'page'); else $(id).removeAttribute('aria-current');
+  }
+  for (const [id, on] of [['tab-read', name === 'read'], ['tab-analysis', name === 'analysis']]) {
+    $(id).classList.toggle('on', on);
+    if (on) $(id).setAttribute('aria-current', 'step'); else $(id).removeAttribute('aria-current');
+  }
+  document.body.classList.toggle('pbi', !folhas);   // the BI, the plan and the base use the full width of the screen
+  document.body.classList.toggle('has-actionbar', name === 'read' && okPages().length > 0);
   if (name === 'analysis') { renderAnalysis(); renderPanel(); }
   if (name === 'panel') renderPanelTab();
   if (name === 'plan') renderPlan();
   if (name === 'db') renderDb();
 }
+// a new section opens at its top (like any page); "Voltar" and "Ir para a linha" keep their own scroll
+const goSection = (name) => { showTab(name); window.scrollTo({ top: 0 }); };
+$('tab-folhas').addEventListener('click', () => goSection(lastFolhas === 'analysis' && state.reviewed ? 'analysis' : 'read'));
+$('home').addEventListener('click', (e) => { e.preventDefault(); goSection('panel'); });
 
 function giveOk() {
   const inc = includedPages();
@@ -872,14 +906,14 @@ function giveOk() {
   btn.dataset.sure = '';
   state.reviewed = true; state.okAt = new Date().toISOString(); state.okSig = sig();
   state.analysis = analyseSheets(inc, { dismissed: state.dismissed }); state.ai = null;
-  updateReviewUi(); showTab('analysis'); persist(0);
+  updateReviewUi(); goSection('analysis'); persist(0);
 }
 
 // "Ir para a linha" leaves a way back: a floating button returns to the tab, the card or the table the person came from
 let origin = null, openCardKey = null;
 function goToRowFrom(pid, table, ri) {
   const o = { tab: state.tab, y: window.scrollY, card: openCardKey, max: panelMaxKey() };
-  const label = o.max ? 'a tabela do painel' : o.card ? 'o card' : { panel: 'o painel', analysis: 'a análise', read: 'a conferência' }[o.tab] ?? 'onde eu estava';
+  const label = o.max ? 'a tabela do painel' : o.card ? 'o card' : { panel: 'o Painel BI', plan: 'o Plano de ação', db: 'a Base de dados', analysis: 'a análise', read: 'a conferência' }[o.tab] ?? 'onde eu estava';
   closeCardModal(); closePanelMax();
   goToRow(pid, table, ri);
   origin = o; $('backgo').textContent = `↩ Voltar para ${label}`; $('backbtn').hidden = false;
@@ -1208,10 +1242,17 @@ function renderPanel() {
     scopeLabel: viewLabel,
     filters: { groups: [], days: P.days, opt: panelOpt, onChange: (o) => { Object.assign(panelOpt, o); resetPanelSelection(); renderPanel(); } } });
 }
-$('tab-panel').addEventListener('click', () => showTab('panel'));
-$('tab-plan').addEventListener('click', () => showTab('plan'));
-$('tab-db').addEventListener('click', () => showTab('db'));
-$('closelists').addEventListener('click', () => { $('listscard').hidden = true; window.scrollTo({ top: 0, behavior: 'smooth' }); });
+$('tab-panel').addEventListener('click', () => goSection('panel'));
+$('tab-plan').addEventListener('click', () => goSection('plan'));
+$('tab-db').addEventListener('click', () => goSection('db'));
+// Configurações: a dialog (listas, operadores, limite diário, ano das datas)
+function openSettings(focusId) {
+  $('settings').hidden = false; fillLists();
+  setTimeout(() => $(focusId ?? 'closelists').focus(), 60);
+}
+function closeSettings() { $('settings').hidden = true; }
+$('closelists').addEventListener('click', closeSettings);
+$('settings').addEventListener('click', (e) => { if (e.target === $('settings')) closeSettings(); });
 
 // ---------------------------------------------------------------- base de dados (histórico) e BI
 function openSubmitBase() {
@@ -1221,16 +1262,17 @@ function openSubmitBase() {
   });
 }
 $('submitbase').addEventListener('click', openSubmitBase);
+$('step-base').addEventListener('click', openSubmitBase);
 function renderBi() {
   if (viewGroup !== 'all') setBiGroup(viewGroup);   // "Visualizar" (RAW / Usinagem) also picks the BI group
   renderBiUI($('view-bi'), { toast, openBase: () => openBaseModal({ toast, reload: () => { if (state.tab === 'panel') renderBi(); } }), onGroup: (g) => { if (bothGroups()) setView(g); }, });
 }
 
 $('ok').addEventListener('click', giveOk);
-$('viewanalysis').addEventListener('click', () => showTab('analysis'));
+$('viewanalysis').addEventListener('click', () => goSection('analysis'));
 $('undook').addEventListener('click', () => { resetReview(false); showTab('read'); toast('OK desfeito. Revise de novo e dê o OK quando terminar.'); persist(0); });
 $('tab-read').addEventListener('click', () => showTab('read'));
-$('tab-analysis').addEventListener('click', () => { if (state.reviewed) showTab('analysis'); });
+$('tab-analysis').addEventListener('click', () => { if (state.reviewed) goSection('analysis'); });
 
 // ---------------------------------------------------------------- excluir / desfazer
 function lastGroup() {
@@ -1260,6 +1302,7 @@ $('dellast').addEventListener('click', () => {
   const g = lastGroup();
   if (!g.length || state.busy) return state.busy ? toast('Aguarde a leitura terminar') : undefined;
   removePages(g, `Leitura de ${g[0].file} zerada. Pronto para o próximo arquivo.`);
+  uploadOpen = true; syncUpload();
   $('upload').scrollIntoView({ behavior: 'smooth', block: 'center' });
   dropZones.forEach((z) => z.classList.add('over'));
   setTimeout(() => dropZones.forEach((z) => z.classList.remove('over')), 1800);
@@ -1273,12 +1316,14 @@ $('undo').addEventListener('click', () => {
 });
 
 $('onlyflags').addEventListener('change', (e) => $('pages').classList.toggle('onlyflags', e.target.checked));
-$('clear').addEventListener('click', () => {
-  if ($('clear').dataset.sure !== '1') { $('clear').dataset.sure = '1'; $('clear').textContent = 'Clique de novo para apagar tudo'; setTimeout(() => { $('clear').dataset.sure = ''; $('clear').textContent = 'Limpar tudo'; }, 4000); return; }
+function clearAll() {
+  if (!state.pages.length) return toast('Não há leitura para limpar.');
+  if (!window.confirm('Apagar a leitura atual (todas as folhas, conferências e o OK)?\n\nO que já subiu para a base de dados não é apagado.')) return;
   loadQueue().then((q) => { if (q?.job) cancelJob(q.job); clearQueue(); }); trackToken++; $('status').hidden = true;
-  state.pages.length = 0; secrets.clear(); state.undo = null; $('pages').replaceChildren(); $('clear').dataset.sure = ''; $('clear').textContent = 'Limpar tudo';
-  updateSummary(); persist();
-});
+  state.pages.length = 0; secrets.clear(); state.undo = null; $('pages').replaceChildren();
+  uploadOpen = false; updateSummary(); persist();
+  toast('Leitura apagada. Pronto para novas folhas.');
+}
 
 // three drop zones: RAW, usinagem, and one PDF holding both machines (asks first). The side tells the app which
 // lists, prompt and machines to use, so a RAW upload never suggests a machining machine and the other way round.
@@ -1642,22 +1687,39 @@ function closeHelp() { helpEl.hidden = true; }
 $('helpbtn').addEventListener('click', openHelp);
 $('helpclose').addEventListener('click', closeHelp);
 helpEl.addEventListener('click', (e) => { if (e.target === helpEl) closeHelp(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (!$('lightbox').hidden) $('lightbox').hidden = true; if (!helpEl.hidden) closeHelp(); closeMenu(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (!$('lightbox').hidden) $('lightbox').hidden = true; if (!helpEl.hidden) closeHelp(); if (!$('settings').hidden) closeSettings(); closeMenu(); } });
 
-const menuEl = $('menu'), menuBtn = $('menubtn');
-function closeMenu() { menuEl.hidden = true; menuBtn.setAttribute('aria-expanded', 'false'); }
-menuBtn.addEventListener('click', (e) => { e.stopPropagation(); const open = menuEl.hidden; menuEl.hidden = !open; menuBtn.setAttribute('aria-expanded', String(open)); });
-document.addEventListener('click', (e) => { if (!e.target.closest('.menuwrap')) closeMenu(); else if (e.target.closest('#menu button')) closeMenu(); });
-menuEl.addEventListener('click', (e) => {
-  const act = e.target.closest('button[data-menu]')?.dataset.menu;
-  if (!act) return;
+// Dropdowns (⋮ and Exportar): one open at a time; Esc or a click outside closes them; Arrow keys move inside.
+const DROPS = [['menubtn', 'menu'], ['exportbtn', 'exportmenu']];
+function closeMenu() { for (const [b, m] of DROPS) { $(m).hidden = true; $(b).setAttribute('aria-expanded', 'false'); } }
+for (const [b, m] of DROPS) {
+  $(b).addEventListener('click', (e) => {
+    e.stopPropagation(); const open = $(m).hidden; closeMenu();
+    $(m).hidden = !open; $(b).setAttribute('aria-expanded', String(open));
+    if (open) $(m).querySelector('button:not([hidden])')?.focus();
+  });
+  $(m).addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const items = [...$(m).querySelectorAll('button:not([hidden])')], i = items.indexOf(document.activeElement);
+    items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+  });
+}
+document.addEventListener('click', (e) => { if (!e.target.closest('.menuwrap') || e.target.closest('.dropmenu button')) closeMenu(); });
+const syncMenuLabel = () => { $('menusync').textContent = sync.on ? 'Sincronização ligada · desligar' : 'Sincronizar com a equipe'; };
+$('menubtn').addEventListener('click', syncMenuLabel);
+function menuAction(act) {
   if (act === 'help') openHelp();
-  if (act === 'lists' || act === 'limit') { $('listscard').hidden = false; $('listsbox').open = true; $('listsbox').scrollIntoView({ behavior: 'smooth', block: 'center' }); if (act === 'limit') setTimeout(() => $('limit').focus(), 400); }
+  if (act === 'lists' || act === 'settings') openSettings();
+  if (act === 'limit') openSettings('year');
   if (act === 'base') openBaseModal({ toast, reload: () => { if (state.tab === 'panel') renderBi(); } });
-  if (act === 'clear') $('clear').click();
+  if (act === 'clear') clearAll();
   if (act === 'sync') { if (sync.on) sync.stop(); else sync.start().then((ok) => toast(ok ? 'Sincronização ligada: o que você mexer aparece no PC do colega em até 30 segundos.' : `Não deu para sincronizar: ${$('sync-text').textContent}`)); }
   if (act === 'logout') { try { localStorage.removeItem('mt-code'); } catch { /* ignore */ } location.reload(); }
-});
+  if (act === 'top') window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+}
+$('menu').addEventListener('click', (e) => { const act = e.target.closest('button[data-menu]')?.dataset.menu; if (act) menuAction(act); });
+document.querySelector('.foot').addEventListener('click', (e) => { const act = e.target.closest('button[data-foot]')?.dataset.foot; if (act) menuAction(act); });
 
 // the drop zone tilts a little with the pointer (3D); skipped for reduced motion
 if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {

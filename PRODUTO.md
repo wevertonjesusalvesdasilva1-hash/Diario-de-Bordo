@@ -43,7 +43,7 @@ Qualquer edição depois do OK desfaz o OK e exige novo OK.
 - Foto torta ou girada é endireitada e orientada automaticamente.
 - Tudo que o usuário altera ou preenche é destacado na célula e vai para o relatório.
 
-**Análise (aba 2, após o OK)**
+**Análise (etapa 2 da Leitura de folhas, após o OK)**
 - Só **cards de aviso**, sem texto corrido nem tabelas. Cada **tipo de aviso é uma seção com cor própria** (nada misturado), em ordem de prioridade: 1) **Produção inclui parada** (vermelho): a produção foi anotada cobrindo uma parada, por exemplo 12:00–15:00 com parada 13:00–14:00; o card diz "deveria ser 12:00–13:00 e 14:00–15:00"; 2) dois registros no mesmo horário; 3) tempos grandes (parada longa, produção acima do padrão); 4) preenchimento (chapa, turno, motivo, horário, data); 5) outros (tempo sem registro, horário repetido, data diferente, registro incompleto); 6) caligrafia por último.
 - **Filtros** por máquina e por tipo.
 - Cada card **vira**: a frente mostra máquina, tipo, tempo, resumo, **o que o app leu** (linha, data, horários) e quem é o operador; o verso mostra a **folha inteira** com a linha marcada em vermelho. Clique na folha abre o visualizador: dois cliques aproximam e afastam, arrastar move, roda do mouse dá zoom, X fecha.
@@ -66,13 +66,13 @@ Validado com folhas reais (UMC 01, UMC 02, HMC 16, NCBZ, RAW05) e com a planilha
 - Parada implausível para o motivo (por exemplo Tyorei de 2h) leva o aviso "confira se o horário foi lido certo".
 - Folha com aviso de linhas na leitura leva o aviso "confirme na folha antes de julgar".
 
-**Painel (aba 3)**
+**Painel do dia (abaixo da Análise)**
 - Tempo parado por motivo (com % acumulado, estilo Pareto), por turno, por máquina, por hora do dia e maiores paradas, com filtro por grupo e dia. Inspirado nas páginas Diária e Paradas do Power BI.
 
 **Operação**
 - Código de acesso, limite de tentativas, contador de leituras do dia com "retomar leitura" quando a cota do Gemini acaba.
 - Visual preto e branco com vidro, gradientes e movimento suave; tema claro e escuro; botão de voltar ao topo; funciona no celular.
-- Botão **?** (ajuda com passo a passo, cores e dúvidas, aberta sozinha na primeira visita) e menu **⋮** (como usar, tema, listas, limite diário, limpar tudo, sair).
+- Botão **?** (ajuda com passo a passo, cores e dúvidas, aberta sozinha na primeira visita) e menu **⋮** (importar histórico, sincronizar, configurações, tema, como usar, limpar leitura, sair).
 
 ## Regras de preenchimento automático
 
@@ -159,7 +159,7 @@ A caixa de envio tem **três** lugares: **RAW** (RAW05 a RAW12), **Usinagem** (U
 Na aba de análise, cada tipo de aviso é **uma fileira** de cards que desliza para os lados, em vez de uma grade que cresce para baixo. Para andar na fileira: as **setas** nas pontas (somem quando não há mais para onde ir), a **roda do mouse** (para baixo vai para a direita, para cima vai para a esquerda; no fim da fileira a roda volta a rolar a página), **arrastar com o mouse**, ou o dedo no celular. A ordem dentro da fileira segue o "Ordenar" escolhido (por padrão, do maior tempo para o menor, da esquerda para a direita; "Menor tempo" inverte).
 
 ## Painel (estilo BI)
-A aba **3 · Painel** mostra o tempo parado em gráficos animados e clicáveis. Todos os números vêm dos mesmos horários conferidos da análise (`core/panel.js`); nada é estimado.
+O **Painel do dia** (na Análise) mostra o tempo parado em gráficos animados e clicáveis. Todos os números vêm dos mesmos horários conferidos da análise (`core/panel.js`); nada é estimado.
 - **Indicadores** no topo (tempo parado, produzindo, número de paradas e a curva das paradas ao longo do dia) com contagem animada.
 - **Rosca por motivo:** passe o mouse numa fatia para ver o motivo, o tempo e a porcentagem; clique para abrir a tabela **Detalhes** ao lado, com cada parada daquele motivo (máquina, motivo, hora de início, duração, operador e "Ir para a linha").
 - **Mapa de calor** (máquina × hora do dia, começando às 04h): quanto mais escuro, mais tempo parado naquela hora; clique numa célula para ver as paradas daquela máquina naquela hora.
@@ -198,9 +198,9 @@ Isso só muda o que é **mostrado**. O OK e a análise continuam sendo feitos co
 ### Campos de horário sempre em HH:MM
 Nos campos INÍCIO e FIM (produção e paradas, na conferência e na revisão rápida) só entram números e os dois pontos aparecem sozinhos: digitar 1,1,1,1 dá **11:11**; digitar 9,3,0 dá 9:30 e, ao sair do campo, **09:30**. Ao apagar com Backspace os dois pontos não travam o cursor. Ao sair do campo o horário vira sempre HH:MM (só a hora vira HH:00; um dígito de minuto vira 09:03). Hora acima de 23 ou minuto acima de 59 (por exemplo 12:60) fica marcado como dúvida e não entra na análise até ser corrigido. Letras são ignoradas.
 
-## Base de dados e BI (aba "3 · Painel BI")
+## Base de dados e BI (seção "Painel BI")
 - **Subir para a base de dados**: depois do OK aparece o botão. Ele confere (sem dúvidas pendentes, máquina escolhida), mostra o que vai entrar (produções e paradas) e só envia depois de a pessoa marcar que está tudo certo. Folha enviada ganha o selo "✓ na base"; reenviar não duplica; cada envio pode ser desfeito.
-- **Importar histórico (Excel)** (menu ⋮ → "Base de dados"): lê as abas PRODUÇÃO e PARADAS do arquivo de controle (RAW ou usinagem), mostra a prévia e só grava depois da confirmação. Mantém os valores de TEMPO/DEC do Excel; linhas idênticas repetidas entram todas.
+- **Importar histórico (Excel)** (menu ⋮ → "Importar histórico (Excel)"): lê as abas PRODUÇÃO e PARADAS do arquivo de controle (RAW ou usinagem), mostra a prévia e só grava depois da confirmação. Mantém os valores de TEMPO/DEC do Excel; linhas idênticas repetidas entram todas.
 - **BI**: reproduz os relatórios do Power BI (RAW e usinagem) sobre essa base: mesmas medidas (disponibilidade = horas produzidas ÷ (18,58 h × robôs × datas distintas do conjunto em vista; para um robô só, as datas dele), meta 88%, ganho sobre o tempo padrão, Pareto com % acumulado), mesmas relações (a parada só aparece com a produção da mesma data, máquina e chapa final) e mesmas cores. Clicar numa barra filtra os outros gráficos.
 - Diferenças conhecidas: título dos cartões corrigido ("HORAS PRODUZIDAS" etc.); meses em ordem do calendário; se o Excel tem TEMPO/DEC vazio, o app usa a soma dos horários.
 - Uma só aba, **Painel BI**: primeiro os **Indicadores** (relatórios do Power BI sobre a base) e a página **Folhas de hoje** (o Painel de antes, com todos os gráficos), que só aparece quando você escolhe essa página (não fica mais embaixo de todas as outras). Visual (cores, cartões) segue o Painel.
@@ -217,19 +217,37 @@ Nos campos INÍCIO e FIM (produção e paradas, na conferência e na revisão r�
 - **Tela de notebook:** o Painel BI usa a largura toda da tela (até 1760 px), não rola para o lado e mostra os cinco cards do topo numa fileira só em telas de 1280 a 1366 px.
 - **Auditoria dos dados** (última página dos Indicadores): lista tudo que merece olhar na base: produções ou paradas repetidas, horário faltando, duas peças ou duas paradas no mesmo horário na mesma máquina (a hora vale em dobro), parada dentro do horário de produção, chapa final em branco, parada sem produção da mesma chapa, peças sem tempo padrão, real muito longe do padrão, horas diferentes da soma dos horários, motivos escritos de dois jeitos, dias acima de 24 h, fins de semana e máquina sem registro. Cada linha abre a lista e baixa em Excel; há também a auditoria completa em Excel. O app só aponta: nunca corrige os dados sozinho. Ao subir folhas, o app mostra os pontos "para conferir" dos dias enviados (sem impedir o envio, exceto passar de 24 h).
 
-## Plano de ação (aba "4 · Plano de ação")
+## Plano de ação (seção "Plano de ação")
 - Mostra, de cima para baixo numa linha do tempo vertical, as ações que devem ser tomadas, da mais importante para a menos importante. Cada ação sai da linha como um ramo com: por que (os números), o que fazer (passos que podem ser marcados), quem responde, prazo, estratificação (por máquina, turno, dia da semana, piores dias) e "Ver registros".
 - Ações geradas pelos dados do período (últimos 7 dias, 30 dias ou tudo): validar os tempos lançados (sempre em primeiro quando há erro); rever os motivos de parada que mais custam (FALTA DE PEÇA e AGUARDANDO PEÇA contam juntas; "constante" quando aparece em 40% ou mais dos dias de máquina); plano de recuperação da máquina com menor disponibilidade; completar o tempo padrão (MATRIZ TEMPO / BAAN); recuperar a eficiência pelo tempo padrão; apontar o tempo sem registro; melhorar a qualidade do apontamento.
 - **Perda com parada:** horas paradas × **valor hora do robô** (R$/h, campo no alto da aba, um valor para RAW e outro para usinagem; fica salvo só neste navegador). Sem o valor, aparece "—".
 - Os dias são contados de **meia-noite a meia-noite**: o que atravessa a meia-noite é dividido entre os dois dias (isso vale também para a auditoria de 24 h e para o tempo sem registro).
 - O plano só sugere: nunca muda os dados.
 
-## Organização das abas (repaginação)
-- **1 · Conferência**: subir folhas, conferir, dar OK, subir para a base.
-- **2 · Análise**: os cards da análise do dia e, logo abaixo, o **Painel do dia** (o antigo "Folhas de hoje", com rosca, mapa de calor e tempo por máquina). Só aparece aqui.
-- **3 · Painel BI** (Indicadores), só quatro páginas: **Visão geral** (cinco cards-chave, produtividade por dia, disponibilidade, horas produzidas × paradas, por mês e resumo por máquina), **Paradas** (Pareto, por turno, por dia), **Entrega (horas padrão)** e **Peças e operadores** (peça, operador, tempo × padrão, detalhe de cada peça). As páginas Diária, Peça produtividade, Operador, Mensal, Auditoria e Folhas de hoje deixaram de existir como páginas: o que importava foi juntado nas outras.
-- **4 · Plano de ação**: (1) **Quanto está custando** (perda em R$: total, média por dia, projeção de 30 dias, maior perda por máquina e por motivo, Pareto em R$, perda por dia, perda acumulada, parada × o que faltou para a meta); (2) **O que fazer, em ordem** (linha do tempo vertical); (3) **Qualidade dos dados** (a auditoria completa, recolhida). O valor hora (R$/h) fica no alto desta aba e também aparece como cartão "Perda com parada" na Visão geral.
-- Os filtros de cada gráfico (máquina e data) ficam atrás do botão "⚙ Filtros" (o botão mostra ● quando há filtro ativo). "Listas de conferência" não aparece mais no rodapé: abre só pelo menu ⋮.
+## Estrutura do app (padrões comuns de interface)
+Cada coisa fica onde as pessoas costumam procurar em qualquer site ou aplicativo:
+- **Topo fixo** (acompanha a rolagem): logo à esquerda (clicar volta ao início, o Painel BI) · seções no meio · à direita o status (folhas restantes, modelo, sincronização), **?** (ajuda) e **⋮** (mais opções).
+- **Seções, nesta ordem:** **Painel BI** (tela inicial) · **Plano de ação** · **Leitura de folhas** (com um selo amarelo mostrando quantas células faltam conferir) · **Base de dados**. Trocar de seção abre a tela no alto.
+- **Menu ⋮**, em grupos: *Dados* (Importar histórico (Excel), Sincronizar com a equipe), *Configurações* (Listas de conferência e operadores, Limite diário e ano das datas, Tema claro/escuro), *Ajuda* (Como usar) e, separados no fim, **Limpar leitura atual** (em vermelho, pede confirmação) e **Sair**. Setas do teclado andam no menu; Esc fecha.
+- **Configurações** abrem numa janela (não mais um quadro no fim da página): ano das datas, limite diário do Gemini, listas de conferência e operadores.
+- **Rodapé** em todas as telas: Como usar · Configurações · Voltar ao topo.
+- **Dentro de cada seção:** título e etapas em cima; **filtros à esquerda** e **ações à direita** (exportar, baixar, comparar, importar).
+
+**Leitura de folhas** tem três etapas no alto (como um passo a passo de compra): **1 Enviar e conferir** → **2 Análise** (liberada depois do OK) → **3 Subir para a base** (fica verde quando todas as folhas selecionadas já subiram).
+- *Enviar folhas*: as três áreas de arrastar (RAW, Usinagem, Duas máquinas) aparecem grandes enquanto não há nada lido. Depois que há folhas, o quadro encolhe para a lista de **Arquivos enviados** com **+ Enviar mais folhas** (arrastar um arquivo por cima também abre). "Zerar última leitura" e "Desfazer exclusão" ficam junto dos arquivos.
+- O *resumo* (folhas, produção, paradas, conferir, % sem dúvida) só aparece quando há folhas.
+- *Barra de ferramentas* acima das folhas: à esquerda selecionar/desmarcar todas, quantas estão selecionadas e "Só linhas com dúvida"; à direita **Revisão rápida** e **⬇ Exportar ▾** (menu com o resumo do que vai sair, Copiar PRODUÇÃO, Copiar PARADAS e os Excel: selecionadas, todas, só RAW, só usinagem).
+- *Barra de ação fixa embaixo*: "Conferiu tudo contra a folha?" com Desfazer OK, **Subir para a base de dados** e, sempre à direita, a ação principal (**dar OK** ou **Ver análise**). No celular ela fica compacta, só com os botões.
+- A **Análise** mostra só os cards e o Painel do dia, sem repetir o envio e o resumo da conferência.
+
+**Base de dados**: filtros (máquina, datas, busca, limpar) à esquerda; Comparar com o Excel, Importar / subir para a base e ⬇ Excel à direita. A tabela rola dentro do próprio quadro e não empurra mais a página para o lado.
+
+## Organização das abas (repaginação anterior)
+- **Leitura de folhas → Enviar e conferir**: subir folhas, conferir, dar OK, subir para a base.
+- **Leitura de folhas → Análise**: os cards da análise do dia e, logo abaixo, o **Painel do dia** (o antigo "Folhas de hoje", com rosca, mapa de calor e tempo por máquina). Só aparece aqui.
+- **Painel BI** (Indicadores), só quatro páginas: **Visão geral** (cinco cards-chave, produtividade por dia, disponibilidade, horas produzidas × paradas, por mês e resumo por máquina), **Paradas** (Pareto, por turno, por dia), **Entrega (horas padrão)** e **Peças e operadores** (peça, operador, tempo × padrão, detalhe de cada peça). As páginas Diária, Peça produtividade, Operador, Mensal, Auditoria e Folhas de hoje deixaram de existir como páginas: o que importava foi juntado nas outras.
+- **Plano de ação**: (1) **Quanto está custando** (perda em R$: total, média por dia, projeção de 30 dias, maior perda por máquina e por motivo, Pareto em R$, perda por dia, perda acumulada, parada × o que faltou para a meta); (2) **O que fazer, em ordem** (linha do tempo vertical); (3) **Qualidade dos dados** (a auditoria completa, recolhida). O valor hora (R$/h) fica no alto desta aba e também aparece como cartão "Perda com parada" na Visão geral.
+- Os filtros de cada gráfico (máquina e data) ficam atrás do botão "⚙ Filtros" (o botão mostra ● quando há filtro ativo). "Listas de conferência" abre pelo menu ⋮ (Configurações) ou pelo link Configurações do rodapé.
 - **Produção + paradas por dia (limite de 24 h)** na Visão geral: colunas empilhadas (produção + paradas) de cada máquina e dia, de meia-noite a meia-noite, com uma linha tracejada em 24 h. Coluna acima da linha tem ⚠ e o total em vermelho. Escolha no alto do gráfico: pior máquina de cada dia (padrão), só os dias acima de 24 h, ou uma máquina específica. Passar o mouse mostra a máquina, o dia e quantas horas estão no mesmo horário.
 
 ## Filtros interligados no Painel BI
@@ -238,9 +256,9 @@ Nos campos INÍCIO e FIM (produção e paradas, na conferência e na revisão r�
 - O gráfico "Produção + paradas por dia (limite de 24 h)" respeita os filtros de data e mês (dia desmarcado não aparece).
 - "REAL × ENTREGUE POR ROBÔ" (pedido do supervisor) fica na página "Entrega (horas padrão)", em destaque no topo; seus filtros próprios ficam em "⚙ Filtros".
 
-## Base de dados editável (aba 5)
+## Base de dados editável (seção "Base de dados")
 
-- A aba "5 · Base de dados" mostra o histórico como uma planilha: **Produção**, **Paradas** e **Matriz de tempos**, com filtro de máquina, datas e busca. Cada linha tem "Salvar" e excluir; há "＋ Nova linha", "Salvar tudo" e "Desfazer a última alteração". Ao salvar, a base é atualizada para todos e os gráficos recalculam (horas e tempo padrão da linha são recalculados sozinhos).
+- A seção "Base de dados" mostra o histórico como uma planilha: **Produção**, **Paradas** e **Matriz de tempos**, com filtro de máquina, datas e busca. Cada linha tem "Salvar" e excluir; há "＋ Nova linha", "Salvar tudo" e "Desfazer a última alteração". Ao salvar, a base é atualizada para todos e os gráficos recalculam (horas e tempo padrão da linha são recalculados sozinhos).
 - No gráfico "Produção + paradas por dia", clicar numa barra a destaca; "▦ Abrir tabela" mostra embaixo, no mesmo quadro, as produções e paradas dos dias do gráfico, com as linhas da barra clicada em destaque e editáveis.
 - A matriz editada vale para todos (guardada no servidor) e passa a mandar no "tempo que o padrão previa". Enquanto ninguém salvar, vale a que veio com o app.
 - Textos do gráfico de entrega: "tempo real gasto" (azul) × "tempo que o padrão previa" (amarelo); acima de 100% = mais rápido que o padrão.

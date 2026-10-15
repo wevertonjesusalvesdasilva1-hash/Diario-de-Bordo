@@ -1,4 +1,4 @@
-// "5 · Base de dados": the history as an editable spreadsheet (production, stops and the standard-times matrix).
+// "Base de dados": the history as an editable spreadsheet (production, stops and the standard-times matrix).
 import './bi.css';
 import { el } from './bicharts.js';
 import { loadBase, loadMatriz, editRecords } from './historico.js';
@@ -50,7 +50,8 @@ export async function renderDbUI(root, ctx) {
   const slot = el('div');
   body.replaceChildren(el('p', { class: 'bi-note' }, `${GROUPS[st.g]} · ${all.length.toLocaleString('pt-BR')} registros na base. Edite direto nas células e clique em Salvar: a base é atualizada para todos e os gráficos do Painel BI e do Plano de ação usam os dados novos.`),
     el('div', { class: 'qb dbv-filters' }, el('label', { class: 'vf-d' }, 'Máquina', msel), date('from', 'De'), date('to', 'Até'), el('label', { class: 'vf-d' }, 'Busca', q),
-      el('button', { type: 'button', class: 'ghost', onclick: () => { st.m = st.from = st.to = st.q = ''; apply(); } }, 'Limpar filtros'), xl, el('button', { type: 'button', class: 'ghost', onclick: () => openCompare({ g: st.g, base, toast, onDone: after }) }, 'Comparar com o Excel'), el('button', { type: 'button', class: 'ghost', onclick: () => ctx.openBase?.() }, 'Importar / subir para a base')), slot);
+      el('button', { type: 'button', class: 'ghost', onclick: () => { st.m = st.from = st.to = st.q = ''; apply(); } }, 'Limpar filtros'),
+      el('div', { class: 'dbv-act' }, el('button', { type: 'button', class: 'ghost', onclick: () => openCompare({ g: st.g, base, toast, onDone: after }) }, 'Comparar com o Excel'), el('button', { type: 'button', class: 'ghost', onclick: () => ctx.openBase?.() }, 'Importar / subir para a base'), xl)), slot);
   redraw();
 }
 

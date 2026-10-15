@@ -1,4 +1,4 @@
-// "4 · Plano de ação": what the stops cost (R$), then the actions to take in a vertical timeline, then the quality of the data.
+// "Plano de ação": what the stops cost (R$), then the actions to take in a vertical timeline, then the quality of the data.
 import './plan.css';
 import { el, chartBox, PALETTE } from './bicharts.js';
 import { loadBase } from './historico.js';

@@ -25,28 +25,38 @@
   </div>
 
   <header class="top">
-    <div class="brand">
+    <a class="brand" href="#painel" id="home" title="Início: Painel BI">
       <div class="cube" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <div>
         <h1>Maple Tapping</h1>
         <p class="sub">Diário de Bordo</p>
       </div>
-    </div>
+    </a>
+    <nav class="tabs mainnav" id="tabs" aria-label="Seções do app">
+      <button id="tab-panel" type="button" class="tab on" aria-current="page">Painel BI</button>
+      <button id="tab-plan" type="button" class="tab">Plano de ação</button>
+      <button id="tab-folhas" type="button" class="tab">Leitura de folhas <b class="navbadge" id="navbadge" hidden></b></button>
+      <button id="tab-db" type="button" class="tab">Base de dados</button>
+    </nav>
     <div class="top-actions">
       <span class="live" id="usage" title="Estimativa feita neste navegador. O valor real está em aistudio.google.com/usage"><i></i><span id="usage-text">≈ 100 folhas restantes</span></span>
       <span class="modelpill" id="modelpill" hidden title="Modelo do Gemini que leu a última folha"><i></i><span id="model-text"></span></span>
       <span class="syncpill" id="syncpill" hidden data-kind="off"><i></i><span id="sync-text"></span></span>
       <button id="helpbtn" type="button" class="icon" aria-label="Ajuda: como usar" title="Ajuda: como usar">?</button>
       <div class="menuwrap">
-        <button id="menubtn" type="button" class="icon" aria-haspopup="menu" aria-expanded="false" aria-label="Menu" title="Menu">⋮</button>
-        <div id="menu" role="menu" hidden>
-          <button type="button" role="menuitem" data-menu="help">Como usar</button>
+        <button id="menubtn" type="button" class="icon" aria-haspopup="menu" aria-expanded="false" aria-controls="menu" aria-label="Mais opções" title="Mais opções">⋮</button>
+        <div id="menu" class="dropmenu" role="menu" hidden>
+          <p class="mhead" role="presentation">Dados</p>
+          <button type="button" role="menuitem" data-menu="base">Importar histórico (Excel)</button>
+          <button type="button" role="menuitem" data-menu="sync" id="menusync">Sincronizar com a equipe</button>
+          <p class="mhead" role="presentation">Configurações</p>
+          <button type="button" role="menuitem" data-menu="lists">Listas de conferência e operadores</button>
+          <button type="button" role="menuitem" data-menu="limit">Limite diário e ano das datas</button>
           <button type="button" role="menuitem" id="theme">Tema claro</button>
-          <button type="button" role="menuitem" data-menu="lists">Listas de conferência</button>
-          <button type="button" role="menuitem" data-menu="base">Base de dados (importar histórico)</button>
-          <button type="button" role="menuitem" data-menu="limit">Limite diário de chamadas</button>
-          <button type="button" role="menuitem" data-menu="sync">Sincronizar com a equipe</button>
-          <button type="button" role="menuitem" data-menu="clear">Limpar tudo</button>
+          <p class="mhead" role="presentation">Ajuda</p>
+          <button type="button" role="menuitem" data-menu="help">Como usar</button>
+          <hr role="separator">
+          <button type="button" role="menuitem" data-menu="clear" class="danger">Limpar leitura atual</button>
           <button type="button" role="menuitem" data-menu="logout">Sair</button>
         </div>
       </div>
@@ -54,122 +64,157 @@
   </header>
 
   <main>
-    <section class="stats" id="stats" aria-label="Resumo">
-      <div class="tile"><span class="lab">Folhas</span><b id="s-folhas">0</b><small>incluídas</small></div>
-      <div class="tile"><span class="lab">Produção</span><b id="s-prod">0</b><small>linhas</small></div>
-      <div class="tile"><span class="lab">Paradas</span><b id="s-stops">0</b><small>registros</small></div>
-      <div class="tile warn"><span class="lab">Conferir</span><b id="s-flags">0</b><small>células</small></div>
-      <div class="tile ring">
-        <svg viewBox="0 0 100 100" aria-hidden="true">
-          <circle class="track" cx="50" cy="50" r="40"/>
-          <circle class="val" id="ring" cx="50" cy="50" r="40" pathLength="100" stroke-dasharray="0 100"/>
-        </svg>
-        <div class="ring-num"><b id="s-conf">—</b><small>sem dúvida</small></div>
-      </div>
-    </section>
-
-    <section class="card" id="upload">
-      <h2 class="ptitle">Entrada de folhas</h2>
-      <div id="drop" class="drops">
-        <div class="drop zone" id="drop-raw" data-group="raw" tabindex="0">
-          <h3 class="ztitle">RAW</h3>
-          <p class="zsub">Robôs de solda · RAW05 a RAW12</p>
-          <p class="big">Arraste os PDFs ou <label class="link">escolha<input id="files-raw" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
-          <p><label class="camera" id="camlabel-raw">Fotografar folha<input id="camera-raw" type="file" accept="image/*" capture="environment" hidden></label></p>
+    <div id="sec-folhas" hidden>
+      <div class="pagehead">
+        <div>
+          <h2 class="pagetitle">Leitura de folhas</h2>
+          <p class="note">Envie as folhas, confira o que o app leu, dê o OK e suba para a base de dados.</p>
         </div>
-        <div class="drop zone" id="drop-usi" data-group="usi" tabindex="0">
-          <h3 class="ztitle">Usinagem</h3>
-          <p class="zsub">UMC 01 · UMC 02 · HMC 16 · NCBZ</p>
-          <p class="big">Arraste os PDFs ou <label class="link">escolha<input id="files-usi" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
-          <p><label class="camera" id="camlabel-usi">Fotografar folha<input id="camera-usi" type="file" accept="image/*" capture="environment" hidden></label></p>
-        </div>
-        <div class="drop zone mix" id="drop-mix" data-group="mix" tabindex="0">
-          <h3 class="ztitle">Duas máquinas no mesmo PDF</h3>
-          <p class="zsub">RAW e usinagem misturados: cada folha é classificada pela máquina que aparece nela. Pede confirmação antes de anexar.</p>
-          <p class="big">Arraste o PDF ou <label class="link">escolha<input id="files-mix" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
-          <p><label class="camera" id="camlabel-mix">Fotografar folha<input id="camera-mix" type="file" accept="image/*" capture="environment" hidden></label></p>
-        </div>
+        <ol class="stepper" aria-label="Etapas">
+          <li><button id="tab-read" type="button" class="step on" aria-current="step"><i>1</i><span>Enviar e conferir</span></button></li>
+          <li><button id="tab-analysis" type="button" class="step" disabled><i>2</i><span>Análise <small id="tab-lock">precisa do OK</small></span></button></li>
+          <li><button id="step-base" type="button" class="step" disabled><i>3</i><span>Subir para a base <small id="step-base-st"></small></span></button></li>
+        </ol>
       </div>
-      <div id="filelist" class="filelist" hidden></div>
-      <p class="note">PDF ou foto. Cada folha é lida duas vezes e as dúvidas ficam marcadas. Enviar de novo num lado troca só a leitura daquele lado.</p>
-      <div class="bar inline" id="exportbar" hidden>
-    <div id="summary"></div>
-    <div class="actions">
-      <button id="copyprod" type="button">Copiar PRODUÇÃO</button>
-      <button id="copystop" type="button">Copiar PARADAS</button>
-      <button id="xlsx" type="button" class="primary">Baixar Excel (selecionadas)</button>
-      <button id="xlsxall" type="button" class="primary">Baixar Excel com todas</button>
-      <button id="xlsxraw" type="button" class="primary" hidden>Excel só RAW</button>
-      <button id="xlsxusi" type="button" class="primary" hidden>Excel só usinagem</button>
+
+      <div class="viewbar" id="viewbar" hidden role="group" aria-label="Visualizar">
+        <span class="vlabel">Visualizar</span>
+        <div class="pn-seg" id="viewseg"></div>
+      </div>
+
+      <section id="quotabanner" class="card quota" hidden>
+        <div><strong>Cota do Gemini atingida</strong><p class="note" id="quotamsg"></p></div>
+        <div class="row"><button id="resume" type="button" class="primary" hidden>Retomar leitura</button><button id="quotaclear" type="button" class="ghost">Dispensar aviso</button></div>
+      </section>
+
+      <section id="status" class="card" hidden></section>
+
+      <div id="view-read">
+        <section class="stats" id="stats" aria-label="Resumo" hidden>
+          <div class="tile"><span class="lab">Folhas</span><b id="s-folhas">0</b><small>incluídas</small></div>
+          <div class="tile"><span class="lab">Produção</span><b id="s-prod">0</b><small>linhas</small></div>
+          <div class="tile"><span class="lab">Paradas</span><b id="s-stops">0</b><small>registros</small></div>
+          <div class="tile warn"><span class="lab">Conferir</span><b id="s-flags">0</b><small>células</small></div>
+          <div class="tile ring">
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+              <circle class="track" cx="50" cy="50" r="40"/>
+              <circle class="val" id="ring" cx="50" cy="50" r="40" pathLength="100" stroke-dasharray="0 100"/>
+            </svg>
+            <div class="ring-num"><b id="s-conf">—</b><small>sem dúvida</small></div>
+          </div>
+        </section>
+
+        <section class="card" id="upload">
+          <div class="uphead">
+            <h3 class="ptitle">Enviar folhas</h3>
+            <button id="upmore" type="button" class="ghost" hidden aria-expanded="false">+ Enviar mais folhas</button>
+          </div>
+          <div id="drop" class="drops">
+            <div class="drop zone" id="drop-raw" data-group="raw" tabindex="0">
+              <h3 class="ztitle">RAW</h3>
+              <p class="zsub">Robôs de solda · RAW05 a RAW12</p>
+              <p class="big">Arraste os PDFs ou <label class="link">escolha<input id="files-raw" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
+              <p><label class="camera" id="camlabel-raw">Fotografar folha<input id="camera-raw" type="file" accept="image/*" capture="environment" hidden></label></p>
+            </div>
+            <div class="drop zone" id="drop-usi" data-group="usi" tabindex="0">
+              <h3 class="ztitle">Usinagem</h3>
+              <p class="zsub">UMC 01 · UMC 02 · HMC 16 · NCBZ</p>
+              <p class="big">Arraste os PDFs ou <label class="link">escolha<input id="files-usi" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
+              <p><label class="camera" id="camlabel-usi">Fotografar folha<input id="camera-usi" type="file" accept="image/*" capture="environment" hidden></label></p>
+            </div>
+            <div class="drop zone mix" id="drop-mix" data-group="mix" tabindex="0">
+              <h3 class="ztitle">Duas máquinas no mesmo PDF</h3>
+              <p class="zsub">RAW e usinagem misturados: cada folha é classificada pela máquina que aparece nela. Pede confirmação antes de anexar.</p>
+              <p class="big">Arraste o PDF ou <label class="link">escolha<input id="files-mix" type="file" accept="application/pdf,image/*" multiple hidden></label></p>
+              <p><label class="camera" id="camlabel-mix">Fotografar folha<input id="camera-mix" type="file" accept="image/*" capture="environment" hidden></label></p>
+            </div>
+          </div>
+          <p class="note upnote">PDF ou foto. Cada folha é lida duas vezes e as dúvidas ficam marcadas. Enviar de novo num lado troca só a leitura daquele lado. <span id="sheetsleft"></span></p>
+          <div id="filelist" class="filelist" hidden></div>
+          <div class="row filetools">
+            <button id="dellast" type="button" class="ghost" hidden>Zerar última leitura</button>
+            <button id="undo" type="button" hidden>Desfazer exclusão</button>
+          </div>
+        </section>
+
+        <section class="toolbar" id="tools" hidden aria-label="Ferramentas da conferência">
+          <div class="tb-left">
+            <button id="selall" type="button" class="ghost">Selecionar todas</button>
+            <button id="selnone" type="button" class="ghost">Desmarcar todas</button>
+            <span class="sel" id="selcount"></span>
+            <label class="check"><input id="onlyflags" type="checkbox"> Só linhas com dúvida</label>
+          </div>
+          <div class="tb-right">
+            <button id="quick" type="button" class="primary">Revisão rápida</button>
+            <div class="menuwrap" id="exportbar" hidden>
+              <button id="exportbtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="exportmenu">⬇ Exportar ▾</button>
+              <div id="exportmenu" class="dropmenu" role="menu" hidden>
+                <p class="mhead" id="summary" role="presentation"></p>
+                <p class="mhead" role="presentation">Copiar para colar na base (coluna B)</p>
+                <button id="copyprod" type="button" role="menuitem">Copiar PRODUÇÃO</button>
+                <button id="copystop" type="button" role="menuitem">Copiar PARADAS</button>
+                <p class="mhead" role="presentation">Baixar Excel</p>
+                <button id="xlsx" type="button" role="menuitem">Excel das folhas selecionadas</button>
+                <button id="xlsxall" type="button" role="menuitem">Excel com todas</button>
+                <button id="xlsxraw" type="button" role="menuitem" hidden>Excel só RAW</button>
+                <button id="xlsxusi" type="button" role="menuitem" hidden>Excel só usinagem</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="pages"></section>
+
+        <section class="card okbox actionbar" id="okbox" hidden>
+          <div>
+            <strong class="okt">Conferiu tudo contra a folha?</strong>
+            <p class="note" id="okstate"></p>
+          </div>
+          <div class="row okbtns">
+            <button id="undook" type="button" class="ghost" hidden>← Desfazer OK e revisar de novo</button>
+            <button id="submitbase" type="button" class="base" hidden title="Confirma que o preenchimento está finalizado e envia as folhas para o histórico (base de dados)">Subir para a base de dados</button>
+            <button id="viewanalysis" type="button" class="primary" hidden>Ver análise →</button>
+            <button id="ok" type="button" class="primary">Revisei tudo · dar OK e gerar análise</button>
+          </div>
+        </section>
+      </div>
+
+      <div id="view-analysis" hidden></div>
+      <h2 id="panel-now-title" class="bi-h2" hidden>Painel do dia · folhas de hoje</h2>
+      <div id="view-panel" hidden></div>
     </div>
-  </div>
-      <p class="note" id="sheetsleft"></p>
-      <label class="row">Ano das datas
-        <input id="year" type="number" min="2000" max="2100" style="width:6rem">
-      </label>
-    </section>
 
-    <section id="status" class="card" hidden></section>
-
-    <section id="quotabanner" class="card quota" hidden>
-      <div><strong>Cota do Gemini atingida</strong><p class="note" id="quotamsg"></p></div>
-      <div class="row"><button id="resume" type="button" class="primary" hidden>Retomar leitura</button><button id="quotaclear" type="button" class="ghost">Dispensar aviso</button></div>
-    </section>
-
-    <nav class="tabs" id="tabs" role="tablist">
-      <button id="tab-read" type="button" role="tab" class="tab on" aria-selected="true">1 · Conferência</button>
-      <button id="tab-analysis" type="button" role="tab" class="tab" aria-selected="false" disabled>2 · Análise <span id="tab-lock">precisa do OK</span></button>
-      <button id="tab-panel" type="button" role="tab" class="tab" aria-selected="false">3 · Painel BI</button>
-      <button id="tab-plan" type="button" role="tab" class="tab" aria-selected="false">4 · Plano de ação</button>
-      <button id="tab-db" type="button" role="tab" class="tab" aria-selected="false">5 · Base de dados</button>
-    </nav>
-
-    <div class="viewbar" id="viewbar" hidden role="group" aria-label="Visualizar">
-      <span class="vlabel">Visualizar</span>
-      <div class="pn-seg" id="viewseg"></div>
-    </div>
-
-    <div id="view-read">
-    <section class="card okbox" id="okbox" hidden>
-      <div>
-        <strong class="okt">Conferiu tudo contra a folha?</strong>
-        <p class="note" id="okstate"></p>
-      </div>
-      <div class="row okbtns">
-        <button id="ok" type="button" class="primary">Revisei tudo · dar OK e gerar análise</button>
-        <button id="viewanalysis" type="button" class="primary" hidden>Ver análise →</button>
-        <button id="submitbase" type="button" class="primary base" hidden title="Confirma que o preenchimento está finalizado e envia as folhas para o histórico (base de dados)">✔ Preenchimento finalizado · subir para a base de dados</button>
-        <button id="undook" type="button" class="ghost" hidden>← Desfazer OK e revisar de novo</button>
-      </div>
-    </section>
-
-    <section class="card" id="tools" hidden>
-      <div class="row">
-        <button id="quick" type="button" class="primary">Revisão rápida</button>
-        <button id="selall" type="button">Selecionar todas</button>
-        <button id="selnone" type="button" class="ghost">Desmarcar todas</button>
-        <span class="sel" id="selcount"></span>
-        <button id="dellast" type="button" class="ghost">Excluir último arquivo</button>
-        <button id="undo" type="button" hidden>Desfazer exclusão</button>
-        <label class="check"><input id="onlyflags" type="checkbox"> Mostrar só linhas com dúvida</label>
-        <button id="clear" type="button" class="ghost">Limpar tudo</button>
-      </div>
-    </section>
-
-    <section id="pages"></section>
-    </div>
-
-    <div id="view-analysis" hidden></div>
+    <div id="view-bi" hidden></div>
     <div id="view-plan" hidden></div>
     <div id="view-db" hidden></div>
-    <div id="view-bi" hidden></div>
-    <h2 id="panel-now-title" class="bi-h2" hidden>Painel do dia · folhas de hoje</h2>
-    <div id="view-panel" hidden></div>
+  </main>
 
-    <section class="card" id="listscard" hidden>
-      <details id="listsbox">
-        <summary><span class="ptitle inline">Listas de conferência</span> <span class="note">chapas, peças e modelos</span></summary>
-        <p class="note">Um valor por linha. Chapa nova precisa entrar aqui, senão fica marcada. RAW e usinagem têm listas separadas.</p>
+  <footer class="foot">
+    <span>Maple Tapping · Diário de Bordo</span>
+    <nav aria-label="Rodapé">
+      <button type="button" class="linkbtn" data-foot="help">Como usar</button>
+      <button type="button" class="linkbtn" data-foot="settings">Configurações</button>
+      <button type="button" class="linkbtn" data-foot="top">Voltar ao topo</button>
+    </nav>
+  </footer>
+
+  <div id="settings" hidden role="dialog" aria-modal="true" aria-labelledby="settitle">
+    <div class="card setbox">
+      <header class="qrhead"><strong id="settitle">Configurações</strong><button id="closelists" type="button" class="ghost">Fechar (Esc)</button></header>
+      <section class="setsec">
+        <h4>Leitura das folhas</h4>
+        <div class="row">
+          <label>Ano das datas <input id="year" type="number" min="2000" max="2100" style="width:6rem"></label>
+          <span class="note">As folhas trazem só dia e mês; este é o ano usado.</span>
+        </div>
+        <div class="row">
+          <label>Limite diário de chamadas do Gemini <input id="limit" type="number" min="0" step="10" style="width:7rem" placeholder="250"></label>
+          <span class="note">Padrão 250 (um palpite). Serve só para estimar quantas folhas ainda cabem no dia; o valor real da sua conta está em aistudio.google.com/usage.</span>
+        </div>
+      </section>
+      <section class="setsec" id="listsbox">
+        <h4>Listas de conferência</h4>
+        <p class="note">Chapas, peças e modelos, um valor por linha. Chapa nova precisa entrar aqui, senão fica marcada. RAW e usinagem têm listas separadas.</p>
         <div class="row"><label>Máquinas <select id="lgroup"><option value="raw">RAW (solda)</option><option value="usi">Usinagem (UMC 01, UMC 02, HMC 16, NCBZ)</option></select></label></div>
         <div class="lists">
           <label>Chapas<textarea id="l-chapas" rows="8" spellcheck="false"></textarea></label>
@@ -177,27 +222,22 @@
           <label>Modelos<textarea id="l-modelos" rows="8" spellcheck="false"></textarea></label>
         </div>
         <div class="row">
-          <button id="savelists" type="button">Salvar listas</button>
           <button id="resetlists" type="button" class="ghost">Restaurar padrão</button>
-          <button id="closelists" type="button" class="ghost">Fechar</button>
+          <button id="savelists" type="button" class="primary">Salvar listas</button>
           <span class="note" id="learned"></span>
         </div>
-        <div class="oper">
-          <h4>Operadores</h4>
-          <p class="note">Os nomes já vêm carregados sozinhos, protegidos pelo código de acesso. Só importe uma planilha (aba REFERENCIAS) se a lista de operadores mudar.</p>
-          <div class="row">
-            <label class="camera">Importar planilha (.xlsx)<input id="opfile" type="file" accept=".xlsx,.xls" hidden></label>
-            <button id="opclear" type="button" class="ghost">Apagar nomes</button>
-            <span class="note" id="opinfo"></span>
-          </div>
-        </div>
+      </section>
+      <section class="setsec oper">
+        <h4>Operadores</h4>
+        <p class="note">Os nomes já vêm carregados sozinhos, protegidos pelo código de acesso. Só importe uma planilha (aba REFERENCIAS) se a lista de operadores mudar.</p>
         <div class="row">
-          <label>Limite diário de chamadas do Gemini <input id="limit" type="number" min="0" step="10" style="width:7rem" placeholder="250"></label>
-          <span class="note">Padrão 250 (um palpite). Serve só para estimar quantas folhas ainda cabem no dia; o valor real da sua conta está em aistudio.google.com/usage.</span>
+          <label class="camera">Importar planilha (.xlsx)<input id="opfile" type="file" accept=".xlsx,.xls" hidden></label>
+          <button id="opclear" type="button" class="ghost">Apagar nomes</button>
+          <span class="note" id="opinfo"></span>
         </div>
-      </details>
-    </section>
-  </main>
+      </section>
+    </div>
+  </div>
 
   <div id="qr" hidden role="dialog" aria-modal="true" aria-labelledby="qrtitle">
     <div class="card qrbox">
@@ -210,13 +250,20 @@
       <header class="qrhead"><strong id="helptitle">Como usar o Maple Tapping</strong><button id="helpclose" type="button" class="ghost">Fechar (Esc)</button></header>
       <div class="helpbody">
         <p class="lead">Lê a folha do Diário de Bordo (produção e paradas), entrega as linhas prontas para a planilha e mostra onde a folha se contradiz.</p>
-        <h4>Passo a passo</h4>
+        <h4>Onde fica cada coisa</h4>
+        <ul>
+          <li><b>No topo:</b> as seções do app (Painel BI, Plano de ação, Leitura de folhas, Base de dados). Clicar no logo volta ao Painel BI.</li>
+          <li><b>No canto direito:</b> <b>?</b> abre esta ajuda e <b>⋮</b> (mais opções) traz importar histórico, sincronizar com a equipe, configurações, tema, limpar a leitura e sair.</li>
+          <li><b>Filtros</b> ficam à esquerda ou em cima de cada tela; <b>ações</b> (exportar, baixar, salvar) ficam à direita.</li>
+          <li><b>No rodapé:</b> ajuda, configurações e voltar ao topo.</li>
+        </ul>
+        <h4>Leitura de folhas, passo a passo</h4>
         <ol class="steps">
-          <li><b>Suba a folha.</b> PDF, foto ou câmera do celular. Cada página do PDF é uma folha.</li>
-          <li><b>Confira.</b> As células marcadas são as que a leitura ficou em dúvida. Compare com o recorte da folha acima de cada linha. Use <em>Revisão rápida</em> para passar só pelas marcadas.</li>
-          <li><b>Dê o OK.</b> Só depois dele a análise é feita. Dá para desfazer o OK e revisar de novo.</li>
-          <li><b>Veja a Análise.</b> Cada aviso é um card, do mais importante ao menos: anotação errada, tempo grande, preenchimento, outros e caligrafia por último. Clique no card para virar e ver a folha inteira com a linha marcada em vermelho; clique na folha para ampliar.</li>
-          <li><b>Exporte.</b> Copie PRODUÇÃO e PARADAS para colar na base, ou baixe o Excel.</li>
+          <li><b>Enviar e conferir.</b> Suba a folha (PDF, foto ou câmera do celular; cada página do PDF é uma folha). As células marcadas são as que a leitura ficou em dúvida: compare com o recorte da folha acima de cada linha. <em>Revisão rápida</em> passa só pelas marcadas.</li>
+          <li><b>Dê o OK</b> na barra de baixo. Só depois dele a análise é feita. Dá para desfazer o OK e revisar de novo.</li>
+          <li><b>Análise.</b> Cada aviso é um card, do mais importante ao menos. Clique no card para virar e ver a folha inteira com a linha marcada em vermelho; clique na folha para ampliar. Logo abaixo fica o painel do dia.</li>
+          <li><b>Subir para a base.</b> Envia as folhas conferidas para o histórico usado pelo Painel BI e pelo Plano de ação.</li>
+          <li><b>Exportar.</b> No botão <em>Exportar</em> (à direita, em cima das folhas): copiar PRODUÇÃO e PARADAS ou baixar o Excel.</li>
         </ol>
         <h4>O que significam as cores</h4>
         <ul class="legend">
@@ -226,24 +273,25 @@
           <li><i class="sw fill"></i> Laranja: você preencheu o que estava em branco.</li>
           <li><i class="sw auto"></i> Contorno preto "auto": o app preencheu sozinho (turno pelo horário e pela chapa, motivo Tyorei pela descrição). Confira.</li>
         </ul>
-        <h4>As abas</h4>
+        <h4>As seções</h4>
         <ul>
-          <li><b>1 · Conferência:</b> onde você revisa e corrige.</li>
-          <li><b>2 · Análise:</b> liberada depois do OK. Sempre usa o arquivo que você acabou de subir.</li>
-          <li><b>3 · Painel:</b> tempo parado por motivo, máquina e hora.</li>
+          <li><b>Painel BI:</b> indicadores do histórico (disponibilidade, paradas, entrega, peças e operadores). Filtros à esquerda; clique numa barra para filtrar os outros gráficos.</li>
+          <li><b>Plano de ação:</b> quanto as paradas custam e o que fazer, em ordem de importância.</li>
+          <li><b>Leitura de folhas:</b> enviar, conferir, análise e subir para a base.</li>
+          <li><b>Base de dados:</b> o histórico em tabelas editáveis (produção, paradas e matriz de tempos).</li>
         </ul>
         <h4>Dicas</h4>
         <ul>
           <li>Clique no recorte da folha para ampliar.</li>
           <li>Datas: digite só números, as barras entram sozinhas.</li>
           <li>Na revisão rápida: <kbd>Enter</kbd> confirma, <kbd>Esc</kbd> fecha.</li>
-          <li>O botão ↑ no canto leva ao topo.</li>
+          <li>Os botões redondos no canto levam ao topo e ao final da página.</li>
         </ul>
         <h4>Dúvidas comuns</h4>
         <ul>
           <li><b>"folhas restantes":</b> estimativa da cota diária do Gemini. Cada folha gasta cerca de 2 a 3 chamadas.</li>
-          <li><b>Chapa nova:</b> inclua em Menu → Listas de conferência.</li>
-          <li><b>Meus dados:</b> ficam só neste navegador. Subir um arquivo novo apaga a leitura anterior.</li>
+          <li><b>Chapa nova:</b> inclua em ⋮ → Listas de conferência e operadores.</li>
+          <li><b>Meus dados:</b> a leitura fica só neste navegador (ou na sala da equipe, se a sincronização estiver ligada).</li>
         </ul>
       </div>
     </div>
