@@ -62,8 +62,14 @@ export function useCloudSync(
     for (let i = 0; i < dropIds.length; i += 100) {
       await supabase.from('he_assignments').delete().in('id', dropIds.slice(i, i + 100)); // precisa de await: a chamada só executa quando aguardada
     }
-    snapshot.current = new Map(recs.map((r) => [r.id, JSON.stringify(r)]));
-    setRecords(recs);
+    // Alterações locais ainda não enviadas (ex.: líder que você acabou de escolher) NÃO podem ser pisadas pela nuvem.
+    const local = new Map(recordsRef.current.map((r) => [r.id, r]));
+    const dirty = new Set(
+      recordsRef.current.filter((r) => snapshot.current.has(r.id) && snapshot.current.get(r.id) !== JSON.stringify(r)).map((r) => r.id),
+    );
+    const prev = snapshot.current;
+    snapshot.current = new Map(recs.map((r) => [r.id, dirty.has(r.id) ? (prev.get(r.id) as string) : JSON.stringify(r)]));
+    setRecords(recs.map((r) => (dirty.has(r.id) ? (local.get(r.id) as OvertimeRecord) : r)));
     loaded.current = true;
     setState('online');
   }, [setRecords]);

@@ -228,6 +228,22 @@ export default function App() {
 
   const cloud = useCloudSync(records, setRecords);
 
+  // Líder já definido antes volta sozinho: quem estiver sem líder / com 2 líderes e tiver resposta salva é corrigido.
+  useEffect(() => {
+    const isPending = (l?: string) => !l || l === 'Não identificado' || l.includes('/');
+    if (!records.some((r) => isPending(r.lider))) return;
+    let changed = false;
+    const next = records.map((r) => {
+      if (!isPending(r.lider)) return r;
+      const c = (r.chapa || '').trim().replace(/^0+/, '');
+      const saved = (c && leaderOverrides[`chapa:${c}`]) || leaderOverrides[`nome:${normalizePersonName(r.funcionario)}`];
+      if (!saved || saved === r.lider) return r;
+      changed = true;
+      return { ...r, lider: saved };
+    });
+    if (changed) setRecords(next);
+  }, [records, leaderOverrides]);
+
   // Memória do sistema: líderes já definidos voltam do banco em qualquer aparelho e valem nas próximas planilhas.
   useEffect(() => {
     void loadSetting<Record<string, string>>('leader_overrides').then((remote) => {
