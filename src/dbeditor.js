@@ -3,6 +3,7 @@
 import './db.css';
 import { el } from './bicharts.js';
 import { editRecords, saveMatriz } from './historico.js';
+import { PADRAO } from './data/padrao.js';
 import { prodRecord, stopRecord, dmy, spanHours, fmtHM } from './core/history.js';
 // hh:mm of a time span (the spreadsheet's "1ºTURNO / 2ºTURNO / 3ºTURNO" total columns and the stop's TTL)
 const span = (a, b) => { const h = spanHours(a, b); return h == null ? '' : fmtHM(Math.round(h * 60)); };
@@ -115,12 +116,18 @@ export function matrixEditor({ rows, group, onSaved, toast = () => {}, provision
       el('td', { class: 'act' }, el('button', { type: 'button', class: 'dbe-x', title: 'Excluir', 'aria-label': 'Excluir linha', onclick: () => { list.splice(i, 1); mark(); draw(); } }, '🗑'))));
     const save = el('button', { type: 'button', class: 'primary', disabled: dirty() ? null : true, onclick: async () => { try { const r = await saveMatriz(list.filter((x) => x[0] && x[1])); toast('Matriz salva. Os gráficos de entrega já usam os tempos novos.'); await onSaved?.(r); } catch (e) { toast(e.message); } } }, 'Salvar matriz');
     const mark = () => { save.disabled = !dirty(); };
+    // how far the saved matrix is from the one that came with the app, and a way back
+    const sg = (r) => `${r[0]}|${r[1]}|${r[2]}|${(Number(r[3]) || 0).toFixed(3)}`, orig = new Set(PADRAO.map(sg)), now = new Set(rows.filter((r) => group(r[0])).map(sg));
+    const far = [...now].filter((k) => !orig.has(k)).length + PADRAO.filter((r) => group(r[0]) && !now.has(sg(r))).length;
+    const reset = far ? el('button', { type: 'button', class: 'ghost', title: 'Descarta as mudanças e volta à matriz que veio com o app', onclick: async () => {
+      if (!window.confirm(`A matriz salva tem ${far} diferença(s) da original do app. Voltar tudo à original? As linhas que você cadastrou ou mudou saem.`)) return;
+      try { await saveMatriz([]); toast('Matriz voltou à original do app.'); await onSaved?.(null); } catch (e) { toast(e.message); } } }, `Voltar à matriz original (${far})`) : '';
     const search = el('input', { type: 'search', class: 'dbe-q', placeholder: 'Buscar peça, modelo ou máquina', value: q, oninput: (e) => { q = e.target.value.toLowerCase(); page = 0; draw(); const s = host.querySelector('.dbe-q'); s?.focus(); s?.setSelectionRange(q.length, q.length); } });
     const pager = pages > 1 ? el('span', { class: 'dbe-pg' }, el('button', { type: 'button', class: 'ghost', disabled: page === 0 ? true : null, onclick: () => { page--; draw(); } }, '‹'), ` página ${page + 1} de ${pages} `, el('button', { type: 'button', class: 'ghost', disabled: page >= pages - 1 ? true : null, onclick: () => { page++; draw(); } }, '›')) : '';
     const add = adding ? el('div', { class: 'dbe-new' }, el('b', {}, 'Nova linha'), ...['Máquina', 'Peça', 'Modelo', 'Horas'].map((t, k) => el('label', { class: 'dbe-f c-w' }, t, el('input', { type: 'text', value: adding[k], oninput: (e) => { adding[k] = e.target.value; } }))),
       el('button', { type: 'button', class: 'primary', onclick: () => { const [m, p, o, h] = adding; if (!m.trim() || !p.trim()) { toast('Preencha máquina e peça.'); return; } list.push([m.trim(), p.trim(), o.trim(), Number(String(h).replace(',', '.')) || 0, '']); adding = null; draw(); } }, 'Incluir'),
       el('button', { type: 'button', class: 'ghost', onclick: () => { adding = null; draw(); } }, 'Cancelar')) : '';
-    host.replaceChildren(el('div', { class: 'dbe-head' }, el('h5', {}, `Matriz de tempos padrão (${idx.length.toLocaleString('pt-BR')})`), el('span', { class: 'dbe-tools' }, search, pager, el('button', { type: 'button', class: 'ghost', onclick: () => { adding = ['', '', '', '']; draw(); } }, '＋ Nova linha'), save)),
+    host.replaceChildren(el('div', { class: 'dbe-head' }, el('h5', {}, `Matriz de tempos padrão (${idx.length.toLocaleString('pt-BR')})`), el('span', { class: 'dbe-tools' }, search, pager, el('button', { type: 'button', class: 'ghost', onclick: () => { adding = ['', '', '', '']; draw(); } }, '＋ Nova linha'), reset, save)),
       el('p', { class: 'bi-note' }, 'Tempo padrão, em horas, de uma peça e modelo em cada máquina. Salvar vale para todos e muda "horas entregues" e "eficiência" nos gráficos.'), add,
       el('div', { class: 'dbe-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, ['Máquina', 'Peça', 'Modelo', 'Horas padrão', 'Observação', ''].map((t) => el('th', {}, t)))), el('tbody', {}, body))),
       provisionalBlock());

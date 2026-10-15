@@ -250,3 +250,8 @@ Nos campos INÍCIO e FIM (produção e paradas, na conferência e na revisão r�
 - Para **COLAR-CENTER FRAME**, **SUB BRACKET** (caixa soldada) e **BRACKET** (trave soldada), que ainda não têm tempo na matriz, o padrão usado na entrega e na eficiência é a **média das produções delas no histórico** (por peça e modelo; só linhas com horas entre 0 e 24 h). Recalcula sozinho quando entram novas produções.
 - É sempre sinalizado: faixa azul na página Entrega (com "Ver quais": padrão usado, produções e período da média) e nota no cartão de peças. Nessas peças a eficiência tende a 100% por construção.
 - Na aba Base de dados → Matriz de tempos, a seção "Tempos provisórios pelo histórico" lista cada máquina + peça + modelo; "Fixar na matriz" (ou "Fixar todos") copia a linha com a observação "Média de N produções do histórico (período); não é tempo da matriz". A matriz agora tem a coluna **Observação**. Tempo na matriz sempre vence a média.
+
+## Gráfico de 24 h por robô e "Comparar com o Excel"
+
+- "Produção + paradas por dia (limite de 24 h)" mostra por padrão **todos os robôs, dia a dia**: uma barra por robô e dia, agrupadas pelo dia. Dá para trocar para "só o robô mais carregado de cada dia", "só os dias com erro" ou um robô.
+- Aba Base de dados → **Comparar com o Excel**: escolha a planilha original e o mês; o app lista o que na base difere dela (linhas editadas, incluídas, excluídas) e o botão "Voltar ‹mês› ao que está no Excel" desfaz tudo. Na Matriz de tempos, "Voltar à matriz original" descarta as mudanças salvas.

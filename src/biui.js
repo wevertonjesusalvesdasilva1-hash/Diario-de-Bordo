@@ -259,18 +259,19 @@ function pageGeral(x) {
   const prodPar = () => { const gr = groupP(x.cube, x.F('v4'), ['m']); return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: PALETTE[1] }], fmt: f1, onPick: x.pick('v4', 'p', ['m']), selected: x.selOf('v4') }; };
   const turnoMaq = () => { const gr = groupP(x.cube, x.F('v6'), ['m', 't']); const ms = [...new Set(gr.map((g) => g.vals[0]))], ts = [...new Set(gr.map((g) => g.vals[1]))].sort(); return { cats: ms.map((m) => ({ key: m, label: m })), series: ts.map((t, k) => ({ name: t ? `Turno ${t}` : 'Sem turno', color: PALETTE[k], vals: ms.map((m) => M.horasProd((gr.find((g) => g.vals[0] === m && g.vals[1] === t) ?? { c: { P: [] } }).c)) })), stacked: true, fmt: f1, onPick: x.pick('v6', 'p', ['m']), selected: x.selOf('v6') }; };
   // production + stops of each machine and day (midnight to midnight) against the 24 h line: a bar above the line is an error to fix
-  let load24 = 'pior';
+  let load24 = 'todos';
   const dias24 = () => { const L = dayRows(x.cube, x.F('v8'));
     let rows;
-    if (load24 === 'acima') rows = L.filter((r) => r.tot > 24.0001).sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.m < b.m ? -1 : 1));
+    if (load24 === 'todos') rows = L.slice().sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.m < b.m ? -1 : 1));
+    else if (load24 === 'acima') rows = L.filter((r) => r.tot > 24.0001).sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.m < b.m ? -1 : 1));
     else if (load24 === 'pior') { const by = new Map(); for (const r of L) { const o = by.get(r.d); if (!o || r.tot > o.tot) by.set(r.d, r); } rows = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1)); }
     else rows = L.filter((r) => r.m === load24).sort((a, b) => (a.d < b.d ? -1 : 1));
-    return { cats: rows.map((r) => ({ key: r.d + SEP + r.m, label: load24 === 'acima' ? `${ddmm(r.d)} ${r.m}` : ddmm(r.d), alert: r.tot > 24.0001 })), stacked: true, height: 280, refLine: { value: 24, label: 'limite: 24 h', color: '#fbbf24' }, fmt: f1,
+    return { cats: rows.map((r) => ({ key: r.d + SEP + r.m, label: load24 === 'todos' ? r.m : load24 === 'acima' ? `${ddmm(r.d)} ${r.m}` : ddmm(r.d), ...(load24 === 'todos' ? { group: ddmm(r.d) } : {}), alert: r.tot > 24.0001 })), stacked: true, height: 300, refLine: { value: 24, label: 'limite: 24 h', color: '#fbbf24' }, fmt: f1,
       series: [{ name: 'Produção (h)', vals: rows.map((r) => r.ph), color: PALETTE[0] }, { name: 'Paradas (h)', vals: rows.map((r) => r.sh), color: PALETTE[1] }],
       onPick: (key) => { ui.t24.key = ui.t24.key === key ? null : key; v24.rebuild(); }, selected: ui.t24.key ? new Set([ui.t24.key]) : null, rowsOf24: rows,
       tip: (i) => `${rows[i].m} · ${dmy(rows[i].d)} · total ${f1(rows[i].tot)} h${rows[i].tot > 24.0001 ? ' ⚠ passa de 24 h' : ''}${rows[i].overlapH > 0.01 ? ` · ${f1(rows[i].overlapH)} h no mesmo horário` : ''}` }; };
   const sel24 = el('select', { 'aria-label': 'O que mostrar', onchange: (e) => { load24 = e.target.value; v24.rebuild(); } },
-    el('option', { value: 'pior' }, `${u} mais carregado de cada dia`), el('option', { value: 'acima' }, 'Só os dias com erro (passam de 24 h)'), ...options(x.cube, 'p', 'm').map((m) => el('option', { value: m }, `Só ${m}`)));
+    el('option', { value: 'todos' }, `Todos os ${u.toLowerCase()}s, dia a dia`), el('option', { value: 'pior' }, `Só o ${u.toLowerCase()} mais carregado de cada dia`), el('option', { value: 'acima' }, 'Só os dias com erro (passam de 24 h)'), ...options(x.cube, 'p', 'm').map((m) => el('option', { value: m }, `Só ${m}`)));
   // the chart and, under it, the records it is made of (editable); a clicked bar is highlighted in the table
   const tblBtn = el('button', { type: 'button', class: 'vf-btn', 'aria-expanded': 'false', onclick: () => { ui.t24.open = !ui.t24.open; v24.rebuild(); } }, '▦ Abrir tabela');
   const build24 = () => {

@@ -231,3 +231,29 @@ export function auditDays(prod, stops, keepDay = () => true) {
   }
   return out.sort((a, b) => b.tot - a.tot);
 }
+
+// ---- compare the base with the control spreadsheet, for one month (to see what was changed in the app and put it back)
+const r3 = (v) => Math.round((Number(v) || 0) * 1000) / 1000;
+const sigP = (r) => [r.m, r.d, r.p, r.o, r.c1, r.i1, r.f1, r.c2, r.i2, r.f2, r.c3, r.i3, r.f3, r.t ?? '', r.ob ?? '', r3(r.h), r3(r.tp)].join('|');
+const sigS = (r) => [r.m, r.d, r.c, r.i, r.f, r.t ?? '', r.mo, r.ds ?? '', r3(r.h)].join('|');
+const SIG = { prod: sigP, stop: sigS }, KEY = { prod: prodKey, stop: stopKey };
+// month: 'YYYY-MM'. Returns { same, edited: [{ base, excel }], onlyBase: [], onlyExcel: [] }:
+//  edited = the same record (same machine, day and times) with other values; onlyBase = records that are not in the spreadsheet; onlyExcel = records the base lacks
+export function compareMonth(kind, baseRecs, excelRecs, month) {
+  const inM = (r) => r.d.startsWith(month), sig = SIG[kind], key = KEY[kind];
+  const take = (list) => { const m = new Map(); for (const r of list.filter(inM)) { const k = sig(r); (m.get(k) ?? m.set(k, []).get(k)).push(r); } return m; };
+  const B = take(baseRecs), E = take(excelRecs);
+  let same = 0; const ob = [], oe = [];
+  for (const k of new Set([...B.keys(), ...E.keys()])) {
+    const b = B.get(k) ?? [], e = E.get(k) ?? [], n = Math.min(b.length, e.length); same += n;
+    ob.push(...b.slice(n)); oe.push(...e.slice(n));
+  }
+  // pair what only differs in values (same key) into "edited"
+  const edited = [], oeByKey = new Map();
+  for (const r of oe) { const k = key(r); (oeByKey.get(k) ?? oeByKey.set(k, []).get(k)).push(r); }
+  const onlyBase = [];
+  for (const b of ob) { const l = oeByKey.get(key(b)); if (l?.length) edited.push({ base: b, excel: l.shift() }); else onlyBase.push(b); }
+  const onlyExcel = [...oeByKey.values()].flat();
+  return { same, edited, onlyBase, onlyExcel };
+}
+export const monthsOf = (...lists) => [...new Set(lists.flat().map((r) => r.d.slice(0, 7)))].sort();

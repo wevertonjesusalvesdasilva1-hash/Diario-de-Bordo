@@ -111,3 +111,12 @@ test('API do histórico: editar, excluir e incluir registros um a um; matriz de 
   assert.equal(r.body.rows.length, 1);
   assert.equal((await call({ query: { g: 'matriz' } })).body.rows[0][3], 4.5);
 });
+
+test('comparar um mês com o Excel: iguais, editadas, só no app e só no Excel', async () => {
+  const { compareMonth } = await import('../src/core/history.js');
+  const x = [P(), P({ i1: '13:00', f1: '15:00', h: 2 }), P({ d: '2026-09-30' })], b = [P({ h: 3 }), P({ i1: '13:00', f1: '15:00', h: 2 }), P({ i1: '16:00', f1: '17:00', h: 1 }), P({ d: '2026-09-30', h: 9 })];
+  const r = compareMonth('prod', b, x, '2026-10');
+  assert.equal(r.same, 1); assert.equal(r.edited.length, 1); assert.equal(r.edited[0].base.h, 3); assert.equal(r.edited[0].excel.h, 2.5);
+  assert.equal(r.onlyBase.length, 1); assert.equal(r.onlyExcel.length, 0);                     // outro mês não entra
+  assert.equal(compareMonth('prod', b, x, '2026-09').edited.length, 1);
+});
