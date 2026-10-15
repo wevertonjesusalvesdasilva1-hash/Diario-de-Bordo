@@ -285,7 +285,10 @@ function pageGeral(x) {
     else rows = L.filter((r) => r.m === load24).sort((a, b) => (a.d < b.d ? -1 : 1));
     return { cats: rows.map((r) => ({ key: r.d + SEP + r.m, label: load24 === 'todos' ? r.m.replace(/^RAW/, '') : load24 === 'acima' ? `${ddmm(r.d)} ${r.m}` : ddmm(r.d), ...(load24 === 'todos' ? { group: ddmm(r.d) } : {}), alert: r.tot > 24.0001 })), stacked: true, totalsOnlyAlerts: load24 === 'todos', height: 300, refLine: { value: 24, label: 'limite: 24 h', color: '#fbbf24' }, fmt: f1,
       series: [{ name: 'Produção (h)', vals: rows.map((r) => r.ph), color: PALETTE[0] }, { name: 'Paradas (h)', vals: rows.map((r) => r.sh), color: PALETTE[1] }],
-      onPick: (key) => { ui.t24.key = ui.t24.key === key ? null : key; v24.rebuild(); }, selected: ui.t24.key ? new Set([ui.t24.key]) : null, rowsOf24: rows,
+      onPick: (key, ev) => {   // like every other chart: the click lights up this bar's robot and day in all the other charts, and the table follows
+        x.pick('v8', 'p', ['data', 'm'])(key, ev);
+        ui.t24.key = ui.sel?.vid === 'v8' ? [...ui.sel.keys].at(-1) : null; v24.rebuild();
+      }, selected: x.selOf('v8') ?? (ui.t24.key && !ui.sel ? new Set([ui.t24.key]) : null), rowsOf24: rows,
       tip: (i) => `${rows[i].m} · ${dmy(rows[i].d)} · total ${f1(rows[i].tot)} h${rows[i].tot > 24.0001 ? ' ⚠ passa de 24 h' : ''}${rows[i].overlapH > 0.01 ? ` · ${f1(rows[i].overlapH)} h no mesmo horário` : ''}` }; };
   const sel24 = el('select', { 'aria-label': 'O que mostrar', onchange: (e) => { load24 = e.target.value; v24.rebuild(); } },
     el('option', { value: 'todos' }, `Todos os ${u.toLowerCase()}s, dia a dia`), el('option', { value: 'pior' }, `Só o ${u.toLowerCase()} mais carregado de cada dia`), el('option', { value: 'acima' }, 'Só os dias com erro (passam de 24 h)'), ...options(x.cube, 'p', 'm').map((m) => el('option', { value: m }, `Só ${m}`)));
@@ -305,7 +308,7 @@ function pageGeral(x) {
     const uniq = (k) => [...new Set(pickRows.flatMap((r) => r[k]))];
     const byTime = (a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.m < b.m ? -1 : a.m > b.m ? 1 : String(a.i1 ?? a.i).localeCompare(String(b.i1 ?? b.i)));
     const sel = ui.t24.key ? el('span', {}, 'Destacado: ', el('b', {}, ui.t24.key.split(SEP).reverse().join(' · ').replace(/(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1')), ' ',
-      el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.t24.only = !ui.t24.only; v24.rebuild(); } }, ui.t24.only ? 'Mostrar todas as linhas' : 'Mostrar só desta barra'), ' ', el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.t24.key = null; v24.rebuild(); } }, 'Limpar'))
+      el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.t24.only = !ui.t24.only; v24.rebuild(); } }, ui.t24.only ? 'Mostrar todas as linhas' : 'Mostrar só desta barra'), ' ', el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.t24.key = null; if (ui.sel?.vid === 'v8') { ui.sel = null; x.drawMain(); } else v24.rebuild(); } }, 'Limpar'))
       : el('span', {}, 'Clique numa barra do gráfico para destacar aqui os registros dela.');
     const common = { g: x.g, toast: x.toast, onSaved: () => x.refresh() };
     wrapBox.append(el('p', { class: 'bi-note dbe-note-hit' }, 'Edite a célula e clique em Salvar: a base de dados é atualizada e todos os gráficos recalculam. ', sel),
@@ -519,6 +522,7 @@ export async function renderBiUI(root, ctx) {
       else ui.sel = { vid, side: sd, keys: new Set([key]), f() { const o = { p: {}, s: {} }; cols.forEach((c, i) => { o[sd][c] = new Set([...this.keys].map((k) => k.split(SEP)[i])); }); return o; } };
       drawMain();
     } };
+  x.drawMain = () => drawMain();
   slicerFills = [];
   const prune = () => { const f = pageFilter(); for (let k = 0; k < 2; k++) for (const [, sd, col] of SLICERS[ui.page] ?? []) { const set = f[sd][col]; if (!set) continue; const ok = new Set(optionsFor(cube, sd, col, f)); const keep = [...set].filter((v) => ok.has(v)); if (keep.length === set.size) continue; if (keep.length) f[sd][col] = new Set(keep); else delete f[sd][col]; } };
   const slicers = (SLICERS[ui.page] ?? []).map(([t, sd, col]) => slicerBox(t === '@unit' ? GROUPS[ui.g].unit : t, sd, col, cube, () => { mirror(); prune(); mirror(); slicerFills.forEach((fn) => fn()); ui.sel = null; drawMain(); }));
