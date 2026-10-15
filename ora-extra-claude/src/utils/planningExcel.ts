@@ -1,6 +1,6 @@
 import { OvertimeRecord } from '../types';
 import { argb, BRAND } from './brand';
-import { buildRows, buildSummary, fixText, levelsLabel, needsTransport, SortLevel, transpLabel, turno } from './planning';
+import { buildRows, buildSummary, fixText, isLeaderRow, levelsLabel, needsTransport, SortLevel, transpLabel, turno } from './planning';
 
 const BLACK = argb(BRAND.blue); // azul Komatsu (cabeçalhos)
 const YELLOW = argb(BRAND.yellow);
@@ -128,7 +128,7 @@ export async function exportPlanningExcel(opts: {
           const c = ws.getCell(row, i + 1);
           c.value = v as string | number;
           c.border = border;
-          if (x.r.motivoHe.trim().toLowerCase().startsWith('respons')) { c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRAY } }; }
+          if (isLeaderRow(x.r)) { c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRAY } }; }
         });
         if (!needsTransport(r)) ws.getCell(row, heads.indexOf('Transporte') + 1).font = { italic: true, color: { argb: 'FF6B7280' } };
       }

@@ -4,7 +4,16 @@ export const norm = (s: string) =>
   (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 export const fixText = (s: string) => (s || '').replace(/N\?O/g, 'NÃO').trim();
 export const turno = (r: OvertimeRecord) => (r.de && r.ate ? `${r.de} – ${r.ate}` : 'Sem horário');
-export const isLeaderRow = (r: OvertimeRecord) => norm(r.motivoHe) === 'responsavel';
+/** Contramestres/líderes oficiais: basta o nome na lista (1º nome + 2º nome) para virar destaque. */
+const LEADER_KEYS: [string, string][] = [
+  ['odonei', 'donizete'], ['luiz', 'alves'], ['ronaldo', 'domingos'], ['fabio', 'nunes'],
+  ['alexandre', 'goncalves'], ['rogerio', 'araujo'], ['diego', 'domingues'], ['joao', 'oliveira'],
+];
+export const isLeaderName = (nome: string) => {
+  const t = norm(nome).split(/\s+/);
+  return LEADER_KEYS.some(([a, b]) => t[0] === a && t.slice(1).includes(b));
+};
+export const isLeaderRow = (r: OvertimeRecord) => norm(r.motivoHe) === 'responsavel' || isLeaderName(r.funcionario);
 export const needsTransport = (r: OvertimeRecord) => {
   const t = norm(r.transporte);
   return t !== '' && !t.startsWith('outros');
