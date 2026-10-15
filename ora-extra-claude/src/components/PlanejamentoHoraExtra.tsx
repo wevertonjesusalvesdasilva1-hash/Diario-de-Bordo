@@ -38,7 +38,7 @@ const daysTitle = (ds: string[]) =>
   ds.length === 1 ? ds[0] : ds.slice(0, -1).map((d) => d.slice(0, 5)).join(' + ') + ' + ' + ds[ds.length - 1];
 
 /** Colaboradores com mais de um líder na base (ou sem líder): o usuário escolhe o líder certo. */
-function LeaderConflicts({ records, onSetLeader }: { records: OvertimeRecord[]; onSetLeader: (chapa: string, nome: string, lider: string) => void }) {
+function LeaderConflicts({ records, onSetLeader, blocking }: { records: OvertimeRecord[]; onSetLeader: (chapa: string, nome: string, lider: string) => void; blocking?: boolean }) {
   const [open, setOpen] = useState(false);
   const list = useMemo(() => {
     const m = new Map<string, OvertimeRecord>();
@@ -53,9 +53,9 @@ function LeaderConflicts({ records, onSetLeader }: { records: OvertimeRecord[]; 
   if (list.length === 0) return null;
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
+      <div className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-xs ${blocking ? 'border-red-500/60 bg-red-950/40 text-red-200' : 'border-amber-500/40 bg-amber-950/30 text-amber-200'}`}>
         <span>
-          ⚠ {multi > 0 && `${multi} colaborador${multi > 1 ? 'es' : ''} com mais de um líder cadastrado`}
+          {blocking ? '⛔ Impressão, PDF e Excel bloqueados até definir o líder de todos: ' : '⚠ '}{multi > 0 && `${multi} colaborador${multi > 1 ? 'es' : ''} com mais de um líder cadastrado`}
           {multi > 0 && list.length - multi > 0 && ' · '}
           {list.length - multi > 0 && `${list.length - multi} sem líder`}
         </span>
@@ -350,6 +350,11 @@ export default function PlanejamentoHoraExtra({
 
   const chip = (active: boolean) => `rounded-lg px-3 py-1.5 text-xs font-bold whitespace-nowrap ${active ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'}`;
 
+  const pendingLeaders = new Set(
+    filtered.filter((r) => (r.lider || '').includes('/') || !r.lider || norm(r.lider) === 'nao identificado').map((r) => r.chapa || r.funcionario),
+  ).size;
+  const blocked = pendingLeaders > 0;
+
   return (
     <div className="p-3 space-y-3">
       <style>{`
@@ -363,7 +368,7 @@ export default function PlanejamentoHoraExtra({
           .he-print { position: absolute; left: 0; top: 0; transform: none !important; width: ${paper === 'A4' ? Math.round(A3_W * A4_ZOOM) : A3_W}px !important; }
           .he-print .he-page { break-after: page; margin: 0 !important; ${paper === 'A4' ? `zoom: ${A4_ZOOM};` : ''} }
           .he-print > :last-child > .he-page:last-child { break-after: auto; }
-          .he-print { display: block; }
+          .he-print { display: ${blocked ? 'none !important' : 'block'}; }
         }
       `}</style>
 
@@ -373,7 +378,7 @@ export default function PlanejamentoHoraExtra({
         <button onClick={onUpload} className="rounded-xl border border-emerald-500/50 bg-emerald-950/40 px-3 py-2 text-sm font-bold text-emerald-300">
           Subir Excel
         </button>
-        <button disabled={busy || filtered.length === 0} onClick={exportExcel} className="rounded-xl border border-sky-500/50 bg-sky-950/40 px-3 py-2 text-sm font-bold text-sky-300 disabled:opacity-50">
+        <button disabled={blocked || busy || filtered.length === 0} onClick={exportExcel} className="rounded-xl border border-sky-500/50 bg-sky-950/40 px-3 py-2 text-sm font-bold text-sky-300 disabled:opacity-50">
           {busy ? 'Gerando…' : 'Baixar Excel formatado'}
         </button>
         <span className="flex overflow-hidden rounded-xl border border-slate-600" role="group" aria-label="Tamanho do papel">
@@ -383,15 +388,15 @@ export default function PlanejamentoHoraExtra({
             </button>
           ))}
         </span>
-        <button disabled={pdfJob || filtered.length === 0} onClick={() => setPdfJob(true)} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-50">
+        <button disabled={blocked || pdfJob || filtered.length === 0} onClick={() => setPdfJob(true)} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-50">
           {pdfJob ? 'Gerando PDF…' : `Baixar PDF (${paper})`}
         </button>
-        <button disabled={filtered.length === 0} onClick={() => window.print()} className="rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-bold text-slate-200 disabled:opacity-50">
+        <button disabled={blocked || filtered.length === 0} onClick={() => window.print()} className="rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-bold text-slate-200 disabled:opacity-50">
           Imprimir ({paper})
         </button>
       </div>
 
-      <LeaderConflicts records={scope} onSetLeader={onSetLeader} />
+      <LeaderConflicts records={filtered} onSetLeader={onSetLeader} blocking />
 
       {/* Dias: marque quantos quiser; com 2+ dias escolha folha separada ou resumo único */}
       <div className="flex flex-wrap items-center gap-1.5">
