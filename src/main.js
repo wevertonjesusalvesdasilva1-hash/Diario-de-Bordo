@@ -829,7 +829,7 @@ function updateReviewUi() {
   $('ok').hidden = state.reviewed;
   $('viewanalysis').hidden = !state.reviewed;
   $('undook').hidden = !state.reviewed;
-  $('submitbase').hidden = !state.reviewed;
+  $('submitbase').hidden = !state.pages.length;   // always there once a sheet is read; the screen says what is still in doubt and offers "subir mesmo assim"
 }
 
 function showTab(name) {

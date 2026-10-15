@@ -30,19 +30,23 @@ function modal(title, body, { wide = false } = {}) {
 
 // ---------------------------------------------------------------- submit the validated sheets
 // ctx: { pages (the selected sheets), reviewed, flagsOf(page), toast, onDone({ g, batch, pages, result }), goRead() }
-export async function openSubmit(ctx) {
+export async function openSubmit(ctx, force = false) {
   const body = h('div', { class: 'bd-body' }, h('p', { class: 'note' }, 'Conferindo o que vai para a base…'));
-  const { close } = modal('Subir para a base de dados', body);
+  const { close } = modal(force ? 'Subir para a base de dados (mesmo com dúvidas)' : 'Subir para a base de dados', body);
+  const anyway = () => h('button', { type: 'button', class: 'ghost', title: 'Sobe mesmo assim, com as dúvidas que ficaram', onclick: () => { close(); openSubmit(ctx, true); } }, 'Subir mesmo assim');
+  const risks = [];   // what goes in unconfirmed (only filled when the person chose to go on anyway)
   try {
-    if (!ctx.reviewed) { body.replaceChildren(h('p', {}, 'Dê o OK na conferência antes de subir para a base de dados.'), h('button', { type: 'button', class: 'primary', onclick: close }, 'Entendi')); return; }
+    if (!ctx.reviewed && !force) { body.replaceChildren(h('p', {}, 'A conferência ainda não recebeu o OK.'), h('div', { class: 'bd-btns' }, h('button', { type: 'button', class: 'primary', onclick: close }, 'Entendi'), anyway())); return; }
+    if (!ctx.reviewed) risks.push('A conferência ainda não recebeu o OK.');
     const pages = ctx.pages;
     if (!pages.length) { body.replaceChildren(h('p', {}, 'Nenhuma folha selecionada.'), h('button', { type: 'button', class: 'primary', onclick: close }, 'Entendi')); return; }
     const noMachine = pages.filter((p) => !p.machine), withDoubt = pages.filter((p) => ctx.flagsOf(p) > 0);
-    if (noMachine.length || withDoubt.length) {
+    if (force) { for (const p of noMachine) risks.push(`${p.label}: sem máquina escolhida, fica de fora.`); for (const p of withDoubt) risks.push(`${p.label}: ${ctx.flagsOf(p)} célula(s) em dúvida entram como estão.`); }
+    if (!force && (noMachine.length || withDoubt.length)) {
       body.replaceChildren(h('p', { class: 'bd-warn' }, 'Ainda não dá para subir:'),
         h('ul', {}, noMachine.map((p) => h('li', {}, `${p.label}: a máquina não foi escolhida.`)), withDoubt.map((p) => h('li', {}, `${p.label}: ${ctx.flagsOf(p)} célula(s) em dúvida.`))),
-        h('p', { class: 'note' }, 'Só entra na base o que está conferido e certo. Corrija e dê o OK de novo.'),
-        h('div', { class: 'bd-btns' }, h('button', { type: 'button', class: 'ghost', onclick: close }, 'Fechar'), h('button', { type: 'button', class: 'primary', onclick: () => { close(); ctx.goRead(); } }, 'Ir para a conferência')));
+        h('p', { class: 'note' }, 'O ideal é corrigir e dar o OK. Se precisar, dá para subir mesmo assim: entra o que está na tela, com as dúvidas.'),
+        h('div', { class: 'bd-btns' }, h('button', { type: 'button', class: 'ghost', onclick: close }, 'Fechar'), h('button', { type: 'button', class: 'ghost', onclick: () => { close(); ctx.goRead(); } }, 'Ir para a conferência'), anyway()));
       return;
     }
     const groups = ['raw', 'usi'].map((g) => ({ g, pages: pages.filter((p) => groupOfMachine(p.machine) === g) })).filter((x) => x.pages.length);
@@ -55,12 +59,13 @@ export async function openSubmit(ctx) {
     }
     // a machine cannot run more than 24 h in a day: block the envio when the days touched by these sheets would pass it
     const over = plans.flatMap((p) => { const touched = new Set([...p.recs.prod, ...p.recs.stops].map((r) => `${r.d}|${r.m}`)); const next = (d) => new Date(Date.parse(`${d}T12:00:00Z`) + 86400000).toISOString().slice(0, 10); return auditDays(p.merged.prod, p.merged.stops, (m, d) => touched.has(`${d}|${m}`) || touched.has(`${new Date(Date.parse(`${d}T12:00:00Z`) - 86400000).toISOString().slice(0, 10)}|${m}`)); });
-    if (over.length) {
+    if (force && over.length) risks.push(`${over.length} dia(s) de máquina passam de 24 h (produção + paradas): confira depois em Painel BI → Plano de ação.`);
+    if (over.length && !force) {
       body.replaceChildren(h('p', { class: 'bd-warn' }, 'Não dá para subir: estes dias passariam de 24 horas (produção + paradas da mesma máquina).'),
         h('table', { class: 'bd-tab' }, h('thead', {}, h('tr', {}, ['Dia', 'Máquina', 'Produção', 'Paradas', 'Total', 'Por quê'].map((t) => h('th', {}, t)))),
           h('tbody', {}, over.map((r) => h('tr', {}, h('td', {}, dmy(r.d)), h('td', {}, r.m), h('td', {}, `${r.ph.toFixed(1)} h`), h('td', {}, `${r.sh.toFixed(1)} h`), h('td', {}, `${r.tot.toFixed(1)} h`), h('td', {}, r.why))))),
-        h('p', { class: 'note' }, 'Confira horários digitados errados, paradas repetidas ou parada lançada no mesmo horário da produção. Corrija na conferência e dê o OK de novo.'),
-        h('div', { class: 'bd-btns' }, h('button', { type: 'button', class: 'ghost', onclick: close }, 'Fechar'), h('button', { type: 'button', class: 'primary', onclick: () => { close(); ctx.goRead(); } }, 'Ir para a conferência')));
+        h('p', { class: 'note' }, 'Confira horários digitados errados, paradas repetidas ou parada lançada no mesmo horário da produção. O ideal é corrigir na conferência, mas dá para subir mesmo assim e corrigir depois na aba Base de dados.'),
+        h('div', { class: 'bd-btns' }, h('button', { type: 'button', class: 'ghost', onclick: close }, 'Fechar'), h('button', { type: 'button', class: 'ghost', onclick: () => { close(); ctx.goRead(); } }, 'Ir para a conferência'), anyway()));
       return;
     }
     // things to look at (they do not stop the envio): the other checks of the audit, only for the machine-days of these sheets
@@ -74,17 +79,18 @@ export async function openSubmit(ctx) {
       h('table', { class: 'bd-tab' }, h('thead', {}, h('tr', {}, ['Base', 'Folhas', 'Produção (novas)', 'Paradas (novas)', 'Já estavam na base'].map((t) => h('th', {}, t)))),
         h('tbody', {}, plans.map((p) => h('tr', {}, h('td', {}, GNAME[p.g]), h('td', {}, String(p.pages.length)), h('td', {}, `${p.merged.added.prod} de ${p.recs.prod.length}`), h('td', {}, `${p.merged.added.stops} de ${p.recs.stops.length}`),
           h('td', {}, `${p.merged.dup.prod} produção(ões) · ${p.merged.dup.stops} paradas`))))),
-      skipped.length ? h('details', { class: 'bd-skip' }, h('summary', {}, `${skipped.length} linha(s) ficam de fora (sem data ou horário)`), h('ul', {}, skipped.map((s) => h('li', {}, `${s.page}: ${s.why}`)))) : null,
-      warn.length ? h('details', { class: 'bd-skip', open: true }, h('summary', {}, `Para conferir (${warn.length}) — não impede o envio`), h('ul', {}, warn.map((w) => h('li', {}, w))), h('p', { class: 'note' }, 'Veja os detalhes depois, em Painel BI → Auditoria dos dados.')) : null,
-      total ? null : h('p', { class: 'note' }, 'Tudo isso já está na base. Não há nada novo para subir.'),
-      h('label', { class: 'bd-check' }, ok, ' Confirmo que o preenchimento destas folhas está finalizado e correto.'),
+      skipped.length ? h('details', { class: 'bd-skip' }, h('summary', {}, `${skipped.length} linha(s) ficam de fora (sem data ou horário)`), h('ul', {}, skipped.map((s) => h('li', {}, `${s.page}: ${s.why}`)))) : '',
+      risks.length ? h('details', { class: 'bd-skip', open: true }, h('summary', {}, `Vai subir com dúvidas (${risks.length})`), h('ul', {}, risks.map((w) => h('li', {}, w))), h('p', { class: 'note' }, 'Depois dá para corrigir na aba Base de dados ou desfazer este envio.')) : '',
+      warn.length ? h('details', { class: 'bd-skip', open: true }, h('summary', {}, `Para conferir (${warn.length}) — não impede o envio`), h('ul', {}, warn.map((w) => h('li', {}, w))), h('p', { class: 'note' }, 'Veja os detalhes depois, em Painel BI → Auditoria dos dados.')) : '',
+      total ? '' : h('p', { class: 'note' }, 'Tudo isso já está na base. Não há nada novo para subir.'),
+      h('label', { class: 'bd-check' }, ok, ' ', force ? 'Quero subir mesmo com estas dúvidas.' : 'Confirmo que o preenchimento destas folhas está finalizado e correto.'),
       h('div', { class: 'bd-btns' }, h('button', { type: 'button', class: 'ghost', onclick: close }, 'Cancelar'), go));
     go.addEventListener('click', async () => {
       go.disabled = true; ok.disabled = true; go.textContent = 'Enviando…';
       const done = [];
       try {
         for (const p of plans) {
-          const res = await sendRecords(p.g, { prod: p.recs.prod, stops: p.recs.stops, label: `${p.pages.length} folha(s): ${p.pages.map((x) => x.label.replace(/ · pág\./, ' p.')).slice(0, 3).join(', ')}${p.pages.length > 3 ? '…' : ''}` });
+          const res = await sendRecords(p.g, { prod: p.recs.prod, stops: p.recs.stops, label: `${force ? '(com dúvidas) ' : ''}${p.pages.length} folha(s): ${p.pages.map((x) => x.label.replace(/ · pág\./, ' p.')).slice(0, 3).join(', ')}${p.pages.length > 3 ? '…' : ''}` });
           done.push({ g: p.g, pages: p.pages, result: res });
           ctx.onDone({ g: p.g, batch: res.batch, pages: p.pages, result: res });
         }
