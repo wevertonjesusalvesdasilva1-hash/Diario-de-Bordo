@@ -252,18 +252,26 @@ export function PagedSheet({
 
             <div className="grid gap-3 items-stretch" style={{ gridTemplateColumns: '1fr 1.15fr 1.1fr', flex: 1, minHeight: 0 }}>
               <Box title="Por líder / contramestre"><MiniTable stretch head={['Líder', 'Qtd']} rows={s.byLider.map(([k, v]) => [k, v])} /></Box>
-              <Box title={`Líderes / responsáveis em destaque (${s.leaders.length})`}>
-                {s.leaders.length === 0 ? (
-                  <p className="text-[11px]">Nenhum responsável indicado.</p>
+              <Box title={`Líderes em destaque (${s.leaderCards.length})`}>
+                {s.leaderCards.length === 0 ? (
+                  <p className="text-[11px]">Nenhum líder na lista.</p>
                 ) : (
-                  <ul className="text-[12px] flex-1 flex flex-col justify-between">
-                    {s.leaders.map((r) => (
-                      <li key={r.id} className="flex flex-1 items-center justify-between gap-2 border-b border-gray-300">
-                        <span className="font-bold">{r.funcionario}</span>
-                        <span className="tabular-nums whitespace-nowrap">{showDate ? r.data.slice(0, 5) + ' · ' : ''}{r.chapa} · {r.cc}</span>
-                      </li>
+                  <div className="flex-1 grid gap-2 content-start" style={{ gridTemplateColumns: s.leaderCards.length > 2 ? '1fr 1fr' : '1fr' }}>
+                    {s.leaderCards.map((c) => (
+                      <div key={c.key} className="border-2 rounded" style={{ borderColor: BRAND.blue, background: BRAND.yellowSoft }}>
+                        <div className="px-2 py-1 text-white" style={{ background: BRAND.blue }}>
+                          <div className="font-black text-[13px] leading-tight">{c.nome}</div>
+                          <div className="text-[11px] tabular-nums" style={{ color: BRAND.yellow }}>{showDate ? c.dia.slice(0, 5) + ' · ' : ''}{c.turno.replace(' – ', ' ~ ')}</div>
+                        </div>
+                        <div className="px-2 py-1 text-[12px]">
+                          <div className="flex justify-between font-black border-b border-gray-400"><span>Equipe</span><span className="tabular-nums">{c.total}</span></div>
+                          {c.byCc.map(([k, v]) => (
+                            <div key={k} className="flex justify-between"><span>CC {k}</span><span className="tabular-nums font-bold">{v}</span></div>
+                          ))}
+                        </div>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </Box>
               <Box title="Transporte por rota"><MiniTable stretch head={['Rota', 'Qtd']} rows={s.byRota.map(([k, v]) => [k, v])} /></Box>

@@ -90,7 +90,9 @@ export async function exportPlanningExcel(opts: {
   r1 = block(1, r1, 'TRANSPORTE', [['Com transporte', sum.comTransp], ['Sem (outros meios)', sum.semTransp]]);
   r1 = block(1, r1, 'REFEIÇÃO', sum.byRef.map(([k, v]) => [k, v]));
   r2 = block(4, r2, 'POR LÍDER / CONTRAMESTRE', sum.byLider.map(([k, v]) => [k, v]));
-  r2 = block(4, r2, 'LÍDERES / RESPONSÁVEIS', sum.leaders.map((r) => [`${r.funcionario} (${r.chapa})`, r.cc]));
+  sum.leaderCards.forEach((c) => {
+    r2 = block(4, r2, `${c.nome} · ${c.turno}${sum.byDia.length > 1 ? ' · ' + c.dia.slice(0, 5) : ''} · equipe ${c.total}`, c.byCc.map(([k, v]) => [`CC ${k}`, v]));
+  });
   r2 = block(4, r2, 'TRANSPORTE POR ROTA', sum.byRota.map(([k, v]) => [k, v]));
 
   // ---------- Lista nominal ----------

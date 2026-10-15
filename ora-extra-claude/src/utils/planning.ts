@@ -9,10 +9,28 @@ const LEADER_KEYS: [string, string][] = [
   ['odonei', 'donizete'], ['luiz', 'alves'], ['ronaldo', 'domingos'], ['fabio', 'nunes'],
   ['alexandre', 'goncalves'], ['rogerio', 'araujo'], ['diego', 'domingues'], ['joao', 'oliveira'],
 ];
-export const isLeaderName = (nome: string) => {
+export const leaderKey = (nome: string) => {
   const t = norm(nome).split(/\s+/);
-  return LEADER_KEYS.some(([a, b]) => t[0] === a && t.slice(1).includes(b));
+  return LEADER_KEYS.find(([a, b]) => t[0] === a && t.slice(1).includes(b));
 };
+export const isLeaderName = (nome: string) => !!leaderKey(nome);
+const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
+const DISPLAY: Record<string, string> = { fabio: 'Fábio', joao: 'João', rogerio: 'Rogério', goncalves: 'Gonçalves', araujo: 'Araújo' };
+const disp = (x: string) => DISPLAY[x] ?? cap(x);
+
+export interface LeaderCard { key: string; nome: string; turno: string; dia: string; total: number; byCc: [string, number][] }
+/** Um cartão por (líder, turno[, dia]): equipe do líder naquele turno, por centro de custo. */
+export function buildLeaderCards(recs: OvertimeRecord[]): LeaderCard[] {
+  const cards = new Map<string, LeaderCard>();
+  recs.filter((r) => isLeaderName(r.funcionario)).forEach((l) => {
+    const [a, b] = leaderKey(l.funcionario)!;
+    const k = `${l.data}|${turno(l)}|${a}`;
+    if (cards.has(k)) return;
+    const team = recs.filter((r) => r.data === l.data && turno(r) === turno(l) && norm(r.lider).split(/[\s/]+/).includes(a));
+    cards.set(k, { key: k, nome: `${disp(a)} ${disp(b)}`, turno: turno(l), dia: l.data, total: team.length, byCc: countBy(team, (r) => r.cc || 'Sem CC') });
+  });
+  return [...cards.values()].sort((x, y) => x.dia.split('/').reverse().join().localeCompare(y.dia.split('/').reverse().join()) || x.turno.localeCompare(y.turno) || x.nome.localeCompare(y.nome, 'pt-BR'));
+}
 export const isLeaderRow = (r: OvertimeRecord) => norm(r.motivoHe) === 'responsavel' || isLeaderName(r.funcionario);
 export const needsTransport = (r: OvertimeRecord) => {
   const t = norm(r.transporte);
@@ -179,6 +197,7 @@ export function buildSummary(recs: OvertimeRecord[]) {
   return {
     total: recs.length,
     leaders,
+    leaderCards: buildLeaderCards(recs),
     byTurno: countBy(recs, turno),
     byCc: countBy(recs, (r) => r.cc || 'Sem CC'),
     byLider: countBy(recs, (r) => r.lider || 'Não identificado'),
