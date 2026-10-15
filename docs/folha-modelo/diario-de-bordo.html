@@ -72,7 +72,7 @@
       <li>Anote a parada no <b>quadro 2</b>, com o <b>Nº da peça</b> e o código do motivo.</li>
       <li>Voltou a produzir a mesma peça? Use o <b>próximo trecho da mesma linha</b>.</li>
       <li>Troca de turno no meio da peça: o próximo operador usa o próximo trecho, com a chapa dele.</li>
-      <li><b>Peça pronta?</b> Escreva em <b>PRONTA</b> o <b>turno que finalizou</b> (1, 2 ou 3). Não terminou na folha? Deixe em branco e continue na próxima.</li>
+      <li><b>Peça pronta?</b> Escreva em <b>PRONTA</b> o <b>turno que finalizou</b> (1, 2 ou 3). Não terminou na folha? Deixe em branco e continue na próxima folha.</li>
       <li><b>Mais de 4 trechos?</b> Continue na <b>linha de baixo</b> com a mesma peça e escreva em <b>CONTINUA A PEÇA Nº</b> o número da linha de cima. O turno em PRONTA vai só na última.</li></ol></div>
     <div class="card"><h3>CÓDIGOS DE PARADA</h3><ul class="codes">
       <li><b>1</b>Mecânica</li><li><b>2</b>Elétrica</li><li><b>3</b>Manutenção preventiva</li><li><b>4</b>Troca de peça</li>
@@ -87,21 +87,7 @@
   </div>
 </section>
 
-<section class="sheet" id="back">
-  <div class="top">
-    <div class="title"><h1>DIÁRIO DE BORDO · CONTINUAÇÃO (VERSO)</h1><small>Continue a numeração da frente</small></div>
-    <div class="sign"><div><span>MÁQUINA</span><span>&nbsp;</span></div><div><span>DATA</span><span>&nbsp;</span></div><div><span>FOLHA</span><span>&nbsp;</span></div></div>
-  </div>
-  <div class="sec">1. PRODUÇÃO (continuação) <span>uma linha = uma peça</span></div>
-  <table class="prod"></table>
-  <div class="sec">2. PARADAS (continuação) <span>Nº da peça que estava na máquina, ou “—”</span></div>
-  <table class="stops"></table>
-  <div class="bottom" style="grid-template-columns:1fr 1fr 1fr">
-    <div class="card"><h3>FECHAMENTO DA FOLHA (contramestre)</h3><div class="tot"><span>Horas produzindo (soma dos trechos)</span><span class="line"></span><span>Horas paradas (soma do quadro 2)</span><span class="line"></span><span>Total (24 h no dia, ou as horas dos turnos)</span><span class="line"></span></div></div>
-    <div class="card"><h3>PEÇAS</h3><div class="tot"><span>Peças prontas (linhas com turno em PRONTA)</span><span class="line"></span><span>Peças que continuam na próxima folha</span><span class="line"></span><span>Conferido por (chapa)</span><span class="line"></span></div></div>
-    <div class="card"><h3>LEMBRETE</h3>Trecho é só produção. Parou? Feche o trecho e anote a parada com o Nº da peça. Voltou? Próximo trecho da mesma linha. Peça pronta: escreva o turno que finalizou em PRONTA. Não terminou: em branco.</div>
-  </div>
-</section>
+
 
 <script>
   // ---- layout: production = Nº | Data | Peça | Modelo | 4 trechos (chapa, início, fim) | pronta | obs ; stops = Nº | Nº da peça | Data | Chapa | Início | Fim | Turno | Motivo | Descrição
@@ -143,20 +129,16 @@
     { pc: 8, d: '15/10', c: '1003', i: '23:30', f: '00:20', t: 3, mo: 8, ds: 'Set-up para o boom' },
     { pc: 9, d: '16/10', c: '1003', i: '03:10', f: '03:40', t: 3, mo: 2, ds: 'Queda de energia no painel' },
   ] : [];
-  const FP = 10, FS = 11, BP = 13, BS = 11;   // rows on the front and on the back
-  const [fp, bp] = document.querySelectorAll('table.prod'), [fs, bs] = document.querySelectorAll('table.stops');
+  const FP = 10, FS = 11;   // rows (only the front: a full sheet → next sheet, "Folha 2 de 2")
+  const fp = document.querySelector('table.prod'), fs = document.querySelector('table.stops');
   fp.innerHTML = prodHead + '<tbody>' + Array.from({ length: FP }, (_, i) => prodRow(i + 1, P[i])).join('') + '</tbody>';
-  bp.innerHTML = prodHead + '<tbody>' + Array.from({ length: BP }, (_, i) => prodRow(FP + i + 1)).join('') + '</tbody>';
   fs.innerHTML = stopHead + '<tbody>' + Array.from({ length: FS }, (_, i) => stopRow(i + 1, S[i])).join('') + '</tbody>';
-  bs.innerHTML = stopHead + '<tbody>' + Array.from({ length: BS }, (_, i) => stopRow(FS + i + 1)).join('') + '</tbody>';
   if (EX) {
     const min = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; }, dur = (a, b) => ((min(b) - min(a)) % 1440 + 1440) % 1440, hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     const prod = P.flatMap((r) => r.t).reduce((s, t) => s + dur(t[1], t[2]), 0), stop = S.reduce((s, r) => s + dur(r.i, r.f), 0);
     document.getElementById('sub').textContent = 'EXEMPLO PREENCHIDO · dados fictícios';
     document.querySelectorAll('#front .dot i')[2].innerHTML = '<b class="hw" style="display:block;text-align:center;line-height:4mm">●</b>';
     const L = document.querySelectorAll('#front .fields .line'); [['15/10'], ['2026'], ['Solda RAW'], ['1'], ['1']].forEach(([v], i) => { L[i + 1].innerHTML = hw(v); });
-    const B = document.querySelectorAll('#back .bottom .line'); [`${hm(prod)} h`, `${hm(stop)} h`, `${hm(prod + stop)} h (24 h)`, `${P.filter((r) => r.ok).length} peças`, `${P.filter((r) => !r.ok && !P.some((q) => q.cont === P.indexOf(r) + 1)).length} peça`, '1004'].forEach((v, i) => { B[i].innerHTML = hw(v); });
-    const G = document.querySelectorAll('#back .sign div span:last-child'); ['RAW09', '15/10/2026', '1 de 1'].forEach((v, i) => { G[i].innerHTML = hw(v); });
   }
 </script>
 </body>

@@ -1,5 +1,5 @@
-# Gera docs/folha-modelo/diario-de-bordo.xlsx: a folha "uma linha = uma peça" em Excel, aba A4 e aba A3 (frente na página 1,
-# verso na página 2), com as mesmas cores do PDF. Uso: python3 scripts/folha/gerar_excel_v3.py
+# Gera docs/folha-modelo/diario-de-bordo.xlsx: a folha "uma linha = uma peça" em Excel, só frente: aba A4 (10 peças, 11 paradas)
+# e aba A3 em pé (22 peças, 25 paradas), uma página cada, com as mesmas cores do PDF. Uso: python3 scripts/folha/gerar_excel_v3.py
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.cell.rich_text import CellRichText, TextBlock
@@ -181,26 +181,18 @@ def back(ws, r0, prows, srows, firstp, firsts, fr_prod, fr_stop):
 from openpyxl.worksheet.pagebreak import Break
 PAGE = {'A4': (842, 595), 'A3': (1191, 842)}       # landscape, in points
 
-def sheet(wb, name, paper, fp, fs, bp, bs):
+def sheet(wb, name, paper, fp, fs):
+    # only the front: one page per sheet (the app reads each page by itself; a full sheet → next sheet "Folha 2 de 2")
     ws = wb.create_sheet(name); setup(ws)
     ws.page_setup.paperSize = ws.PAPERSIZE_A4 if paper == 'A4' else ws.PAPERSIZE_A3
-    end1, prod, stop = front(ws, 1, fp, fs)
-    start2 = end1 + 2
-    end2 = back(ws, start2, bp, bs, fp + 1, fs + 1, prod, stop)
-    ws.row_breaks.append(Break(id=end1 + 1))                    # front on page 1, back on page 2
-    ws.print_area = f'A1:S{end2}'
-    # one scale for both pages, so that each side fills its page (fit-to-page would ignore the page break)
-    ws.sheet_properties.pageSetUpPr.fitToPage = False
-    width_pt = sum(ws.column_dimensions[k].width for k in W) * 5.6 + 20
-    h1, h2 = rows_height(ws, 1, end1), rows_height(ws, start2, end2)
-    pw, ph = PAGE[paper]; pw -= 0.5 * 72 + 6; ph -= 0.6 * 72 + 6
-    ws.page_setup.scale = int(min(pw / width_pt, ph / max(h1, h2)) * 100)
-    ws.print_title_rows = None
+    if paper == 'A3': ws.page_setup.orientation = 'portrait'   # the long sheet (22 pieces + 25 stops) fills an A3 standing up
+    end, _, _ = front(ws, 1, fp, fs)
+    ws.print_area = f'A1:S{end}'
     return ws
 
 wb = Workbook(); wb.remove(wb.active)
-sheet(wb, 'A4', 'A4', 10, 11, 13, 11)
-sheet(wb, 'A3', 'A3', 10, 11, 13, 11)
-for ws in wb.worksheets: print(ws.title, 'escala', ws.page_setup.scale, '%')
+sheet(wb, 'A4', 'A4', 10, 11)     # RAW05, 06, 09, 10: almost every day fits
+sheet(wb, 'A3', 'A3', 22, 25)     # RAW11 and RAW12: many small pieces a day
+for ws in wb.worksheets: print(ws.title, ws.max_row, 'linhas')
 out = os.path.join(os.path.dirname(__file__), '..', '..', 'docs', 'folha-modelo', 'diario-de-bordo.xlsx')
 wb.save(out); print('ok', os.path.abspath(out))
