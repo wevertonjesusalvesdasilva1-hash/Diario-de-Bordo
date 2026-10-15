@@ -30,11 +30,11 @@ function financeBlock(fin, unit, valor) {
     biStat(`MAIOR PERDA · ${unit.toUpperCase()}`, top ? top.m : '—', null, top ? `${brl(top.loss)} (${pct0(fin.total ? top.stopH / fin.total : 0)} das horas paradas)` : ''),
     biStat('MAIOR MOTIVO', r0 ? r0.label.replace(' (inclui AGUARDANDO PEÇA)', '') : '—', null, r0 ? `${brl(r0.loss)} (${pct0(r0.share)})` : ''));
   const perM = () => ({ orient: 'h', cats: fin.perMachine.map((m) => ({ key: m.m, label: m.m, color: RED })), series: [{ name: 'Perda (R$)', vals: fin.perMachine.map((m) => m.loss), color: RED }], fmt: brl, tip: (i) => `${f1(fin.perMachine[i].stopH)} h paradas` });
-  const perR = () => { const r = fin.perMotivo.slice(0, 8); return { cats: r.map((x) => ({ key: x.key, label: x.label.replace(' (inclui AGUARDANDO PEÇA)', '') })), series: [{ name: 'Perda (R$)', vals: r.map((x) => x.loss), color: RED }], line: { name: '% acumulado', vals: r.map((x) => x.cum), fmt: pct0, max: 1, ticks: [0, 0.5, 1], color: '#fbbf24' }, fmt: brl }; };
+  const perR = () => { const r = fin.perMotivo.slice(0, 8); return { cats: r.map((x) => ({ key: x.key, label: x.label.replace(' (inclui AGUARDANDO PEÇA)', '') })), series: [{ name: 'Perda (R$)', vals: r.map((x) => x.loss), color: RED }], lineAbove: true, line: { name: '% acumulado', vals: r.map((x) => x.cum), fmt: pct0, color: '#fbbf24', ref: 0.8, refLabel: '80%' }, fmt: brl }; };
   const perD = () => ({ kind: 'area', cats: fin.perDay.map((d) => ({ key: d.d, label: dmy(d.d).slice(0, 5) })), series: [{ name: 'Perda por dia (R$)', vals: fin.perDay.map((d) => d.loss), color: RED }], height: 240, fmt: brl });
   const cum = () => ({ kind: 'area', cats: fin.perDay.map((d) => ({ key: d.d, label: dmy(d.d).slice(0, 5) })), series: [{ name: 'Perda acumulada (R$)', vals: fin.perDay.map((d) => d.cumLoss), color: '#fbbf24' }], height: 240, fmt: brl });
   const vs = () => ({ cats: fin.perMachine.map((m) => ({ key: m.m, label: m.m })), series: [{ name: 'Parada (R$)', vals: fin.perMachine.map((m) => m.loss), color: RED }, { name: 'Falta para a meta de 88% (R$)', vals: fin.perMachine.map((m) => m.shortLoss), color: '#fbbf24' }], fmt: brl });
-  const grid = el('div', { class: 'bi-grid' },
+  const grid = el('div', { class: 'bi-grid pl-two' },
     biVis(`PERDA POR ${unit.toUpperCase()} (R$)`, () => chartBox(perM), { vid: 'pl-m', filters: false }),
     biVis('PERDA POR MOTIVO (R$) · Pareto', () => chartBox(perR), { vid: 'pl-r', filters: false }),
     biVis('PERDA POR DIA (R$)', () => chartBox(perD), { vid: 'pl-d', wide: true, filters: false }),

@@ -201,3 +201,6 @@ body.pbi main { overflow-x: clip; }
 
 .bi-warnbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 10px; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.45; background: rgba(251,191,36,.12); border: 1px solid rgba(251,191,36,.45); }
 .bi-infobar { background: rgba(96,165,250,.10); border-color: rgba(96,165,250,.45); }
+
+.bi-grid.pl-two { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+@media (max-width: 900px) { .bi-grid.pl-two { grid-template-columns: minmax(0, 1fr); } }

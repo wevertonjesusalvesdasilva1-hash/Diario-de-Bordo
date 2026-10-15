@@ -71,7 +71,8 @@ export function drawChart(box, full) {
   if (orient === 'h') {
     const rowH = 24 * Math.max(1, stacked ? 1 : series.length) * (series.length > 1 && !stacked ? 0.8 : 1) + 6, labW = Math.min(200, Math.max(60, Math.min(26, Math.max(...cats.map((c) => String(c.label).length))) * 7.6));
     const maxV = Math.max(...series.flatMap((s) => s.vals), 0) || 1, { max } = niceMax(maxV * 1.12);
-    const W = avail, H = cats.length * rowH + 8, plot = W - labW - 70;
+    const txtW = Math.min(avail * 0.45, Math.max(70, Math.max(...series.flatMap((s) => s.vals.map((v, i) => (fmt(v) + (tip ? ` · ${tip(i)}` : '')).length))) * 6.6 + 10));   // room for the value text after the longest bar
+    const W = avail, H = cats.length * rowH + 8, plot = Math.max(60, W - labW - txtW);
     const svg = S('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img' });
     cats.forEach((c, i) => {
       const y = 4 + i * rowH, bh = (rowH - 6) / (stacked ? 1 : series.length);
@@ -101,12 +102,13 @@ export function drawChart(box, full) {
   cats.forEach((c, i) => { if (hasGroup && i > 0 && c.group !== cats[i - 1].group) gaps++; gapBefore[i] = gaps; });
   // room for the (rotated) category labels: the longer the labels, the taller the bottom margin, and the chart grows by the same amount
   const rotAny = (step < 52 && Math.max(...cats.map((c) => String(c.label).length)) > 3) || cats.some((c) => String(c.label).length > 8), maxLab = Math.min(14, Math.max(...cats.map((c) => String(c.label).length)));
-  const bottom = (rotAny ? 26 + maxLab * 6.4 * 0.58 : 34) + (hasGroup ? 16 : 0), left = 58, right = line ? 46 : 12, top = 20;
+  const bottom = (rotAny ? 26 + maxLab * 6.4 * 0.58 : 34) + (hasGroup ? 16 : 0), left = Math.max(58, String(fmt(Math.max(...cats.map((_, i) => (stacked ? series.reduce((s, x) => s + (x.vals[i] || 0), 0) : Math.max(...series.map((x) => x.vals[i] || 0)))), 0) * 1.2)).length * 6.4 + 14), right = line ? 46 : 12, top = 20;
   const W = Math.max(avail, left + right + cats.length * step + gaps * GAP + GAP), H = (spec.height ?? 250) + (bottom - 46), plotH = H - top - bottom;
   const totals = cats.map((_, i) => (stacked ? series.reduce((s, x) => s + (x.vals[i] || 0), 0) : Math.max(...series.map((x) => x.vals[i] || 0))));
   const ref = spec.refLine;
+  const rotLab = !stacked && nS > 1 && Math.min(40, (step * 0.7) / nS) < 34;   // side-by-side columns: values are written upright over each bar
   const above = !!(spec.lineAbove && line);   // the line lives in a band over the columns, so the two never overlap
-  const { max, ticks } = niceMax(Math.max(Math.max(...totals, 0) * (above ? 1.7 : 1.1), ref ? ref.value * 1.08 : 0) || 1);
+  const { max, ticks } = niceMax(Math.max(Math.max(...totals, 0) * (above ? 1.7 : rotLab ? 1.38 : 1.1), ref ? ref.value * 1.08 : 0) || 1);
   const xAt = (i) => left + GAP / 2 + i * step + gapBefore[i] * GAP;
   const y = (v) => top + plotH - (v / max) * plotH;
   const svg = S('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img' });
@@ -146,7 +148,7 @@ export function drawChart(box, full) {
         const hv = s.hl[i] || 0;
         if (hv > 0) { const yb = stacked ? y(acc) : y(0), yt = stacked ? y(acc + hv) : y(hv); g.append(bar(svg, c.color ?? s.color, 'v', true, { x: bx, y: yt, width: Math.max(1, bw - 1), height: Math.max(0, yb - yt) })); }
       }
-      if (v && (bw >= 22 || (cats.length <= 14 && bw >= 14)) && !(stacked && hgt < 12)) g.append(S('text', { x: bx + bw / 2, y: stacked ? yTop + hgt / 2 : yTop - 3, 'text-anchor': 'middle', 'dominant-baseline': stacked ? 'middle' : 'auto', style: 'font-size:10px' }, fmt(v)));
+      if (v && (bw >= 22 || (cats.length <= 14 && bw >= 14)) && !(stacked && hgt < 12)) g.append(rotLab ? S('text', { x: bx + bw / 2 + 3, y: yTop - 4, 'text-anchor': 'start', transform: `rotate(-90 ${bx + bw / 2 + 3} ${yTop - 4})`, style: 'font-size:10px' }, fmt(v)) : S('text', { x: bx + bw / 2, y: stacked ? yTop + hgt / 2 : yTop - 3, 'text-anchor': 'middle', 'dominant-baseline': stacked ? 'middle' : 'auto', style: 'font-size:10px' }, fmt(v)));
       if (stacked) acc += v;
     });
     if (stacked && nS > 1 && acc && (!spec.totalsOnlyAlerts || c.alert)) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:11px${c.alert ? ';fill:#fb7185' : ''}` }, (c.alert ? '⚠ ' : '') + fmt(acc)));   // total of the stack on top
@@ -188,7 +190,7 @@ export function specToTable(spec) {
 // time series: one smooth glowing line per series over a translucent gradient; hovering a day shows a dashed guide and the values
 function drawArea(box, spec, avail, legend, sel) {
   const { cats, series, fmt = String, onPick } = spec, n = cats.length;
-  const left = 58, right = 16, top = 16, bottom = 34, H = spec.height ?? 260, plotH = H - top - bottom;
+  const left = Math.max(58, String(fmt(Math.max(...series.flatMap((s) => s.vals), 0) * 1.2)).length * 6.4 + 14), right = 16, top = 16, bottom = 34, H = spec.height ?? 260, plotH = H - top - bottom;
   const step = Math.max(26, (avail - left - right) / Math.max(1, n - 1)), W = Math.max(avail, left + right + (n - 1) * step);
   const { max, ticks } = niceMax(Math.max(...series.flatMap((s) => s.vals), 0) * 1.1 || 1);
   const x = (i) => left + i * step, y = (v) => top + plotH - (v / max) * plotH;
