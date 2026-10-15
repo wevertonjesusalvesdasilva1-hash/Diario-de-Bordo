@@ -25,7 +25,7 @@
   th, td { border: .45mm solid #111; text-align: center; padding: 1.6mm 1mm; }
   th { background: #e9edf5; font-size: 11.5pt; }
   th.grp { background: #d6deee; font-size: 12.5pt; }
-  td { font-size: 18pt; height: 16mm; }
+  td { font-size: 16pt; height: 16mm; }
   td.hw { color: #1d4ed8; font-family: "Segoe Print", "Comic Sans MS", cursive; font-weight: 700; }
   td.n { background: #f3f4f6; color: #444; font-size: 13pt; }
   .t { border-left: 1.2mm solid #111; }
@@ -50,9 +50,9 @@
   <div class="top"><h1>COMO PREENCHER O DIÁRIO DE BORDO</h1><div class="rule">UMA LINHA = UMA PEÇA</div></div>
 
   <div class="steps">
-    <div class="step"><div class="num">1</div><div><h2>Peça nova = linha nova</h2><p>Escreva <b>data, peça e modelo</b>. Cada linha é <b>uma peça só</b>.</p></div></div>
+    <div class="step"><div class="num">1</div><div><h2>Peça nova = linha nova</h2><p>Escreva o <b>Nº da peça</b> (1, 2, 3…), <b>data, peça e modelo</b>. Cada linha é <b>uma peça só</b>.</p></div></div>
     <div class="step"><div class="num">2</div><div><h2>Trecho = só produção</h2><p>Anote <b>chapa, início e fim</b> enquanto a máquina <b>está produzindo</b>. Sem parada no meio.</p></div></div>
-    <div class="step"><div class="num">3</div><div><h2>Parou? Feche o trecho</h2><p>Escreva o <b>FIM</b>. Anote a parada no <b>quadro 2</b> com o <b>Nº da peça</b> e o <b>código</b>.</p></div></div>
+    <div class="step"><div class="num">3</div><div><h2>Parou? Feche o trecho</h2><p>Escreva o <b>FIM</b>. Anote a parada no <b>quadro 2</b> com o <b>Nº da peça</b>, o <b>turno</b> e o <b>código</b>.</p></div></div>
     <div class="step"><div class="num">4</div><div><h2>Voltou? Próximo trecho</h2><p>Continue na <b>mesma linha</b>, no trecho seguinte. Peça pronta: escreva o <b>turno que finalizou</b>.</p></div></div>
   </div>
 
@@ -62,18 +62,18 @@
         <div>
           <div class="lbl">QUADRO 1 · PRODUÇÃO</div>
           <table>
-            <colgroup><col style="width:7%"><col style="width:12%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:21%"></colgroup>
-            <tr><th rowspan="2">Nº</th><th rowspan="2">PEÇA</th><th class="grp t" colspan="3">TRECHO 1</th><th class="grp t" colspan="3">TRECHO 2</th><th rowspan="2">PRONTA:<br>TURNO QUE FINALIZOU</th></tr>
+            <colgroup><col style="width:5%"><col style="width:8%"><col style="width:10%"><col style="width:9%"><col style="width:7.5%"><col style="width:7.5%"><col style="width:7.5%"><col style="width:7.5%"><col style="width:7.5%"><col style="width:7.5%"><col style="width:10%"><col style="width:12.5%"></colgroup>
+            <tr><th rowspan="2">Nº<br>da<br>peça</th><th rowspan="2">DATA</th><th rowspan="2">PEÇA</th><th rowspan="2">MODELO</th><th class="grp t" colspan="3">TRECHO 1</th><th class="grp t" colspan="3">TRECHO 2</th><th rowspan="2" class="t">CONTINUA<br>A PEÇA Nº</th><th rowspan="2">PRONTA:<br>TURNO QUE<br>FINALIZOU</th></tr>
             <tr><th class="t">CHAPA</th><th>INÍCIO</th><th>FIM</th><th class="t">CHAPA</th><th>INÍCIO</th><th>FIM</th></tr>
-            <tr><td class="n">1</td><td class="hw">VIGA D51</td><td class="hw t">1001</td><td class="hw">13:00</td><td class="hw">14:30</td><td class="hw t">1001</td><td class="hw">15:30</td><td class="hw">17:00</td><td class="hw">1</td></tr>
+            <tr><td class="hw">1</td><td class="hw">15/10</td><td class="hw">VIGA</td><td class="hw">D51</td><td class="hw t">1001</td><td class="hw">13:00</td><td class="hw">14:30</td><td class="hw t">1001</td><td class="hw">15:30</td><td class="hw">17:00</td><td class="t"></td><td class="hw">1</td></tr>
           </table>
         </div>
         <div>
           <div class="lbl">QUADRO 2 · PARADAS</div>
           <table>
-            <colgroup><col style="width:7%"><col style="width:16%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col></colgroup>
-            <tr><th>Nº</th><th>Nº DA PEÇA</th><th>INÍCIO</th><th>FIM</th><th>MOTIVO</th><th>DESCRIÇÃO</th></tr>
-            <tr><td class="n">1</td><td class="hw">1</td><td class="hw">14:30</td><td class="hw">15:30</td><td class="hw">5</td><td class="hw" style="text-align:left;padding-left:3mm">Falta de peça</td></tr>
+            <colgroup><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:10%"><col style="width:11%"><col style="width:11%"><col style="width:11%"><col></colgroup>
+            <tr><th>Nº<br>(da peça)</th><th>TURNO</th><th>DATA</th><th>CHAPA</th><th>INÍCIO</th><th>FIM</th><th>MOTIVO</th><th>DESCRIÇÃO</th></tr>
+            <tr><td class="hw">1</td><td class="hw">1</td><td class="hw">15/10</td><td class="hw">1001</td><td class="hw">14:30</td><td class="hw">15:30</td><td class="hw">5</td><td class="hw" style="text-align:left;padding-left:3mm">Falta de peça</td></tr>
           </table>
         </div>
         <div class="cmp">
@@ -95,7 +95,7 @@
           <div class="code"><i>4</i>Troca de peça</div>
           <div class="code"><i>8</i><span>Outros<small>escreva o motivo na descrição</small></span></div>
         </div>
-        <div class="note"><b>Sem peça na máquina?</b> No “Nº da peça” da parada, escreva <b>—</b>.<br><b>Parada que não está na lista?</b> Use o código <b>8</b> e descreva (set-up, ponte, consumível…).</div>
+        <div class="note"><b>Sem peça na máquina?</b> No “Nº” da parada, escreva <b>—</b>.<br><b>Parada que não está na lista?</b> Use o código <b>8</b> e descreva (set-up, ponte, consumível…).</div>
       </div>
     </div>
   </div>
@@ -103,7 +103,7 @@
   <div class="bottom">
     <div class="tip"><b class="h">TROCA DE TURNO NO MEIO DA PEÇA</b>Não começa linha nova: o próximo operador usa o <b>próximo trecho da mesma linha</b>, com a <b>chapa dele</b>.</div>
     <div class="tip"><b class="h">MAIS DE 4 TRECHOS NA MESMA PEÇA</b>Continue na <b>linha de baixo</b>, mesma peça, e escreva em <b>“CONTINUA A PEÇA Nº”</b> o número da linha de cima. O turno em PRONTA vai só na última.</div>
-    <div class="tip"><b class="h">PEÇA NÃO TERMINOU / FOLHA ACABOU</b>Deixe <b>PRONTA em branco</b> e continue na próxima folha. Folha cheia? Pegue outra e escreva <b>“Folha 2 de 2”</b>.</div>
+    <div class="tip"><b class="h">PEÇA NÃO TERMINOU / FOLHA ACABOU</b>Deixe <b>PRONTA em branco</b> e continue na próxima folha. Folha cheia? Pegue outra, escreva <b>“Folha 2 de 2”</b> e <b>continue a numeração</b> das peças.</div>
   </div>
 </div>
 </body>

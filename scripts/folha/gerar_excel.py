@@ -1,3 +1,4 @@
+# ATENÇÃO: a folha oficial agora é docs/folha-modelo/diario-de-bordo.xlsx editada à mão (aba A4); este gerador ficou só como histórico.
 # Gera docs/folha-modelo/diario-de-bordo.xlsx: a folha "uma linha = uma peça" em Excel, só frente: aba A4 (10 peças, 11 paradas)
 # e aba A3 em pé (22 peças, 25 paradas), uma página cada, com as mesmas cores do PDF. Uso: python3 scripts/folha/gerar_excel_v3.py
 from openpyxl import Workbook
