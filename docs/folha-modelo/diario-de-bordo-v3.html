@@ -30,15 +30,15 @@
   thead tr.grp th { background: #d6deee; font-size: 7pt; }
   thead th.t { border-left: .7mm solid #111; }
   th small { display: block; font-weight: 400; font-size: 5.8pt; color: #333; }
-  tbody td { height: 6mm; font-size: 8pt; text-align: center; }
+  tbody td { height: 5.6mm; font-size: 8pt; text-align: center; }
   td.t { border-left: .7mm solid #111; }
   td.n { background: #f3f4f6; font-size: 7pt; color: #444; }
   td.hm { font-family: "Courier New", monospace; color: #bbb; font-size: 6.5pt; }
-  .stops tbody td { height: 5.4mm; }
+  .stops tbody td { height: 5mm; }
   .box { display: inline-block; width: 4mm; height: 4mm; border: .35mm solid #111; vertical-align: middle; }
   .hw { color: #1d4ed8; font-family: "Segoe Print", "Comic Sans MS", cursive; font-size: 8.3pt; }
   .box b.hw { display: block; line-height: 4mm; text-align: center; }
-  .bottom { display: grid; grid-template-columns: 1.25fr .85fr 1.3fr; gap: 1.6mm; font-size: 6.9pt; line-height: 1.25; }
+  .bottom { display: grid; grid-template-columns: 1.3fr .8fr 1.25fr; gap: 1.6mm; font-size: 6.6pt; line-height: 1.2; }
   .card { border: .4mm solid #111; padding: 1.2mm 2mm; }
   .card h3 { font-size: 7.6pt; background: #1f2a44; color: #fff; padding: .5mm 1.5mm; margin: -1.2mm -2mm 1mm; }
   .codes { columns: 2; column-gap: 2mm; margin: 0; padding: 0; list-style: none; }
@@ -72,7 +72,8 @@
       <li>Anote a parada no <b>quadro 2</b>, com o <b>Nº da peça</b> e o código do motivo.</li>
       <li>Voltou a produzir a mesma peça? Use o <b>próximo trecho da mesma linha</b>.</li>
       <li>Troca de turno no meio da peça: o próximo operador usa o próximo trecho, com a chapa dele.</li>
-      <li>Marque <b>✓ PRONTA</b> quando a peça terminar. Não terminou na folha? Deixe em branco e continue na próxima.</li></ol></div>
+      <li>Marque <b>✓ PRONTA</b> quando a peça terminar. Não terminou na folha? Deixe em branco e continue na próxima.</li>
+      <li><b>Mais de 4 trechos?</b> Continue na <b>linha de baixo</b> com a mesma peça e escreva em <b>CONTINUA A PEÇA Nº</b> o número da linha de cima. ✓ só na última.</li></ol></div>
     <div class="card"><h3>CÓDIGOS DE PARADA</h3><ul class="codes">
       <li><b>1</b>Mecânica</li><li><b>2</b>Elétrica</li><li><b>3</b>Preventiva</li><li><b>4</b>Aguardando peça</li><li><b>5</b>Falta de peça</li>
       <li><b>6</b>Ponte rolante</li><li><b>7</b>Troca consumíveis</li><li><b>8</b>Troca de peça</li><li><b>9</b>Set-up</li><li><b>10</b>Tyorei</li><li><b>11</b>Outros</li></ul>
@@ -105,14 +106,14 @@
 <script>
   // ---- layout: production = Nº | Data | Peça | Modelo | 4 trechos (chapa, início, fim) | pronta | obs ; stops = Nº | Nº da peça | Data | Chapa | Início | Fim | Turno | Motivo | Descrição
   const T = 4;
-  const prodHead = `<colgroup><col style="width:6mm"><col style="width:11mm"><col style="width:27mm"><col style="width:23mm">${'<col style="width:11mm"><col style="width:10.5mm"><col style="width:10.5mm">'.repeat(T)}<col style="width:11mm"><col></colgroup>
-    <thead><tr class="grp"><th rowspan="2">Nº<br>da<br>peça</th><th rowspan="2">DATA</th><th rowspan="2">PEÇA</th><th rowspan="2">MODELO</th>${Array.from({ length: T }, (_, i) => `<th colspan="3" class="t">TRECHO ${i + 1}</th>`).join('')}<th rowspan="2">PEÇA<br>PRONTA<small>✓</small></th><th rowspan="2">OBSERVAÇÃO</th></tr>
+  const prodHead = `<colgroup><col style="width:6mm"><col style="width:11mm"><col style="width:27mm"><col style="width:23mm">${'<col style="width:11mm"><col style="width:10.5mm"><col style="width:10.5mm">'.repeat(T)}<col style="width:11mm"><col style="width:15mm"><col></colgroup>
+    <thead><tr class="grp"><th rowspan="2">Nº<br>da<br>peça</th><th rowspan="2">DATA</th><th rowspan="2">PEÇA</th><th rowspan="2">MODELO</th>${Array.from({ length: T }, (_, i) => `<th colspan="3" class="t">TRECHO ${i + 1}</th>`).join('')}<th rowspan="2">PEÇA<br>PRONTA<small>✓</small></th><th rowspan="2">CONTINUA<br>A PEÇA<br>Nº</th><th rowspan="2">OBSERVAÇÃO</th></tr>
     <tr>${'<th class="t">CHAPA</th><th>INÍCIO</th><th>FIM</th>'.repeat(T)}</tr></thead>`;
   const stopHead = `<colgroup><col style="width:6mm"><col style="width:15mm"><col style="width:12mm"><col style="width:16mm"><col style="width:14mm"><col style="width:14mm"><col style="width:12mm"><col style="width:15mm"><col></colgroup>
     <thead><tr><th>Nº</th><th>Nº DA PEÇA<small>ou —</small></th><th>DATA</th><th>CHAPA</th><th>INÍCIO</th><th>FIM</th><th>TURNO</th><th>MOTIVO<small>código 1–11</small></th><th>DESCRIÇÃO DA PARADA</th></tr></thead>`;
   const hw = (v) => (v == null || v === '' ? '' : `<span class="hw">${v}</span>`);
   const tm = (v) => (v ? hw(v) : '<span class="hm">__:__</span>');
-  const prodRow = (n, r = null) => `<tr><td class="n">${n}</td><td>${hw(r?.d)}</td><td>${hw(r?.p)}</td><td>${hw(r?.o)}</td>${Array.from({ length: T }, (_, i) => { const t = r?.t?.[i]; return `<td class="t">${hw(t?.[0])}</td><td>${tm(t?.[1])}</td><td>${tm(t?.[2])}</td>`; }).join('')}<td><i class="box">${r?.ok ? '<b class="hw">✓</b>' : ''}</i></td><td style="text-align:left;padding-left:1.2mm">${hw(r?.obs)}</td></tr>`;
+  const prodRow = (n, r = null) => `<tr><td class="n">${n}</td><td>${hw(r?.d)}</td><td>${hw(r?.p)}</td><td>${hw(r?.o)}</td>${Array.from({ length: T }, (_, i) => { const t = r?.t?.[i]; return `<td class="t">${hw(t?.[0])}</td><td>${tm(t?.[1])}</td><td>${tm(t?.[2])}</td>`; }).join('')}<td><i class="box">${r?.ok ? '<b class="hw">✓</b>' : ''}</i></td><td>${hw(r?.cont)}</td><td style="text-align:left;padding-left:1.2mm">${hw(r?.obs)}</td></tr>`;
   const stopRow = (n, r = null) => `<tr><td class="n">${n}</td><td>${hw(r?.pc)}</td><td>${hw(r?.d)}</td><td>${hw(r?.c)}</td><td>${tm(r?.i)}</td><td>${tm(r?.f)}</td><td>${hw(r?.t)}</td><td>${hw(r?.mo)}</td><td style="text-align:left;padding-left:1.2mm">${hw(r?.ds)}</td></tr>`;
 
   // ---- example (open with #exemplo): one full day of RAW09, fictitious chapas 1001/1002/1003
@@ -122,7 +123,8 @@
     { d: '15/10', p: 'LANÇA', o: 'PC210-10M0', t: [['1001', '08:10', '09:45'], ['1001', '10:20', '11:05']], ok: 1 },
     { d: '15/10', p: 'VIGA PC', o: 'D51-24', t: [['1001', '11:50', '13:40']], ok: 1 },
     { d: '15/10', p: 'VIGA PC', o: 'D51-24', t: [['1001', '13:40', '15:00'], ['1002', '15:00', '15:25']], ok: 1, obs: 'Troca de turno no meio da peça' },
-    { d: '15/10', p: 'LANÇA', o: 'PC360LC-8M2', t: [['1002', '16:40', '18:30'], ['1002', '18:50', '20:40']], ok: 1 },
+    { d: '15/10', p: 'LANÇA', o: 'PC360LC-8M2', t: [['1002', '16:40', '17:20'], ['1002', '17:30', '18:00'], ['1002', '18:10', '18:30'], ['1002', '18:50', '19:30']], ok: 0, obs: '4 trechos cheios: segue na linha 6' },
+    { d: '15/10', p: 'LANÇA', o: 'PC360LC-8M2', t: [['1002', '19:40', '20:40']], ok: 1, cont: 5, obs: 'Continuação da peça 5' },
     { d: '15/10', p: 'LANÇA', o: 'PC360LC-8M2', t: [['1002', '21:10', '23:30']], ok: 1 },
     { d: '16/10', p: 'BOOM WA', o: 'WA200-6', t: [['1003', '00:20', '03:10']], ok: 1 },
     { d: '16/10', p: 'BOOM WA', o: 'WA200-6', t: [['1003', '03:40', '06:00']], ok: 0, obs: 'Continua na próxima folha' },
@@ -132,12 +134,15 @@
     { pc: 2, d: '15/10', c: '1001', i: '09:45', f: '10:20', t: 1, mo: 7, ds: 'Troca de bico e arame' },
     { pc: 3, d: '15/10', c: '1001', i: '11:05', f: '11:50', t: 1, mo: 6, ds: 'Ponte ocupada no setor' },
     { pc: '—', d: '15/10', c: '1002', i: '15:25', f: '16:40', t: 2, mo: 5, ds: 'Sem peça no setor' },
+    { pc: 5, d: '15/10', c: '1002', i: '17:20', f: '17:30', t: 2, mo: 7, ds: 'Troca de bico' },
+    { pc: 5, d: '15/10', c: '1002', i: '18:00', f: '18:10', t: 2, mo: 6, ds: 'Ponte para virar a peça' },
     { pc: 5, d: '15/10', c: '1002', i: '18:30', f: '18:50', t: 2, mo: 8, ds: '' },
-    { pc: 6, d: '15/10', c: '1002', i: '20:40', f: '21:10', t: 2, mo: 1, ds: 'Tocha travando, mecânico ajustou' },
-    { pc: 7, d: '15/10', c: '1003', i: '23:30', f: '00:20', t: 3, mo: 9, ds: 'Set-up para o boom' },
-    { pc: 8, d: '16/10', c: '1003', i: '03:10', f: '03:40', t: 3, mo: 2, ds: 'Queda de energia no painel' },
+    { pc: 5, d: '15/10', c: '1002', i: '19:30', f: '19:40', t: 2, mo: 10, ds: 'Tyorei' },
+    { pc: 7, d: '15/10', c: '1002', i: '20:40', f: '21:10', t: 2, mo: 1, ds: 'Tocha travando, mecânico ajustou' },
+    { pc: 8, d: '15/10', c: '1003', i: '23:30', f: '00:20', t: 3, mo: 9, ds: 'Set-up para o boom' },
+    { pc: 9, d: '16/10', c: '1003', i: '03:10', f: '03:40', t: 3, mo: 2, ds: 'Queda de energia no painel' },
   ] : [];
-  const FP = 11, FS = 8, BP = 12, BS = 10;   // rows on the front and on the back
+  const FP = 10, FS = 11, BP = 13, BS = 11;   // rows on the front and on the back
   const [fp, bp] = document.querySelectorAll('table.prod'), [fs, bs] = document.querySelectorAll('table.stops');
   fp.innerHTML = prodHead + '<tbody>' + Array.from({ length: FP }, (_, i) => prodRow(i + 1, P[i])).join('') + '</tbody>';
   bp.innerHTML = prodHead + '<tbody>' + Array.from({ length: BP }, (_, i) => prodRow(FP + i + 1)).join('') + '</tbody>';
@@ -149,7 +154,7 @@
     document.getElementById('sub').textContent = 'EXEMPLO PREENCHIDO · dados fictícios';
     document.querySelectorAll('#front .dot i')[2].innerHTML = '<b class="hw" style="display:block;text-align:center;line-height:4mm">●</b>';
     const L = document.querySelectorAll('#front .fields .line'); [['15/10'], ['2026'], ['Solda RAW'], ['1'], ['1']].forEach(([v], i) => { L[i + 1].innerHTML = hw(v); });
-    const B = document.querySelectorAll('#back .bottom .line'); [`${hm(prod)} h`, `${hm(stop)} h`, `${hm(prod + stop)} h (24 h)`, `${P.filter((r) => r.ok).length} peças`, `${P.filter((r) => !r.ok).length} peça`, '1004'].forEach((v, i) => { B[i].innerHTML = hw(v); });
+    const B = document.querySelectorAll('#back .bottom .line'); [`${hm(prod)} h`, `${hm(stop)} h`, `${hm(prod + stop)} h (24 h)`, `${P.filter((r) => r.ok).length} peças`, `${P.filter((r) => !r.ok && !P.some((q) => q.cont === P.indexOf(r) + 1)).length} peça`, '1004'].forEach((v, i) => { B[i].innerHTML = hw(v); });
     const G = document.querySelectorAll('#back .sign div span:last-child'); ['RAW09', '15/10/2026', '1 de 1'].forEach((v, i) => { G[i].innerHTML = hw(v); });
   }
 </script>
