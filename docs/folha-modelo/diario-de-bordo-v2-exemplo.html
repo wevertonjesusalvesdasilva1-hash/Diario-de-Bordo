@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Diário de Bordo v2 · exemplo preenchido</title>
+<style>
+  @page { size: A4 landscape; margin: 7mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #fff; color: #111; font-family: Arial, Helvetica, sans-serif; }
+  .sheet { width: 283mm; height: 196mm; display: flex; flex-direction: column; gap: 2mm; page-break-after: always; overflow: hidden; }
+  .sheet:last-child { page-break-after: auto; }
+  .top { display: grid; grid-template-columns: 1fr auto; align-items: stretch; border: .5mm solid #111; }
+  .title { background: #1f2a44; color: #fff; padding: 1.6mm 3mm; display: flex; align-items: center; justify-content: space-between; }
+  .title h1 { margin: 0; font-size: 12pt; white-space: nowrap; letter-spacing: .3mm; }
+  .title small { font-size: 7.5pt; opacity: .9; white-space: nowrap; margin-left: 4mm; }
+  .sign { display: grid; grid-template-columns: repeat(3, 26mm); font-size: 6.5pt; text-align: center; }
+  .sign div { border-left: .3mm solid #111; padding: .8mm; display: flex; flex-direction: column; justify-content: space-between; }
+  .fields { grid-column: 1 / -1; display: grid; grid-template-columns: 2.6fr 1fr 1fr .9fr; border-top: .3mm solid #111; font-size: 9pt; }
+  .fields > div { padding: 1.4mm 2mm; border-right: .3mm solid #111; display: flex; align-items: center; gap: 2mm; white-space: nowrap; }
+  .fields > div:last-child { border-right: 0; }
+  .fields b { font-size: 8pt; }
+  .dot { display: inline-flex; align-items: center; gap: 1mm; margin-right: 2.5mm; font-weight: 700; }
+  .dot i { width: 4.2mm; height: 4.2mm; border: .35mm solid #111; border-radius: 50%; display: inline-block; }
+  .line { flex: 1; border-bottom: .3mm solid #111; height: 4.5mm; min-width: 18mm; }
+
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: .3mm solid #111; padding: 0; }
+  thead th { background: #e9edf5; font-size: 7pt; line-height: 1.1; padding: .8mm .5mm; font-weight: 700; }
+  thead th.big { font-size: 7.5pt; }
+  th small { display: block; font-weight: 400; font-size: 6pt; color: #333; }
+  tbody td { height: 5.55mm; font-size: 8pt; text-align: center; }
+  td.n { background: #f3f4f6; font-size: 7pt; color: #444; }
+  td.hm { font-family: "Courier New", monospace; color: #bbb; font-size: 7pt; letter-spacing: .2mm; }
+  .box { display: inline-block; width: 4mm; height: 4mm; border: .35mm solid #111; vertical-align: middle; }
+  td.sit { font-size: 6.5pt; font-weight: 700; white-space: nowrap; }
+  td.sit span { display: inline-flex; align-items: center; gap: .6mm; margin: 0 1mm; }
+  td.code { background: repeating-linear-gradient(90deg, transparent 0 6.5mm, #ccc 6.5mm 6.8mm); }
+  tbody tr:nth-child(5n) td { border-bottom: .55mm solid #111; }
+  .ex td { color: #1d4ed8; font-family: "Segoe Print", "Comic Sans MS", cursive; font-size: 8pt; height: 5mm; }
+  .ex td.n { font-family: Arial, sans-serif; }
+
+  .bottom { display: grid; grid-template-columns: 1.15fr 1fr 1.25fr; gap: 2mm; font-size: 7pt; line-height: 1.25; }
+  .card { border: .4mm solid #111; padding: 1.4mm 2mm; }
+  .card h3 { margin: 0 0 .8mm; font-size: 8pt; background: #1f2a44; color: #fff; padding: .6mm 1.5mm; margin: -1.4mm -2mm 1.2mm; }
+  .codes { columns: 2; column-gap: 3mm; margin: 0; padding: 0; list-style: none; }
+  .codes li { break-inside: avoid; }
+  .codes b { display: inline-block; width: 5mm; text-align: center; border: .3mm solid #111; border-radius: 1mm; margin-right: 1mm; }
+  .rules { margin: 0; padding-left: 4mm; }
+  .rules li { margin-bottom: .5mm; }
+  .ok { color: #166534; font-weight: 700; } .no { color: #b91c1c; font-weight: 700; }
+  .tot { display: grid; grid-template-columns: 1fr auto; gap: 1mm 2mm; align-items: center; }
+  .tot .line { min-width: 22mm; }
+  .hw { color: #1d4ed8; font-family: "Segoe Print", "Comic Sans MS", "URW Chancery L", cursive; font-size: 8.5pt; }
+  tr.fill td.hw { font-size: 8.5pt; }
+  .box b.hw { text-align: center; font-size: 9pt; }
+</style>
+</head>
+<body>
+
+<!-- ============ FRENTE ============ -->
+<section class="sheet">
+  <div class="top">
+    <div class="title"><h1>DIÁRIO DE BORDO · LINHA DO TEMPO DA MÁQUINA</h1><small>Uma linha = um período: ou PRODUZINDO, ou PARADO</small></div>
+    <div class="sign"><div><span>COORDENADOR</span><span>&nbsp;</span></div><div><span>CHEFE</span><span>&nbsp;</span></div><div><span>GERENTE</span><span>&nbsp;</span></div></div>
+    <div class="fields">
+      <div><b>MÁQUINA:</b> <span class="dot"><i></i>05</span><span class="dot"><i></i>06</span><span class="dot"><i></i>09</span><span class="dot"><i></i>10</span><span class="dot"><i></i>11</span><span class="dot"><i></i>12</span><span class="dot">Outra:</span><span class="line"></span></div>
+      <div><b>DATA:</b> <span class="line"></span>/<span class="line" style="min-width:8mm"></span></div>
+      <div><b>SETOR:</b> <span class="line"></span></div>
+      <div><b>FOLHA</b> <span class="line" style="min-width:7mm"></span> de <span class="line" style="min-width:7mm"></span></div>
+    </div>
+  </div>
+
+  <table>
+    <colgroup><col style="width:6mm"><col style="width:14mm"><col style="width:14mm"><col style="width:15mm"><col style="width:11mm"><col style="width:41mm"><col style="width:36mm"><col style="width:28mm"><col style="width:17mm"><col style="width:15mm"><col></colgroup>
+    <thead>
+      <tr>
+        <th>Nº</th>
+        <th class="big">INÍCIO<small>hh:mm</small></th>
+        <th class="big">FIM<small>hh:mm</small></th>
+        <th>CHAPA<small>quem operou</small></th>
+        <th>TURNO<small>1 · 2 · 3</small></th>
+        <th class="big">SITUAÇÃO<small>marque UM</small></th>
+        <th>PEÇA</th>
+        <th>MODELO</th>
+        <th>PEÇA<br>TERMINOU?<small>✓ só na última linha</small></th>
+        <th>MOTIVO<small>código 1–10</small></th>
+        <th>OBSERVAÇÃO / DESCRIÇÃO DA PARADA</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- rows are generated below -->
+    </tbody>
+  </table>
+
+  <div class="bottom">
+    <div class="card"><h3>COMO PREENCHER</h3>
+      <ol class="rules">
+        <li>Cada linha é <b>um só</b> período: <b>PRODUZINDO</b> ou <b>PARADO</b>. Nunca os dois.</li>
+        <li>Parou a máquina? <b>Feche a linha</b> (escreva o FIM) e abra uma <b>linha nova de PARADA</b> com o código do motivo.</li>
+        <li>Voltou a produzir? Abra <b>outra linha de PRODUÇÃO</b> com a mesma peça.</li>
+        <li>O <b>FIM</b> de uma linha é o <b>INÍCIO</b> da próxima. Não deixe buraco.</li>
+        <li>Marque <b>✓ PEÇA TERMINOU</b> só na linha em que a peça ficou pronta (1 ✓ = 1 peça).</li>
+        <li>Troca de turno: feche a linha e o próximo operador começa outra, com a chapa dele.</li>
+      </ol>
+    </div>
+    <div class="card"><h3>CÓDIGOS DE PARADA (coluna MOTIVO)</h3>
+      <ul class="codes">
+        <li><b>1</b>Mecânica</li><li><b>2</b>Elétrica</li><li><b>3</b>Preventiva</li><li><b>4</b>Aguardando peça</li><li><b>5</b>Falta de peça</li>
+        <li><b>6</b>Ponte rolante</li><li><b>7</b>Troca de consumíveis</li><li><b>8</b>Troca de peça</li><li><b>9</b>Set-up</li><li><b>10</b>Outros (descreva)</li>
+      </ul>
+      <div style="margin-top:1mm">Na <b>falta de peça (5)</b>, o contramestre escreve na observação para qual atividade ou área o operador foi.</div>
+    </div>
+    <div class="card"><h3>EXEMPLO: VIGA D51 DAS 13:00 ÀS 17:00 COM UMA PARADA</h3>
+      <table class="exm" style="font-size:7pt">
+        <colgroup><col style="width:13mm"><col style="width:13mm"><col style="width:17mm"><col><col style="width:12mm"><col style="width:11mm"></colgroup>
+        <tbody>
+          <tr class="ex"><td>13:00</td><td>14:30</td><td>PRODUZ.</td><td>VIGA · D51</td><td></td><td></td></tr>
+          <tr class="ex"><td>14:30</td><td>15:30</td><td>PARADO</td><td>aguardando peça</td><td></td><td>4</td></tr>
+          <tr class="ex"><td>15:30</td><td>17:00</td><td>PRODUZ.</td><td>VIGA · D51</td><td>✓</td><td></td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:.8mm"><span class="ok">Certo:</span> 2,5 h produzindo + 1 h parado = 4 h. &nbsp;<span class="no">Errado:</span> uma linha 13:00–17:00 e a parada à parte (a hora parada conta duas vezes).</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ VERSO ============ -->
+<section class="sheet">
+  <div class="top">
+    <div class="title"><h1>DIÁRIO DE BORDO · CONTINUAÇÃO (VERSO)</h1><small>Continue a numeração da frente</small></div>
+    <div class="sign"><div><span>MÁQUINA</span><span>&nbsp;</span></div><div><span>DATA</span><span>&nbsp;</span></div><div><span>FOLHA</span><span>&nbsp;</span></div></div>
+  </div>
+  <table>
+    <colgroup><col style="width:6mm"><col style="width:14mm"><col style="width:14mm"><col style="width:15mm"><col style="width:11mm"><col style="width:41mm"><col style="width:36mm"><col style="width:28mm"><col style="width:17mm"><col style="width:15mm"><col></colgroup>
+    <thead>
+      <tr><th>Nº</th><th class="big">INÍCIO<small>hh:mm</small></th><th class="big">FIM<small>hh:mm</small></th><th>CHAPA</th><th>TURNO</th><th class="big">SITUAÇÃO<small>marque UM</small></th><th>PEÇA</th><th>MODELO</th><th>PEÇA<br>TERMINOU?</th><th>MOTIVO<small>1–10</small></th><th>OBSERVAÇÃO / DESCRIÇÃO DA PARADA</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div class="bottom" style="grid-template-columns: 1fr 1fr 1fr">
+    <div class="card"><h3>FECHAMENTO DA FOLHA (contramestre)</h3>
+      <div class="tot"><span>Horas produzindo (soma das linhas PRODUZINDO)</span><span class="line"></span><span>Horas paradas (soma das linhas PARADO)</span><span class="line"></span><span>Total (24 h no dia, ou as horas dos turnos que trabalharam)</span><span class="line"></span></div>
+    </div>
+    <div class="card"><h3>PEÇAS TERMINADAS NO DIA</h3>
+      <div class="tot"><span>Quantidade de ✓ na folha</span><span class="line"></span><span>Conferido por (chapa)</span><span class="line"></span></div>
+    </div>
+    <div class="card"><h3>LEMBRETE</h3>
+      Uma linha = um período. Parou → linha de PARADA. Voltou → linha de PRODUÇÃO. FIM de uma = INÍCIO da próxima. ✓ só quando a peça ficou pronta.
+    </div>
+  </div>
+</section>
+
+<script>
+  // EXAMPLE (fictitious data: chapas 1001/1002/1003 do not exist) — one full day of RAW09, from 06:00 to 06:00
+  const X = 'X';
+  const L = [
+    ['06:00','06:30','1001',1,'PARADO','','','',9,'Set-up do dispositivo da lança'],
+    ['06:30','08:10','1001',1,'PRODUZINDO','LANÇA','PC210-10M0','✓',,''],
+    ['08:10','09:45','1001',1,'PRODUZINDO','LANÇA','PC210-10M0','',,''],
+    ['09:45','10:20','1001',1,'PARADO','','','',7,'Troca de bico e arame'],
+    ['10:20','11:05','1001',1,'PRODUZINDO','LANÇA','PC210-10M0','✓',,'Terminou a lança da linha 3'],
+    ['11:05','11:50','1001',1,'PARADO','','','',6,'Ponte ocupada no setor'],
+    ['11:50','13:40','1001',1,'PRODUZINDO','VIGA PC','D51-24','✓',,''],
+    ['13:40','15:00','1001',1,'PRODUZINDO','VIGA PC','D51-24','',,'Fim do 1º turno, peça em andamento'],
+    ['15:00','15:25','1002',2,'PRODUZINDO','VIGA PC','D51-24','✓',,'Terminou a viga da linha 8'],
+    ['15:25','16:40','1002',2,'PARADO','','','',5,'Sem peça: operador foi para a RAW10'],
+    ['16:40','18:30','1002',2,'PRODUZINDO','LANÇA','PC360LC-8M2','',,''],
+    ['18:30','18:50','1002',2,'PARADO','','','',8,''],
+    ['18:50','20:40','1002',2,'PRODUZINDO','LANÇA','PC360LC-8M2','✓',,''],
+    ['20:40','21:10','1002',2,'PARADO','','','',1,'Tocha travando, mecânico ajustou'],
+    ['21:10','23:30','1002',2,'PRODUZINDO','LANÇA','PC360LC-8M2','✓',,''],
+    ['23:30','00:20','1003',3,'PARADO','','','',9,'Set-up para o boom'],
+    ['00:20','03:10','1003',3,'PRODUZINDO','BOOM WA','WA200-6','✓',,''],
+    ['03:10','03:40','1003',3,'PARADO','','','',2,'Queda de energia no painel'],
+    ['03:40','06:00','1003',3,'PRODUZINDO','BOOM WA','WA200-6','',,'Peça segue no próximo dia'],
+  ];
+  const min = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const dur = (a, b) => ((min(b) - min(a)) % 1440 + 1440) % 1440;
+  const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const box = (on) => `<i class="box">${on ? '<b class="hw" style="display:block;line-height:4mm">X</b>' : ''}</i>`;
+  const filled = (n, r) => `<tr class="fill"><td class="n">${n}</td><td class="hw">${r[0]}</td><td class="hw">${r[1]}</td><td class="hw">${r[2]}</td><td class="hw">${r[3]}</td>
+    <td class="sit"><span>${box(r[4] === 'PRODUZINDO')}PRODUZINDO</span><span>${box(r[4] === 'PARADO')}PARADO</span></td>
+    <td class="hw">${r[5]}</td><td class="hw">${r[6]}</td><td>${r[7] ? '<i class="box"><b class="hw" style="display:block;line-height:4mm">✓</b></i>' : '<i class="box"></i>'}</td><td class="hw">${r[8] ?? ''}</td><td class="hw" style="text-align:left;padding-left:1.5mm">${r[9]}</td></tr>`;
+  const empty = (n) => `<tr><td class="n">${n}</td><td class="hm">__:__</td><td class="hm">__:__</td><td></td><td></td>
+    <td class="sit"><span><i class="box"></i>PRODUZINDO</span><span><i class="box"></i>PARADO</span></td><td></td><td></td><td><i class="box"></i></td><td></td><td></td></tr>`;
+  const bodies = document.querySelectorAll('section.sheet > table > tbody');
+  bodies[0].innerHTML = Array.from({ length: 22 }, (_, i) => (L[i] ? filled(i + 1, L[i]) : empty(i + 1))).join('');
+  bodies[1].innerHTML = Array.from({ length: 27 }, (_, i) => empty(i + 23)).join('');
+  // header and the closing box, filled like the operator / foreman would
+  const prod = L.filter((r) => r[4] === 'PRODUZINDO').reduce((s, r) => s + dur(r[0], r[1]), 0), stop = L.filter((r) => r[4] === 'PARADO').reduce((s, r) => s + dur(r[0], r[1]), 0);
+  const pieces = L.filter((r) => r[7]).length;
+  const lines = document.querySelectorAll('section.sheet:first-of-type .fields .line');
+  lines[1].innerHTML = '<span class="hw">15/10</span>'; lines[2].innerHTML = '<span class="hw">2026</span>'; lines[3].innerHTML = '<span class="hw">Solda RAW</span>'; lines[4].innerHTML = '<span class="hw">1</span>'; lines[5].innerHTML = '<span class="hw">1</span>';
+  document.querySelectorAll('section.sheet:first-of-type .dot i')[2].innerHTML = '<b class="hw" style="display:block;text-align:center;line-height:4mm">●</b>';
+  const back = document.querySelectorAll('section.sheet:last-of-type .bottom .line');
+  back[0].innerHTML = `<span class="hw">${hm(prod)} h</span>`; back[1].innerHTML = `<span class="hw">${hm(stop)} h</span>`; back[2].innerHTML = `<span class="hw">${hm(prod + stop)} h (24 h)</span>`; back[3].innerHTML = `<span class="hw">${pieces} peças</span>`; back[4].innerHTML = '<span class="hw">1004</span>';
+  const sig = document.querySelectorAll('section.sheet:last-of-type .sign div span:last-child'); sig[0].innerHTML = '<span class="hw">RAW09</span>'; sig[1].innerHTML = '<span class="hw">15/10/2026</span>'; sig[2].innerHTML = '<span class="hw">1 de 1</span>';
+  document.querySelector('section.sheet:first-of-type .title small').innerHTML = 'EXEMPLO PREENCHIDO · dados fictícios';
+</script>
+</body>
+</html>
