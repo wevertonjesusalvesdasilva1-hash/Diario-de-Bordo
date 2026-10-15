@@ -132,7 +132,12 @@ function vis(title, build, { vid, side = 'p', wide = false, acts = [], filters =
   const box = el('section', { class: `bi-vis${wide ? ' wide' : ''}` }), slot = el('div');
   const max = el('button', { type: 'button', 'aria-label': 'Ampliar', onclick: () => { const on = box.classList.toggle('max'); max.textContent = on ? '✕ Fechar' : '⤢'; } }, '⤢');
   box.vid = vid;
-  box.rebuild = () => { curVid = vid; try { slot.replaceChildren(build()); } finally { curVid = null; } };
+  box.rebuild = () => {
+    const old = slot.querySelector('.bi-ch'), keep = old ? old._left ?? old.scrollLeft : 0;
+    curVid = vid;
+    try { slot.replaceChildren(build()); } finally { curVid = null; }
+    const nu = slot.querySelector('.bi-ch'); if (nu && keep) nu._left = keep;
+  };
   const barHost = el('div', { class: 'vf-host' }), fkey = `${ui.g}.${ui.page}.${vid}`;
   let open = false;
   const isActive = () => { const t = ui.vf[fkey]; return !!t && (t.m?.size > 0 || !!t.from || !!t.to); };

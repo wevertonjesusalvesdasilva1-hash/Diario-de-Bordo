@@ -168,7 +168,9 @@ export function chartBox(spec, cls = '') {
   const box = el('div', { class: `bi-ch ${cls}` });
   let last = 0;
   const get = () => (typeof spec === 'function' ? spec() : spec);
-  const run = () => drawChart(box, get());
+  // the horizontal scroll survives redraws (a click, a resize, new filters): the chart stays where the person was looking
+  box.addEventListener('scroll', () => { box._left = box.scrollLeft; });
+  const run = () => { drawChart(box, get()); if (box._left) box.scrollLeft = box._left; };
   box.getTable = () => specToTable(get());
   queueMicrotask(() => { last = box.clientWidth; run(); });
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { const w = box.clientWidth; if (w && Math.abs(w - last) > 24) { last = w; run(); } }).observe(box);
