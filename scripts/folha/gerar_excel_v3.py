@@ -19,7 +19,8 @@ top_left = Alignment(horizontal='left', vertical='top', wrap_text=True, indent=1
 W = {'A': 5, 'B': 7.5, 'C': 16, 'D': 14}
 TR = [('E', 'F', 'G'), ('H', 'I', 'J'), ('K', 'L', 'M'), ('N', 'O', 'P')]   # 4 trechos: chapa, início, fim
 for c, i, f in TR: W[c], W[i], W[f] = 7, 6.6, 6.6
-W['Q'], W['R'], W['S'] = 7.5, 10, 21
+W['Q'], W['R'], W['S'] = 9.5, 10, 19
+TURN = {'1001': 1, '1002': 2, '1003': 3}   # fictitious chapas of the example → their shift
 CODES = ['Mecânica', 'Elétrica', 'Preventiva', 'Aguardando peça', 'Falta de peça', 'Ponte rolante', 'Troca de consumíveis', 'Troca de peça', 'Set-up', 'Tyorei', 'Outros']
 def rt(*parts, sz=8.5, color='FF111111'):
     bold, plain = InlineFont(rFont='Arial', sz=sz, b=True, color=color), InlineFont(rFont='Arial', sz=sz, color=color)
@@ -72,9 +73,9 @@ def section(ws, r, title, hint):
     box(ws, f'I{r}:S{r}', hint, F(color='FFFFFF', size=8), NAVY, Alignment(horizontal='right', vertical='center', indent=1))
 
 def prod_table(ws, r, rows, first=1, data=()):
-    ws.row_dimensions[r].height = 16; ws.row_dimensions[r + 1].height = 15
+    ws.row_dimensions[r].height = 16; ws.row_dimensions[r + 1].height = 22
     hf = F(bold=True, size=8)
-    for col, t in (('A', 'Nº da\npeça'), ('B', 'DATA'), ('C', 'PEÇA'), ('D', 'MODELO'), ('Q', 'PEÇA\nPRONTA ✓'), ('R', 'CONTINUA\nA PEÇA Nº'), ('S', 'OBSERVAÇÃO')):
+    for col, t in (('A', 'Nº da\npeça'), ('B', 'DATA'), ('C', 'PEÇA'), ('D', 'MODELO'), ('Q', 'PRONTA:\nTURNO QUE\nFINALIZOU'), ('R', 'CONTINUA\nA PEÇA Nº'), ('S', 'OBSERVAÇÃO')):
         box(ws, f'{col}{r}:{col}{r + 1}', t, hf, HEAD)
     for k, (c, i, f) in enumerate(TR):
         box(ws, f'{c}{r}:{f}{r}', f'TRECHO {k + 1}', F(bold=True, size=9), GRP)
@@ -83,7 +84,7 @@ def prod_table(ws, r, rows, first=1, data=()):
         y = r + 2 + n; ws.row_dimensions[y].height = 21
         d = data[n] if n < len(data) else None
         box(ws, f'A{y}', first + n, F(size=8, color='444444'), GREY)
-        vals = {'B': d and d['d'], 'C': d and d['p'], 'D': d and d['o'], 'Q': d and ('✓' if d['ok'] else ''), 'R': d and d.get('cont'), 'S': d and d.get('obs', '')}
+        vals = {'B': d and d['d'], 'C': d and d['p'], 'D': d and d['o'], 'Q': d and (TURN.get(d['t'][-1][0], '') if d['ok'] else ''), 'R': d and d.get('cont'), 'S': d and d.get('obs', '')}
         for k, (c, i, f) in enumerate(TR):
             t = d['t'][k] if d and k < len(d['t']) else None
             vals[c], vals[i], vals[f] = (t[0], t[1], t[2]) if t else (None, None, None)
@@ -123,14 +124,14 @@ def bottom_front(ws, r):
         '3. Anote a parada no ', '*quadro 2', ', com o ', '*Nº da peça', ' e o código do motivo.\n',
         '4. Voltou a produzir a mesma peça? Use o ', '*próximo trecho da mesma linha', '.\n',
         '5. Troca de turno no meio da peça: o próximo operador usa o próximo trecho, com a chapa dele.\n',
-        '6. Marque ', '*✓ PRONTA', ' quando a peça terminar. Não terminou? Deixe em branco e continue na próxima folha.\n',
-        '7. ', '*Mais de 4 trechos na mesma peça?', ' Continue na ', '*linha de baixo', ', com a mesma peça, e escreva em ', '*CONTINUA A PEÇA Nº', ' o número da linha de cima. ✓ só na última linha.'))
+        '6. ', '*Peça pronta?', ' Escreva em ', '*PRONTA', ' o ', '*turno que finalizou', ' (1, 2 ou 3). Não terminou? Deixe em branco e continue na próxima folha.\n',
+        '7. ', '*Mais de 4 trechos na mesma peça?', ' Continue na ', '*linha de baixo', ', com a mesma peça, e escreva em ', '*CONTINUA A PEÇA Nº', ' o número da linha de cima. O turno em PRONTA vai só na última linha.'))
     box(ws, f'H{r}:L{r}', 'CÓDIGOS DE PARADA (coluna MOTIVO)', F(color='FFFFFF', bold=True, size=9), NAVY, left)
     half = (len(CODES) + 1) // 2
     for (a, z), part in ((('H', 'J'), list(enumerate(CODES))[:half]), (('K', 'L'), list(enumerate(CODES))[half:])):
         box(ws, f'{a}{r + 1}:{z}{r + 7}', rt(*[x for k, (i, t) in enumerate(part) for x in (f'*{i + 1}', f'  {t}' + ('\n' if k < len(part) - 1 else ''))], sz=9), align=top_left)
     text_block(ws, f'M{r}:S{r + 7}', 'EXEMPLO: VIGA D51, 13:00 ÀS 17:00, PAROU 14:30–15:30', rt(
-        '*Quadro 1 (peça 1): ', 'VIGA · D51 · Trecho 1: 13:00–14:30 · Trecho 2: 15:30–17:00 · ✓\n',
+        '*Quadro 1 (peça 1): ', 'VIGA · D51 · Trecho 1: 13:00–14:30 · Trecho 2: 15:30–17:00 · Pronta: 1\n',
         '*Quadro 2: ', 'Nº da peça 1 · 14:30–15:30 · motivo 4 (aguardando peça)\n\n',
         '*Certo: ', '3 h de produção + 1 h parada = 4 h.\n',
         '*Errado: ', 'um trecho 13:00–17:00 com a parada dentro dele (a hora parada conta duas vezes).'))
@@ -150,10 +151,10 @@ def bottom_back(ws, r, prod_ranges, stop_ranges):
         c = box(ws, f'E{y}:G{y}', fml, F(color=BLUE, bold=True, size=10)); c.number_format = '[h]:mm'
     pr = '+'.join(f"COUNTA({sh}!Q{a}:Q{z})" for sh, a, z in prod_ranges)
     pc = '+'.join(f"SUMPRODUCT(({sh}!C{a}:C{z}<>\"\")*({sh}!Q{a}:Q{z}=\"\"))" for sh, a, z in prod_ranges)
-    for k, (t, fml) in enumerate([('Peças prontas (nº de ✓)', f'={pr}'), ('Continuam na próxima folha', f'={pc}'), ('Conferido por (chapa)', None)]):
+    for k, (t, fml) in enumerate([('Peças prontas (turno em PRONTA)', f'={pr}'), ('Continuam na próxima folha', f'={pc}'), ('Conferido por (chapa)', None)]):
         y = r + 1 + k
         box(ws, f'H{y}:J{y}', t, F(size=8.5), align=left); box(ws, f'K{y}:L{y}', fml, F(color=BLUE, bold=True, size=10))
-    box(ws, f'M{r + 1}:S{r + 3}', rt('*Trecho é só produção.', ' Parou? Feche o trecho e anote a parada com o ', '*Nº da peça', '. Voltou? ', '*Próximo trecho da mesma linha', '. ✓ quando a peça ficar pronta.'), F(size=8.5), align=top_left)
+    box(ws, f'M{r + 1}:S{r + 3}', rt('*Trecho é só produção.', ' Parou? Feche o trecho e anote a parada com o ', '*Nº da peça', '. Voltou? ', '*Próximo trecho da mesma linha', '. Peça pronta: o ', '*turno que finalizou', ' em PRONTA.'), F(size=8.5), align=top_left)
 
 EX_P = [
     {'d': '15/10', 'p': 'LANÇA', 'o': 'PC210-10M0', 't': [['1001', '06:30', '08:10']], 'ok': 1},

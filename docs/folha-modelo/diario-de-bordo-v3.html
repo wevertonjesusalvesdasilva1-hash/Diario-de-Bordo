@@ -30,11 +30,11 @@
   thead tr.grp th { background: #d6deee; font-size: 7pt; }
   thead th.t { border-left: .7mm solid #111; }
   th small { display: block; font-weight: 400; font-size: 5.8pt; color: #333; }
-  tbody td { height: 5.6mm; font-size: 8pt; text-align: center; }
+  tbody td { height: 5.4mm; font-size: 8pt; text-align: center; }
   td.t { border-left: .7mm solid #111; }
   td.n { background: #f3f4f6; font-size: 7pt; color: #444; }
   td.hm { font-family: "Courier New", monospace; color: #bbb; font-size: 6.5pt; }
-  .stops tbody td { height: 5mm; }
+  .stops tbody td { height: 4.8mm; }
   .box { display: inline-block; width: 4mm; height: 4mm; border: .35mm solid #111; vertical-align: middle; }
   .hw { color: #1d4ed8; font-family: "Segoe Print", "Comic Sans MS", cursive; font-size: 8.3pt; }
   .box b.hw { display: block; line-height: 4mm; text-align: center; }
@@ -72,15 +72,15 @@
       <li>Anote a parada no <b>quadro 2</b>, com o <b>Nº da peça</b> e o código do motivo.</li>
       <li>Voltou a produzir a mesma peça? Use o <b>próximo trecho da mesma linha</b>.</li>
       <li>Troca de turno no meio da peça: o próximo operador usa o próximo trecho, com a chapa dele.</li>
-      <li>Marque <b>✓ PRONTA</b> quando a peça terminar. Não terminou na folha? Deixe em branco e continue na próxima.</li>
-      <li><b>Mais de 4 trechos?</b> Continue na <b>linha de baixo</b> com a mesma peça e escreva em <b>CONTINUA A PEÇA Nº</b> o número da linha de cima. ✓ só na última.</li></ol></div>
+      <li><b>Peça pronta?</b> Escreva em <b>PRONTA</b> o <b>turno que finalizou</b> (1, 2 ou 3). Não terminou na folha? Deixe em branco e continue na próxima.</li>
+      <li><b>Mais de 4 trechos?</b> Continue na <b>linha de baixo</b> com a mesma peça e escreva em <b>CONTINUA A PEÇA Nº</b> o número da linha de cima. O turno em PRONTA vai só na última.</li></ol></div>
     <div class="card"><h3>CÓDIGOS DE PARADA</h3><ul class="codes">
       <li><b>1</b>Mecânica</li><li><b>2</b>Elétrica</li><li><b>3</b>Preventiva</li><li><b>4</b>Aguardando peça</li><li><b>5</b>Falta de peça</li>
       <li><b>6</b>Ponte rolante</li><li><b>7</b>Troca consumíveis</li><li><b>8</b>Troca de peça</li><li><b>9</b>Set-up</li><li><b>10</b>Tyorei</li><li><b>11</b>Outros</li></ul>
 </div>
     <div class="card"><h3>EXEMPLO: VIGA D51, 13:00 ÀS 17:00, PAROU 14:30–15:30</h3>
-      <table class="exm"><thead><tr><th>Nº</th><th>Peça</th><th>Trecho 1</th><th>Trecho 2</th><th>✓</th></tr></thead>
-        <tbody><tr><td>1</td><td class="hw">VIGA D51</td><td class="hw">13:00–14:30</td><td class="hw">15:30–17:00</td><td class="hw">✓</td></tr></tbody></table>
+      <table class="exm"><thead><tr><th>Nº</th><th>Peça</th><th>Trecho 1</th><th>Trecho 2</th><th>Pronta</th></tr></thead>
+        <tbody><tr><td>1</td><td class="hw">VIGA D51</td><td class="hw">13:00–14:30</td><td class="hw">15:30–17:00</td><td class="hw">1</td></tr></tbody></table>
       <table class="exm" style="margin-top:.6mm"><thead><tr><th>Parada · Nº da peça</th><th>Início–Fim</th><th>Motivo</th></tr></thead>
         <tbody><tr><td class="hw">1</td><td class="hw">14:30–15:30</td><td class="hw">4</td></tr></tbody></table>
       <div style="margin-top:.6mm"><span class="ok">Certo:</span> 3 h de produção + 1 h parada. <span class="no">Errado:</span> trecho 13:00–17:00 com a parada dentro dele.</div></div>
@@ -98,26 +98,27 @@
   <table class="stops"></table>
   <div class="bottom" style="grid-template-columns:1fr 1fr 1fr">
     <div class="card"><h3>FECHAMENTO DA FOLHA (contramestre)</h3><div class="tot"><span>Horas produzindo (soma dos trechos)</span><span class="line"></span><span>Horas paradas (soma do quadro 2)</span><span class="line"></span><span>Total (24 h no dia, ou as horas dos turnos)</span><span class="line"></span></div></div>
-    <div class="card"><h3>PEÇAS</h3><div class="tot"><span>Peças prontas (quantidade de ✓)</span><span class="line"></span><span>Peças que continuam na próxima folha</span><span class="line"></span><span>Conferido por (chapa)</span><span class="line"></span></div></div>
-    <div class="card"><h3>LEMBRETE</h3>Trecho é só produção. Parou? Feche o trecho e anote a parada com o Nº da peça. Voltou? Próximo trecho da mesma linha. ✓ quando a peça ficar pronta.</div>
+    <div class="card"><h3>PEÇAS</h3><div class="tot"><span>Peças prontas (linhas com turno em PRONTA)</span><span class="line"></span><span>Peças que continuam na próxima folha</span><span class="line"></span><span>Conferido por (chapa)</span><span class="line"></span></div></div>
+    <div class="card"><h3>LEMBRETE</h3>Trecho é só produção. Parou? Feche o trecho e anote a parada com o Nº da peça. Voltou? Próximo trecho da mesma linha. Peça pronta: escreva o turno que finalizou em PRONTA. Não terminou: em branco.</div>
   </div>
 </section>
 
 <script>
   // ---- layout: production = Nº | Data | Peça | Modelo | 4 trechos (chapa, início, fim) | pronta | obs ; stops = Nº | Nº da peça | Data | Chapa | Início | Fim | Turno | Motivo | Descrição
   const T = 4;
-  const prodHead = `<colgroup><col style="width:6mm"><col style="width:11mm"><col style="width:27mm"><col style="width:23mm">${'<col style="width:11mm"><col style="width:10.5mm"><col style="width:10.5mm">'.repeat(T)}<col style="width:11mm"><col style="width:15mm"><col></colgroup>
-    <thead><tr class="grp"><th rowspan="2">Nº<br>da<br>peça</th><th rowspan="2">DATA</th><th rowspan="2">PEÇA</th><th rowspan="2">MODELO</th>${Array.from({ length: T }, (_, i) => `<th colspan="3" class="t">TRECHO ${i + 1}</th>`).join('')}<th rowspan="2">PEÇA<br>PRONTA<small>✓</small></th><th rowspan="2">CONTINUA<br>A PEÇA<br>Nº</th><th rowspan="2">OBSERVAÇÃO</th></tr>
+  const prodHead = `<colgroup><col style="width:6mm"><col style="width:11mm"><col style="width:27mm"><col style="width:23mm">${'<col style="width:11mm"><col style="width:10.5mm"><col style="width:10.5mm">'.repeat(T)}<col style="width:17mm"><col style="width:15mm"><col></colgroup>
+    <thead><tr class="grp"><th rowspan="2">Nº<br>da<br>peça</th><th rowspan="2">DATA</th><th rowspan="2">PEÇA</th><th rowspan="2">MODELO</th>${Array.from({ length: T }, (_, i) => `<th colspan="3" class="t">TRECHO ${i + 1}</th>`).join('')}<th rowspan="2">PRONTA:<br>TURNO QUE<br>FINALIZOU</th><th rowspan="2">CONTINUA<br>A PEÇA<br>Nº</th><th rowspan="2">OBSERVAÇÃO</th></tr>
     <tr>${'<th class="t">CHAPA</th><th>INÍCIO</th><th>FIM</th>'.repeat(T)}</tr></thead>`;
   const stopHead = `<colgroup><col style="width:6mm"><col style="width:15mm"><col style="width:12mm"><col style="width:16mm"><col style="width:14mm"><col style="width:14mm"><col style="width:12mm"><col style="width:15mm"><col></colgroup>
     <thead><tr><th>Nº</th><th>Nº DA PEÇA<small>ou —</small></th><th>DATA</th><th>CHAPA</th><th>INÍCIO</th><th>FIM</th><th>TURNO</th><th>MOTIVO<small>código 1–11</small></th><th>DESCRIÇÃO DA PARADA</th></tr></thead>`;
   const hw = (v) => (v == null || v === '' ? '' : `<span class="hw">${v}</span>`);
   const tm = (v) => (v ? hw(v) : '<span class="hm">__:__</span>');
-  const prodRow = (n, r = null) => `<tr><td class="n">${n}</td><td>${hw(r?.d)}</td><td>${hw(r?.p)}</td><td>${hw(r?.o)}</td>${Array.from({ length: T }, (_, i) => { const t = r?.t?.[i]; return `<td class="t">${hw(t?.[0])}</td><td>${tm(t?.[1])}</td><td>${tm(t?.[2])}</td>`; }).join('')}<td><i class="box">${r?.ok ? '<b class="hw">✓</b>' : ''}</i></td><td>${hw(r?.cont)}</td><td style="text-align:left;padding-left:1.2mm">${hw(r?.obs)}</td></tr>`;
+  const prodRow = (n, r = null) => `<tr><td class="n">${n}</td><td>${hw(r?.d)}</td><td>${hw(r?.p)}</td><td>${hw(r?.o)}</td>${Array.from({ length: T }, (_, i) => { const t = r?.t?.[i]; return `<td class="t">${hw(t?.[0])}</td><td>${tm(t?.[1])}</td><td>${tm(t?.[2])}</td>`; }).join('')}<td><i class="box" style="width:6mm;height:5mm">${r?.ok ? `<b class="hw" style="line-height:5mm">${TURN[r.t.at(-1)[0]]}</b>` : ''}</i></td><td>${hw(r?.cont)}</td><td style="text-align:left;padding-left:1.2mm">${hw(r?.obs)}</td></tr>`;
   const stopRow = (n, r = null) => `<tr><td class="n">${n}</td><td>${hw(r?.pc)}</td><td>${hw(r?.d)}</td><td>${hw(r?.c)}</td><td>${tm(r?.i)}</td><td>${tm(r?.f)}</td><td>${hw(r?.t)}</td><td>${hw(r?.mo)}</td><td style="text-align:left;padding-left:1.2mm">${hw(r?.ds)}</td></tr>`;
 
   // ---- example (open with #exemplo): one full day of RAW09, fictitious chapas 1001/1002/1003
   const EX = location.hash === '#exemplo';
+  const TURN = { 1001: 1, 1002: 2, 1003: 3 };   // fictitious chapas → their shift
   const P = EX ? [
     { d: '15/10', p: 'LANÇA', o: 'PC210-10M0', t: [['1001', '06:30', '08:10']], ok: 1 },
     { d: '15/10', p: 'LANÇA', o: 'PC210-10M0', t: [['1001', '08:10', '09:45'], ['1001', '10:20', '11:05']], ok: 1 },
