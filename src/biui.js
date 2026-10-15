@@ -278,7 +278,7 @@ function pageGeral(x) {
     else if (load24 === 'acima') rows = L.filter((r) => r.tot > 24.0001).sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.m < b.m ? -1 : 1));
     else if (load24 === 'pior') { const by = new Map(); for (const r of L) { const o = by.get(r.d); if (!o || r.tot > o.tot) by.set(r.d, r); } rows = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1)); }
     else rows = L.filter((r) => r.m === load24).sort((a, b) => (a.d < b.d ? -1 : 1));
-    return { cats: rows.map((r) => ({ key: r.d + SEP + r.m, label: load24 === 'todos' ? r.m : load24 === 'acima' ? `${ddmm(r.d)} ${r.m}` : ddmm(r.d), ...(load24 === 'todos' ? { group: ddmm(r.d) } : {}), alert: r.tot > 24.0001 })), stacked: true, height: 300, refLine: { value: 24, label: 'limite: 24 h', color: '#fbbf24' }, fmt: f1,
+    return { cats: rows.map((r) => ({ key: r.d + SEP + r.m, label: load24 === 'todos' ? r.m.replace(/^RAW/, '') : load24 === 'acima' ? `${ddmm(r.d)} ${r.m}` : ddmm(r.d), ...(load24 === 'todos' ? { group: ddmm(r.d) } : {}), alert: r.tot > 24.0001 })), stacked: true, totalsOnlyAlerts: load24 === 'todos', height: 300, refLine: { value: 24, label: 'limite: 24 h', color: '#fbbf24' }, fmt: f1,
       series: [{ name: 'Produção (h)', vals: rows.map((r) => r.ph), color: PALETTE[0] }, { name: 'Paradas (h)', vals: rows.map((r) => r.sh), color: PALETTE[1] }],
       onPick: (key) => { ui.t24.key = ui.t24.key === key ? null : key; v24.rebuild(); }, selected: ui.t24.key ? new Set([ui.t24.key]) : null, rowsOf24: rows,
       tip: (i) => `${rows[i].m} · ${dmy(rows[i].d)} · total ${f1(rows[i].tot)} h${rows[i].tot > 24.0001 ? ' ⚠ passa de 24 h' : ''}${rows[i].overlapH > 0.01 ? ` · ${f1(rows[i].overlapH)} h no mesmo horário` : ''}` }; };
@@ -289,6 +289,7 @@ function pageGeral(x) {
   const build24 = () => {
     const spec = dias24(), chart = chartBox(() => spec);
     const wrapBox = el('div', {}); wrapBox.getTable = () => chart.getTable?.();
+    if (load24 === 'todos') wrapBox.append(el('p', { class: 'bi-note bi-explain' }, `Cada bloco é um dia; dentro dele há uma barra por ${u.toLowerCase()}${x.g === 'raw' ? ' (05 = RAW05, 06 = RAW06…)' : ''}. O número aparece só nas barras que passam de 24 h; passe o mouse para ver os valores.`));
     wrapBox.append(chart);
     tblBtn.textContent = ui.t24.open ? '▦ Fechar tabela' : '▦ Abrir tabela'; tblBtn.setAttribute('aria-expanded', String(ui.t24.open)); tblBtn.classList.toggle('on', ui.t24.open);
     if (!ui.t24.open) { if (ui.t24.key) wrapBox.append(el('p', { class: 'bi-note' }, 'Barra escolhida: ', el('b', {}, ui.t24.key.split(SEP).reverse().join(' · ').replace(/(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1')), '. Clique em "Abrir tabela" para ver e corrigir os registros dela.')); return wrapBox; }

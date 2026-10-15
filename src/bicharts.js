@@ -96,14 +96,18 @@ export function drawChart(box, full) {
   const nS = series.length, bwMin = spec.barW ?? 22, minStep = stacked ? 34 : Math.max(34, nS * bwMin + 10);
   const step = Math.max(minStep, Math.min(90, (avail - 100) / cats.length));
   const hasGroup = cats.some((c) => c.group != null);
+  // groups (e.g. one day with a bar per robot) are separated by a gap and an alternating band, so no bar looks like it belongs to the next group
+  const GAP = hasGroup ? 18 : 0, gapBefore = []; let gaps = 0;
+  cats.forEach((c, i) => { if (hasGroup && i > 0 && c.group !== cats[i - 1].group) gaps++; gapBefore[i] = gaps; });
   // room for the (rotated) category labels: the longer the labels, the taller the bottom margin, and the chart grows by the same amount
-  const rotAny = step < 52 || cats.some((c) => String(c.label).length > 8), maxLab = Math.min(14, Math.max(...cats.map((c) => String(c.label).length)));
+  const rotAny = (step < 52 && Math.max(...cats.map((c) => String(c.label).length)) > 3) || cats.some((c) => String(c.label).length > 8), maxLab = Math.min(14, Math.max(...cats.map((c) => String(c.label).length)));
   const bottom = (rotAny ? 26 + maxLab * 6.4 * 0.58 : 34) + (hasGroup ? 16 : 0), left = 58, right = line ? 46 : 12, top = 20;
-  const W = Math.max(avail, left + right + cats.length * step), H = (spec.height ?? 250) + (bottom - 46), plotH = H - top - bottom;
+  const W = Math.max(avail, left + right + cats.length * step + gaps * GAP + GAP), H = (spec.height ?? 250) + (bottom - 46), plotH = H - top - bottom;
   const totals = cats.map((_, i) => (stacked ? series.reduce((s, x) => s + (x.vals[i] || 0), 0) : Math.max(...series.map((x) => x.vals[i] || 0))));
   const ref = spec.refLine;
   const above = !!(spec.lineAbove && line);   // the line lives in a band over the columns, so the two never overlap
   const { max, ticks } = niceMax(Math.max(Math.max(...totals, 0) * (above ? 1.7 : 1.1), ref ? ref.value * 1.08 : 0) || 1);
+  const xAt = (i) => left + GAP / 2 + i * step + gapBefore[i] * GAP;
   const y = (v) => top + plotH - (v / max) * plotH;
   const svg = S('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img' });
   (series.length ? ticks.filter((t) => !above || t <= Math.max(...totals, 0) * 1.15) : [0, max]).forEach((t) => svg.append(S('line', { class: 'grid', x1: left, x2: W - right, y1: y(t), y2: y(t) }), series.length ? S('text', { x: left - 5, y: y(t), 'text-anchor': 'end', 'dominant-baseline': 'middle', class: 'mut' }, fmt(t)) : ''));
@@ -119,11 +123,16 @@ export function drawChart(box, full) {
     if (above && line.ref != null) svg.append(S('line', { x1: left, x2: W - right, y1: ly(line.ref), y2: ly(line.ref), stroke: line.color ?? '#fb7185', 'stroke-width': 1, 'stroke-dasharray': '4 4', opacity: 0.55 }), S('text', { x: W - right + 5, y: ly(line.ref), 'dominant-baseline': 'middle', class: 'mut' }, line.refLabel ?? String(line.ref)));
     if (!dup && !above) (line.ticks ?? (lo < 0 && hi > 0 ? [lo, 0, hi] : [lo, (lo + hi) / 2, hi])).forEach((t) => svg.append(S('text', { x: W - right + 5, y: ly(t), 'dominant-baseline': 'middle', class: 'mut' }, (line.fmt ?? String)(t))));
   }
-  let prevGroup = null, gStart = 0;
-  const closeGroup = (i) => { if (prevGroup == null || i <= gStart) return; const cx = left + ((gStart + i) / 2) * step; svg.append(S('text', { x: cx, y: H - 6, 'text-anchor': 'middle', class: 'mut' }, clip(prevGroup, 12)), S('line', { class: 'grid', x1: left + i * step, x2: left + i * step, y1: H - bottom + 2, y2: H - 2 })); };
+  if (hasGroup) {
+    const gr = []; cats.forEach((c, i) => { const l = gr.at(-1); if (l && l.label === c.group) l.end = i; else gr.push({ label: c.group, start: i, end: i }); });
+    gr.forEach((q, n) => {
+      const xa = xAt(q.start) - GAP / 2, xb = xAt(q.end) + step + GAP / 2 - 1;
+      if (n % 2 === 0) svg.append(S('rect', { x: xa, y: top - 4, width: xb - xa, height: H - top - 4, rx: 6, fill: 'rgba(255,255,255,0.04)' }));
+      svg.append(S('text', { x: (xa + xb) / 2, y: H - 6, 'text-anchor': 'middle', style: 'font-size:12px;font-weight:700;fill:var(--fg, #e6e9ef)' }, clip(q.label, 12)));
+    });
+  }
   cats.forEach((c, i) => {
-    if (hasGroup && c.group !== prevGroup) { closeGroup(i); prevGroup = c.group; gStart = i; }
-    const x0 = left + i * step, bw = stacked ? step * 0.62 : Math.min(40, (step * 0.7) / nS);
+    const x0 = xAt(i), bw = stacked ? step * 0.62 : Math.min(40, (step * 0.7) / nS);
     const g = S('g', pickAttrs(c), S('title', {}, `${c.group ? c.group + ' · ' : ''}${c.label}\n${series.map((s) => `${s.name}: ${fmt(s.vals[i])}`).join('\n')}${line ? `\n${line.name}: ${(line.fmt ?? String)(line.vals[i])}` : ''}${tip ? '\n' + tip(i) : ''}`));
     let acc = 0;
     series.forEach((s, k) => {
@@ -140,14 +149,13 @@ export function drawChart(box, full) {
       if (v && (bw >= 22 || (cats.length <= 14 && bw >= 14)) && !(stacked && hgt < 12)) g.append(S('text', { x: bx + bw / 2, y: stacked ? yTop + hgt / 2 : yTop - 3, 'text-anchor': 'middle', 'dominant-baseline': stacked ? 'middle' : 'auto', style: 'font-size:10px' }, fmt(v)));
       if (stacked) acc += v;
     });
-    if (stacked && nS > 1 && acc) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:11px${c.alert ? ';fill:#fb7185' : ''}` }, (c.alert ? '⚠ ' : '') + fmt(acc)));   // total of the stack on top
-    const lab = clip(c.label, 14), rot = step < 52 || String(c.label).length > 8;
+    if (stacked && nS > 1 && acc && (!spec.totalsOnlyAlerts || c.alert)) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:11px${c.alert ? ';fill:#fb7185' : ''}` }, (c.alert ? '⚠ ' : '') + fmt(acc)));   // total of the stack on top
+    const lab = clip(c.label, 14), rot = rotAny;
     g.append(S('text', rot ? { x: x0 + step / 2, y: H - bottom + 12, 'text-anchor': 'end', transform: `rotate(-35 ${x0 + step / 2} ${H - bottom + 12})`, class: 'mut' } : { x: x0 + step / 2, y: H - bottom + 14, 'text-anchor': 'middle', class: 'mut' }, lab));
     svg.append(g);
   });
-  closeGroup(cats.length);
   if (line) {
-    const pts = cats.map((c, i) => (line.vals[i] == null ? null : [left + i * step + step / 2, ly(line.vals[i])]));
+    const pts = cats.map((c, i) => (line.vals[i] == null ? null : [xAt(i) + step / 2, ly(line.vals[i])]));
     const col = line.color ?? '#fb7185';
     const ok = pts.filter(Boolean); if (ok.length) svg.append(S('path', { d: smooth(ok, top, top + plotH), fill: 'none', stroke: col, 'stroke-width': 2.4, 'stroke-linecap': 'round', class: 'glow', style: `--c:${col}` }));
     pts.forEach((p, i) => { if (!p) return; svg.append(S('circle', { cx: p[0], cy: p[1], r: 3.5, fill: '#fff', stroke: col, 'stroke-width': 2 }, S('title', {}, `${cats[i].label}\n${line.name}: ${(line.fmt ?? String)(line.vals[i])}`))); if (cats.length <= 16 && !dup) svg.append(S('text', { x: p[0], y: p[1] - 7, 'text-anchor': 'middle', style: `font-size:10px;fill:${col}` }, (line.fmt ?? String)(line.vals[i]))); });
