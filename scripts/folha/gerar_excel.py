@@ -1,5 +1,5 @@
-# Gera docs/folha-modelo/diario-de-bordo-v3.xlsx: a folha "uma linha = uma peça" em Excel (Frente, Verso e Exemplo),
-# com as mesmas cores do PDF, pronta para imprimir em A4 paisagem (uma página por aba). Uso: python3 scripts/folha/gerar_excel_v3.py
+# Gera docs/folha-modelo/diario-de-bordo.xlsx: a folha "uma linha = uma peça" em Excel, aba A4 e aba A3 (frente na página 1,
+# verso na página 2), com as mesmas cores do PDF. Uso: python3 scripts/folha/gerar_excel_v3.py
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.cell.rich_text import CellRichText, TextBlock
@@ -21,7 +21,7 @@ TR = [('E', 'F', 'G'), ('H', 'I', 'J'), ('K', 'L', 'M'), ('N', 'O', 'P')]   # 4 
 for c, i, f in TR: W[c], W[i], W[f] = 7, 6.6, 6.6
 W['Q'], W['R'], W['S'] = 9.5, 10, 19
 TURN = {'1001': 1, '1002': 2, '1003': 3}   # fictitious chapas of the example → their shift
-CODES = ['Mecânica', 'Elétrica', 'Preventiva', 'Aguardando peça', 'Falta de peça', 'Ponte rolante', 'Troca de consumíveis', 'Troca de peça', 'Set-up', 'Tyorei', 'Outros']
+CODES = ['Mecânica', 'Elétrica', 'Manutenção preventiva', 'Troca de peça', 'Falta de peça', 'Refeição', 'Tyorei', 'Outros (descreva)']
 def rt(*parts, sz=8.5, color='FF111111'):
     bold, plain = InlineFont(rFont='Arial', sz=sz, b=True, color=color), InlineFont(rFont='Arial', sz=sz, color=color)
     return CellRichText([TextBlock(bold, p[1:]) if p.startswith('*') else TextBlock(plain, p) for p in parts])
@@ -48,12 +48,12 @@ def setup(ws):
     ws.print_options.horizontalCentered = True
     ws.sheet_view.showGridLines = False
 
-def header(ws, title, sub, signs=('COORDENADOR', 'CHEFE', 'GERENTE')):
-    ws.row_dimensions[1].height = 24; ws.row_dimensions[2].height = 18
-    box(ws, 'A1:L2', None, bg=NAVY)
-    c = ws['A1']; c.value = rt(f'*{title}', f'      {sub}', sz=13, color='FFFFFFFF'); c.font = F(color='FFFFFF', size=14, bold=False); c.alignment = Alignment(vertical='center', indent=1)
-    for rng, t in zip(('M1:N1', 'O1:P1', 'Q1:S1'), signs): box(ws, rng, t, F(size=7, bold=True))
-    for rng in ('M2:N2', 'O2:P2', 'Q2:S2'): box(ws, rng, '')
+def header(ws, title, sub, signs=('COORDENADOR', 'CHEFE', 'GERENTE'), r=1):
+    ws.row_dimensions[r].height = 24; ws.row_dimensions[r + 1].height = 18
+    box(ws, f'A{r}:L{r + 1}', None, bg=NAVY)
+    c = ws[f'A{r}']; c.value = rt(f'*{title}', f'      {sub}', sz=13, color='FFFFFFFF'); c.font = F(color='FFFFFF', size=14, bold=False); c.alignment = Alignment(vertical='center', indent=1)
+    for rng, t in zip((f'M{r}:N{r}', f'O{r}:P{r}', f'Q{r}:S{r}'), signs): box(ws, rng, t, F(size=7, bold=True))
+    for rng in (f'M{r + 1}:N{r + 1}', f'O{r + 1}:P{r + 1}', f'Q{r + 1}:S{r + 1}'): box(ws, rng, '')
 
 def fields(ws, r, ex=None):
     ws.row_dimensions[r].height = 20
@@ -99,7 +99,7 @@ def prod_table(ws, r, rows, first=1, data=()):
 def stop_table(ws, r, rows, first=1, data=()):
     ws.row_dimensions[r].height = 30
     hf = F(bold=True, size=8)
-    cols = [('A', 'A', 'Nº'), ('B', 'B', 'Nº DA\nPEÇA\n(ou —)'), ('C', 'C', 'DATA'), ('D', 'D', 'CHAPA'), ('E', 'F', 'INÍCIO'), ('G', 'H', 'FIM'), ('I', 'I', 'TURNO'), ('J', 'K', 'MOTIVO\n(código 1–11)'), ('L', 'S', 'DESCRIÇÃO DA PARADA')]
+    cols = [('A', 'A', 'Nº'), ('B', 'B', 'Nº DA\nPEÇA\n(ou —)'), ('C', 'C', 'DATA'), ('D', 'D', 'CHAPA'), ('E', 'F', 'INÍCIO'), ('G', 'H', 'FIM'), ('I', 'I', 'TURNO'), ('J', 'K', 'MOTIVO\n(código 1–8)'), ('L', 'S', 'DESCRIÇÃO DA PARADA')]
     for a, z, t in cols: box(ws, f'{a}{r}:{z}{r}', t, hf, HEAD)
     for n in range(rows):
         y = r + 1 + n; ws.row_dimensions[y].height = 19
@@ -117,7 +117,7 @@ def text_block(ws, rng, title, body):
     return c
 
 def bottom_front(ws, r):
-    for y in range(r + 1, r + 8): ws.row_dimensions[y].height = 15
+    for y in range(r + 1, r + 8): ws.row_dimensions[y].height = 18
     text_block(ws, f'A{r}:G{r + 7}', 'COMO PREENCHER', rt(
         '1. ', '*Uma linha = uma peça.', ' Começou peça nova? Linha nova.\n',
         '2. ', '*Trecho', ' = tempo produzindo, ', '*sem parada no meio', '. Parou a máquina? ', '*Feche o trecho', ' (FIM).\n',
@@ -132,7 +132,7 @@ def bottom_front(ws, r):
         box(ws, f'{a}{r + 1}:{z}{r + 7}', rt(*[x for k, (i, t) in enumerate(part) for x in (f'*{i + 1}', f'  {t}' + ('\n' if k < len(part) - 1 else ''))], sz=9), align=top_left)
     text_block(ws, f'M{r}:S{r + 7}', 'EXEMPLO: VIGA D51, 13:00 ÀS 17:00, PAROU 14:30–15:30', rt(
         '*Quadro 1 (peça 1): ', 'VIGA · D51 · Trecho 1: 13:00–14:30 · Trecho 2: 15:30–17:00 · Pronta: 1\n',
-        '*Quadro 2: ', 'Nº da peça 1 · 14:30–15:30 · motivo 4 (aguardando peça)\n\n',
+        '*Quadro 2: ', 'Nº da peça 1 · 14:30–15:30 · motivo 5 (falta de peça)\n\n',
         '*Certo: ', '3 h de produção + 1 h parada = 4 h.\n',
         '*Errado: ', 'um trecho 13:00–17:00 com a parada dentro dele (a hora parada conta duas vezes).'))
 
@@ -156,72 +156,51 @@ def bottom_back(ws, r, prod_ranges, stop_ranges):
         box(ws, f'H{y}:J{y}', t, F(size=8.5), align=left); box(ws, f'K{y}:L{y}', fml, F(color=BLUE, bold=True, size=10))
     box(ws, f'M{r + 1}:S{r + 3}', rt('*Trecho é só produção.', ' Parou? Feche o trecho e anote a parada com o ', '*Nº da peça', '. Voltou? ', '*Próximo trecho da mesma linha', '. Peça pronta: o ', '*turno que finalizou', ' em PRONTA.'), F(size=8.5), align=top_left)
 
-EX_P = [
-    {'d': '15/10', 'p': 'LANÇA', 'o': 'PC210-10M0', 't': [['1001', '06:30', '08:10']], 'ok': 1},
-    {'d': '15/10', 'p': 'LANÇA', 'o': 'PC210-10M0', 't': [['1001', '08:10', '09:45'], ['1001', '10:20', '11:05']], 'ok': 1},
-    {'d': '15/10', 'p': 'VIGA PC', 'o': 'D51-24', 't': [['1001', '11:50', '13:40']], 'ok': 1},
-    {'d': '15/10', 'p': 'VIGA PC', 'o': 'D51-24', 't': [['1001', '13:40', '15:00'], ['1002', '15:00', '15:25']], 'ok': 1, 'obs': 'Troca de turno no meio da peça'},
-    {'d': '15/10', 'p': 'LANÇA', 'o': 'PC360LC-8M2', 't': [['1002', '16:40', '18:30'], ['1002', '18:50', '20:40']], 'ok': 1},
-    {'d': '15/10', 'p': 'LANÇA', 'o': 'PC360LC-8M2', 't': [['1002', '21:10', '23:30']], 'ok': 1},
-    {'d': '16/10', 'p': 'BOOM WA', 'o': 'WA200-6', 't': [['1003', '00:20', '03:10']], 'ok': 1},
-    {'d': '16/10', 'p': 'BOOM WA', 'o': 'WA200-6', 't': [['1003', '03:40', '06:00']], 'ok': 0, 'obs': 'Continua na próxima folha'},
-]
-EX_P[4] = {'d': '15/10', 'p': 'LANÇA', 'o': 'PC360LC-8M2', 't': [['1002', '16:40', '17:20'], ['1002', '17:30', '18:00'], ['1002', '18:10', '18:30'], ['1002', '18:50', '19:30']], 'ok': 0, 'obs': '4 trechos cheios: segue na linha 6'}
-EX_P[5] = {'d': '15/10', 'p': 'LANÇA', 'o': 'PC360LC-8M2', 't': [['1002', '19:40', '20:40']], 'ok': 1, 'cont': 5, 'obs': 'Continuação da peça 5'}
-EX_P.insert(6, {'d': '15/10', 'p': 'LANÇA', 'o': 'PC360LC-8M2', 't': [['1002', '21:10', '23:30']], 'ok': 1})
-EX_S = [
-    {'pc': 1, 'd': '15/10', 'c': '1001', 'i': '06:00', 'f': '06:30', 't': 1, 'mo': 9, 'ds': 'Set-up do dispositivo da lança'},
-    {'pc': 2, 'd': '15/10', 'c': '1001', 'i': '09:45', 'f': '10:20', 't': 1, 'mo': 7, 'ds': 'Troca de bico e arame'},
-    {'pc': 3, 'd': '15/10', 'c': '1001', 'i': '11:05', 'f': '11:50', 't': 1, 'mo': 6, 'ds': 'Ponte ocupada no setor'},
-    {'pc': '—', 'd': '15/10', 'c': '1002', 'i': '15:25', 'f': '16:40', 't': 2, 'mo': 5, 'ds': 'Sem peça no setor'},
-    {'pc': 5, 'd': '15/10', 'c': '1002', 'i': '17:20', 'f': '17:30', 't': 2, 'mo': 7, 'ds': 'Troca de bico'},
-    {'pc': 5, 'd': '15/10', 'c': '1002', 'i': '18:00', 'f': '18:10', 't': 2, 'mo': 6, 'ds': 'Ponte para virar a peça'},
-    {'pc': 5, 'd': '15/10', 'c': '1002', 'i': '18:30', 'f': '18:50', 't': 2, 'mo': 8, 'ds': ''},
-    {'pc': 5, 'd': '15/10', 'c': '1002', 'i': '19:30', 'f': '19:40', 't': 2, 'mo': 10, 'ds': 'Tyorei'},
-    {'pc': 7, 'd': '15/10', 'c': '1002', 'i': '20:40', 'f': '21:10', 't': 2, 'mo': 1, 'ds': 'Tocha travando, mecânico ajustou'},
-    {'pc': 8, 'd': '15/10', 'c': '1003', 'i': '23:30', 'f': '00:20', 't': 3, 'mo': 9, 'ds': 'Set-up para o boom'},
-    {'pc': 9, 'd': '16/10', 'c': '1003', 'i': '03:10', 'f': '03:40', 't': 3, 'mo': 2, 'ds': 'Queda de energia no painel'},
-]
-def as_time(rows, keys):   # 'hh:mm' → Excel time, so the totals add up
-    out = []
-    for r in rows:
-        r = dict(r)
-        if 't' in r and isinstance(r['t'], list): r['t'] = [[c, tm(i), tm(f)] for c, i, f in r['t']]
-        for k in keys: r[k] = tm(r[k])
-        out.append(r)
-    return out
-def tm(s):
-    from datetime import time
-    h, m = map(int, s.split(':')); return time(h % 24, m)
+def rows_height(ws, a, z): return sum((ws.row_dimensions[y].height or 15) for y in range(a, z + 1))
 
-FP, FS, BP, BS = 10, 11, 13, 11
-wb = Workbook()
-def front(ws, ex=False):
-    setup(ws); header(ws, 'DIÁRIO DE BORDO · UMA LINHA = UMA PEÇA', 'EXEMPLO PREENCHIDO · dados fictícios' if ex else 'Trecho = tempo SÓ de produção, sem parada no meio')
-    fields(ws, 3, ex)
-    section(ws, 4, '1. PRODUÇÃO — cada linha é UMA peça', 'parou no meio da peça? feche o trecho, anote a parada no quadro 2 com o Nº da peça e continue no próximo trecho')
-    r = prod_table(ws, 5, FP, 1, as_time(EX_P, []) if ex else ())
+def front(ws, r0, prows, srows):
+    header(ws, 'DIÁRIO DE BORDO · UMA LINHA = UMA PEÇA', 'Trecho = só produção, sem parada', r=r0)
+    fields(ws, r0 + 2)
+    section(ws, r0 + 3, '1. PRODUÇÃO — cada linha é UMA peça', 'parou no meio da peça? feche o trecho, anote a parada no quadro 2 com o Nº da peça e continue no próximo trecho')
+    r = prod_table(ws, r0 + 4, prows, 1)
     section(ws, r, '2. PARADAS DA MÁQUINA', 'escreva o Nº da peça que estava na máquina (ou “—” se não havia peça)')
-    r = stop_table(ws, r + 1, FS, 1, as_time(EX_S, ['i', 'f']) if ex else ())
-    bottom_front(ws, r + 1)
-    ws.print_area = f'A1:S{r + 8}'
-    return 7, 7 + FP - 1, r - FS, r - 1   # production rows, stop rows
+    r2 = stop_table(ws, r + 1, srows, 1)
+    bottom_front(ws, r2 + 1)
+    return r2 + 8, (r0 + 6, r - 1), (r + 2, r2 - 1)        # last row, production rows, stop rows
 
-def back(ws, name_front, fr, ex=False):
-    setup(ws); header(ws, 'DIÁRIO DE BORDO · CONTINUAÇÃO (VERSO)', 'Continue a numeração da frente', ('MÁQUINA', 'DATA', 'FOLHA'))
-    if ex:
-        for rng, v in zip(('M2:N2', 'O2:P2', 'Q2:S2'), ('RAW09', '15/10/2026', '1 de 1')): ws[rng.split(':')[0]].value = v; ws[rng.split(':')[0]].font = F(color=BLUE, size=10)
-    section(ws, 3, '1. PRODUÇÃO (continuação)', 'uma linha = uma peça')
-    r = prod_table(ws, 4, BP, FP + 1)
+def back(ws, r0, prows, srows, firstp, firsts, fr_prod, fr_stop):
+    header(ws, 'DIÁRIO DE BORDO · CONTINUAÇÃO (VERSO)', 'Continue a numeração da frente', ('MÁQUINA', 'DATA', 'FOLHA'), r=r0)
+    section(ws, r0 + 2, '1. PRODUÇÃO (continuação)', 'uma linha = uma peça')
+    r = prod_table(ws, r0 + 3, prows, firstp)
     section(ws, r, '2. PARADAS (continuação)', 'Nº da peça que estava na máquina, ou “—”')
-    r2 = stop_table(ws, r + 1, BS, FS + 1)
-    t = ws.title.replace("'", "")
-    bottom_back(ws, r2 + 1, [(f"'{name_front}'", fr[0], fr[1]), (f"'{t}'", 6, 6 + BP - 1)], [(f"'{name_front}'", fr[2], fr[3]), (f"'{t}'", r + 2, r2 - 1)])
-    ws.print_area = f'A1:S{r2 + 4}'
+    r2 = stop_table(ws, r + 1, srows, firsts)
+    me = f"'{ws.title}'"
+    bottom_back(ws, r2 + 1, [(me, *fr_prod), (me, r0 + 5, r - 1)], [(me, *fr_stop), (me, r + 2, r2 - 1)])
+    return r2 + 4
 
-f = wb.active; f.title = 'Frente'; fr = front(f)
-back(wb.create_sheet('Verso'), 'Frente', fr)
-e = wb.create_sheet('Exemplo (frente)'); er = front(e, True)
-back(wb.create_sheet('Exemplo (verso)'), 'Exemplo (frente)', er, True)
-out = os.path.join(os.path.dirname(__file__), '..', '..', 'docs', 'folha-modelo', 'diario-de-bordo-v3.xlsx')
+from openpyxl.worksheet.pagebreak import Break
+PAGE = {'A4': (842, 595), 'A3': (1191, 842)}       # landscape, in points
+
+def sheet(wb, name, paper, fp, fs, bp, bs):
+    ws = wb.create_sheet(name); setup(ws)
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4 if paper == 'A4' else ws.PAPERSIZE_A3
+    end1, prod, stop = front(ws, 1, fp, fs)
+    start2 = end1 + 2
+    end2 = back(ws, start2, bp, bs, fp + 1, fs + 1, prod, stop)
+    ws.row_breaks.append(Break(id=end1 + 1))                    # front on page 1, back on page 2
+    ws.print_area = f'A1:S{end2}'
+    # one scale for both pages, so that each side fills its page (fit-to-page would ignore the page break)
+    ws.sheet_properties.pageSetUpPr.fitToPage = False
+    width_pt = sum(ws.column_dimensions[k].width for k in W) * 5.6 + 20
+    h1, h2 = rows_height(ws, 1, end1), rows_height(ws, start2, end2)
+    pw, ph = PAGE[paper]; pw -= 0.5 * 72 + 6; ph -= 0.6 * 72 + 6
+    ws.page_setup.scale = int(min(pw / width_pt, ph / max(h1, h2)) * 100)
+    ws.print_title_rows = None
+    return ws
+
+wb = Workbook(); wb.remove(wb.active)
+sheet(wb, 'A4', 'A4', 10, 11, 13, 11)
+sheet(wb, 'A3', 'A3', 10, 11, 13, 11)
+for ws in wb.worksheets: print(ws.title, 'escala', ws.page_setup.scale, '%')
+out = os.path.join(os.path.dirname(__file__), '..', '..', 'docs', 'folha-modelo', 'diario-de-bordo.xlsx')
 wb.save(out); print('ok', os.path.abspath(out))
