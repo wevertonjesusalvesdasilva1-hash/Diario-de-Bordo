@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Orientação · Usinagem</title>
+<style>
+  @page { size: A3 landscape; margin: 9mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #fff; color: #111; font-family: Arial, Helvetica, sans-serif; }
+  .page { width: 402mm; height: 279mm; display: grid; grid-template-rows: auto auto 1fr auto; gap: 5mm; overflow: hidden; }
+  .top { background: #1f2a44; color: #fff; border-radius: 4mm; padding: 5mm 8mm; display: flex; justify-content: space-between; align-items: center; }
+  .top h1 { margin: 0; font-size: 34pt; letter-spacing: .5mm; }
+  .top .rule { font-size: 22pt; font-weight: 700; background: #fbbf24; color: #1f2a44; padding: 2.5mm 6mm; border-radius: 3mm; white-space: nowrap; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
+  .step { border: .8mm solid #1f2a44; border-radius: 4mm; padding: 4mm 5mm; display: grid; grid-template-columns: 15mm 1fr; gap: 3mm; align-items: start; }
+  .num { width: 15mm; height: 15mm; border-radius: 50%; background: #1f2a44; color: #fff; font-size: 24pt; font-weight: 800; display: grid; place-items: center; }
+  .step h2 { margin: 0 0 1.5mm; font-size: 19pt; line-height: 1.1; }
+  .step p { margin: 0; font-size: 14.5pt; line-height: 1.25; }
+  .mid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 5mm; min-height: 0; }
+  .card { border: .8mm solid #1f2a44; border-radius: 4mm; overflow: hidden; display: flex; flex-direction: column; }
+  .card > h3 { margin: 0; background: #1f2a44; color: #fff; font-size: 17pt; padding: 2.5mm 5mm; }
+  .card .in { padding: 4mm 5mm; flex: 1; display: flex; flex-direction: column; gap: 3mm; }
+  .ex-title { font-size: 15pt; } .ex-title b { background: #fde68a; padding: 0 1.5mm; }
+  table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  th, td { border: .45mm solid #111; text-align: center; padding: 1.6mm 1mm; }
+  th { background: #e9edf5; font-size: 11.5pt; }
+  th.grp { background: #d6deee; font-size: 12.5pt; }
+  td { font-size: 16pt; height: 16mm; }
+  td.hw { color: #1d4ed8; font-family: "Segoe Print", "Comic Sans MS", cursive; font-weight: 700; }
+  td.n { background: #f3f4f6; color: #444; font-size: 13pt; }
+  .t { border-left: 1.2mm solid #111; }
+  .lbl { font-size: 13pt; font-weight: 700; color: #1f2a44; margin-bottom: 1mm; }
+  .cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
+  .ok, .no { border-radius: 3mm; padding: 4mm 5mm; font-size: 15.5pt; line-height: 1.3; }
+  .ok { background: #dcfce7; border: .8mm solid #16a34a; } .no { background: #fee2e2; border: .8mm solid #dc2626; }
+  .ok b.h, .no b.h { display: block; font-size: 17pt; margin-bottom: 1mm; }
+  .ok b.h { color: #15803d; } .no b.h { color: #b91c1c; }
+  .codes { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5mm 4mm; }
+  .code { display: flex; align-items: center; gap: 3.5mm; font-size: 19pt; font-weight: 700; line-height: 1.1; }
+  .code i { font-style: normal; width: 13mm; height: 13mm; flex: none; border: .8mm solid #1f2a44; border-radius: 2.5mm; display: grid; place-items: center; font-size: 20pt; background: #f3f4f6; }
+  .code small { display: block; font-size: 11pt; font-weight: 400; color: #444; }
+  .note { font-size: 12.5pt; line-height: 1.3; background: #fef3c7; border-radius: 3mm; padding: 3mm 4mm; }
+  .bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; }
+  .tip { border-radius: 4mm; padding: 3.5mm 5mm; font-size: 14pt; line-height: 1.3; background: #eef2ff; border: .8mm solid #6366f1; }
+  .tip b.h { display: block; font-size: 16.5pt; color: #3730a3; margin-bottom: .8mm; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="top"><h1>COMO PREENCHER · USINAGEM</h1><div class="rule">UMA LINHA = UMA PEÇA</div></div>
+
+  <div class="steps">
+    <div class="step"><div class="num">1</div><div><h2>Peça nova = linha nova</h2><p>Escreva o <b>Nº da peça</b> (1, 2, 3…), <b>data, peça e modelo</b>. Cada linha é <b>uma peça só</b>.</p></div></div>
+    <div class="step"><div class="num">2</div><div><h2>Trecho = só produção</h2><p>Anote <b>chapa, início e fim</b> enquanto a máquina <b>está produzindo</b>. Sem parada no meio.</p></div></div>
+    <div class="step"><div class="num">3</div><div><h2>Parou? Feche o trecho</h2><p>Escreva o <b>FIM</b>. Anote a parada no <b>quadro 2</b> com o <b>Nº da peça</b>, o <b>turno</b> e o <b>código</b>.</p></div></div>
+    <div class="step"><div class="num">4</div><div><h2>Voltou? Próximo trecho</h2><p>Continue na <b>mesma linha</b>, no trecho seguinte. Peça pronta: escreva o <b>turno que finalizou</b>.</p></div></div>
+  </div>
+
+  <div class="mid">
+    <div class="card"><h3>EXEMPLO: MESA D61 DAS 13:00 ÀS 17:00, COM PARADA DAS 14:30 ÀS 15:30</h3>
+      <div class="in">
+        <div>
+          <div class="lbl">QUADRO 1 · PRODUÇÃO</div>
+          <table>
+            <colgroup><col style="width:5%"><col style="width:8%"><col style="width:10%"><col style="width:9%"><col style="width:7.5%"><col style="width:7.5%"><col style="width:7.5%"><col style="width:7.5%"><col style="width:7.5%"><col style="width:7.5%"><col style="width:10%"><col style="width:12.5%"></colgroup>
+            <tr><th rowspan="2">Nº<br>da<br>peça</th><th rowspan="2">DATA</th><th rowspan="2">PEÇA</th><th rowspan="2">MODELO</th><th class="grp t" colspan="3">TRECHO 1</th><th class="grp t" colspan="3">TRECHO 2</th><th rowspan="2" class="t">CONTINUA<br>A PEÇA Nº</th><th rowspan="2">PRONTA:<br>TURNO QUE<br>FINALIZOU</th></tr>
+            <tr><th class="t">CHAPA</th><th>INÍCIO</th><th>FIM</th><th class="t">CHAPA</th><th>INÍCIO</th><th>FIM</th></tr>
+            <tr><td class="hw">1</td><td class="hw">15/10</td><td class="hw">MESA</td><td class="hw">D61</td><td class="hw t">1001</td><td class="hw">13:00</td><td class="hw">14:30</td><td class="hw t">1001</td><td class="hw">15:30</td><td class="hw">17:00</td><td class="t"></td><td class="hw">1</td></tr>
+          </table>
+        </div>
+        <div>
+          <div class="lbl">QUADRO 2 · PARADAS</div>
+          <table>
+            <colgroup><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:10%"><col style="width:11%"><col style="width:11%"><col style="width:11%"><col></colgroup>
+            <tr><th>Nº<br>(da peça)</th><th>TURNO</th><th>DATA</th><th>CHAPA</th><th>INÍCIO</th><th>FIM</th><th>MOTIVO</th><th>DESCRIÇÃO</th></tr>
+            <tr><td class="hw">1</td><td class="hw">1</td><td class="hw">15/10</td><td class="hw">1001</td><td class="hw">14:30</td><td class="hw">15:30</td><td class="hw">10</td><td class="hw" style="text-align:left;padding-left:3mm">Troca de inserto</td></tr>
+          </table>
+        </div>
+        <div class="cmp">
+          <div class="ok"><b class="h">✔ CERTO</b>Trecho 1: 13:00–14:30 · Trecho 2: 15:30–17:00<br>Parada: 14:30–15:30.<br><b>3 h produzindo + 1 h parado = 4 h</b></div>
+          <div class="no"><b class="h">✘ ERRADO</b>Um trecho só, 13:00–17:00, e a parada 14:30–15:30 anotada embaixo.<br><b>A hora parada conta duas vezes.</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card"><h3>CÓDIGOS DE PARADA (coluna MOTIVO)</h3>
+      <div class="in">
+        <div class="codes">
+          <div class="code"><i>1</i>Mecânica</div>
+          <div class="code"><i>6</i>Refeição</div>
+          <div class="code"><i>2</i>Elétrica</div>
+          <div class="code"><i>7</i>Tyorei</div>
+          <div class="code"><i>3</i><span>Manutenção<small>preventiva</small></span></div>
+          <div class="code"><i>8</i><span>Outros<small>escreva o motivo na descrição</small></span></div>
+          <div class="code"><i>4</i>Troca de peça</div>
+          <div class="code"><i>9</i><span>Set-up<small>trocar de modelo</small></span></div>
+          <div class="code"><i>5</i>Falta de peça</div>
+          <div class="code"><i>10</i><span>Ferramenta<small>inserto, fresa, broca</small></span></div>
+        </div>
+        <div class="note"><b>4 ou 9?</b> Tirou a pronta e pôs <b>outra igual</b> = <b>4</b>. Mudou de <b>modelo</b> (dispositivo, programa) = <b>9</b>.<br><b>1 ou 10?</b> Trocar inserto, fresa ou broca gasta/quebrada = <b>10</b>. Trocador de ferramenta com defeito = <b>1</b>.<br><b>Almoço, janta, ceia, café</b> = <b>6</b> (não use 8). <b>Sem peça na máquina?</b> No “Nº”, escreva <b>—</b>.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="tip"><b class="h">TROCA DE TURNO NO MEIO DA PEÇA</b>Não começa linha nova: o próximo operador usa o <b>próximo trecho da mesma linha</b>, com a <b>chapa dele</b>.</div>
+    <div class="tip"><b class="h">MAIS DE 4 TRECHOS NA MESMA PEÇA</b>Continue na <b>linha de baixo</b>, mesma peça, e escreva em <b>“CONTINUA A PEÇA Nº”</b> o número da linha de cima. O turno em PRONTA vai só na última.</div>
+    <div class="tip"><b class="h">PEÇA NÃO TERMINOU / FOLHA ACABOU</b>Deixe <b>PRONTA em branco</b> e continue na próxima folha. Folha cheia? Pegue outra, escreva <b>“Folha 2 de 2”</b> e <b>continue a numeração</b> das peças.</div>
+  </div>
+</div>
+</body>
+</html>
