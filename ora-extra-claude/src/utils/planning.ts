@@ -18,18 +18,25 @@ const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
 const DISPLAY: Record<string, string> = { fabio: 'Fábio', joao: 'João', rogerio: 'Rogério', goncalves: 'Gonçalves', araujo: 'Araújo' };
 const disp = (x: string) => DISPLAY[x] ?? cap(x);
 
-export interface LeaderCard { key: string; nome: string; turno: string; dia: string; total: number; byCc: [string, number][] }
-/** Um cartão por (líder, turno[, dia]): equipe do líder naquele turno, por centro de custo. */
+export interface LeaderCard { key: string; nome: string; turno: string; dia: string; total: number; byCc: [string, number][]; others?: boolean }
+const dayKey = (d: string) => d.split('/').reverse().join();
+/** Um cartão por (líder, turno[, dia]): equipe do líder naquele turno, por CC. Quem não é de nenhuma equipe de contramestre vai para "Outros / sem líder". */
 export function buildLeaderCards(recs: OvertimeRecord[]): LeaderCard[] {
   const cards = new Map<string, LeaderCard>();
+  const inTeam = new Set<string>();
   recs.filter((r) => isLeaderName(r.funcionario)).forEach((l) => {
     const [a, b] = leaderKey(l.funcionario)!;
     const k = `${l.data}|${turno(l)}|${a}`;
     if (cards.has(k)) return;
     const team = recs.filter((r) => r.data === l.data && turno(r) === turno(l) && norm(r.lider).split(/[\s/]+/).includes(a));
+    team.forEach((r) => inTeam.add(r.id));
     cards.set(k, { key: k, nome: `${disp(a)} ${disp(b)}`, turno: turno(l), dia: l.data, total: team.length, byCc: countBy(team, (r) => r.cc || 'Sem CC') });
   });
-  return [...cards.values()].sort((x, y) => x.dia.split('/').reverse().join().localeCompare(y.dia.split('/').reverse().join()) || x.turno.localeCompare(y.turno) || x.nome.localeCompare(y.nome, 'pt-BR'));
+  const rest = recs.filter((r) => !inTeam.has(r.id));
+  const groups = new Map<string, OvertimeRecord[]>();
+  rest.forEach((r) => { const k = `${r.data}|${turno(r)}`; groups.set(k, [...(groups.get(k) ?? []), r]); });
+  groups.forEach((g, k) => cards.set(`o|${k}`, { key: `o|${k}`, nome: 'Outros / sem líder', turno: turno(g[0]), dia: g[0].data, total: g.length, byCc: countBy(g, (r) => r.cc || 'Sem CC'), others: true }));
+  return [...cards.values()].sort((x, y) => dayKey(x.dia).localeCompare(dayKey(y.dia)) || x.turno.localeCompare(y.turno) || Number(!!x.others) - Number(!!y.others) || x.nome.localeCompare(y.nome, 'pt-BR'));
 }
 export const isLeaderRow = (r: OvertimeRecord) => norm(r.motivoHe) === 'responsavel' || isLeaderName(r.funcionario);
 export const needsTransport = (r: OvertimeRecord) => {
@@ -50,8 +57,9 @@ export function halves<T>(xs: T[]): [T[], T[]] {
   return [xs.slice(0, n), xs.slice(n)];
 }
 
-export type SortMode = 'ALFA' | 'PECA' | 'LIDER' | 'CC' | 'CHAPA';
+export type SortMode = 'EQUIPES' | 'ALFA' | 'PECA' | 'LIDER' | 'CC' | 'CHAPA';
 export const SORT_LABELS: Record<SortMode, string> = {
+  EQUIPES: 'Equipes (data › líder › horário)',
   ALFA: 'Alfabética (dias agrupados)',
   PECA: 'Por peça',
   LIDER: 'Por líder',
@@ -108,6 +116,7 @@ export const COL_LABELS: Record<ColKey, string> = {
 export function presetLevels(mode: SortMode): SortLevel[] {
   const up = (...c: ColKey[]): SortLevel[] => c.map((col) => ({ col, dir: 'asc' }));
   switch (mode) {
+    case 'EQUIPES': return up('data', 'lider', 'horario', 'resp', 'nome');
     case 'ALFA': return up('data', 'nome');
     case 'CHAPA': return up('data', 'chapa');
     case 'PECA': return up('peca', 'data', 'nome');
@@ -115,11 +124,12 @@ export function presetLevels(mode: SortMode): SortLevel[] {
     case 'CC': return up('cc', 'data', 'resp', 'peca', 'nome');
   }
 }
+export const DEFAULT_LEVELS = (): SortLevel[] => presetLevels('EQUIPES');
 export const levelsKey = (l: SortLevel[]) => l.map((x) => `${x.col}:${x.dir}`).join('|');
 export const matchPreset = (l: SortLevel[]): SortMode | null =>
   (Object.keys(SORT_LABELS) as SortMode[]).find((m) => levelsKey(presetLevels(m)) === levelsKey(l)) ?? null;
 export const levelsLabel = (l: SortLevel[]) =>
-  l.filter((x) => x.col !== 'resp').map((x) => `${COL_LABELS[x.col]} ${x.dir === 'asc' ? '↑' : '↓'}`).join(' › ');
+  l.filter((x) => x.col !== 'resp').length === 0 ? 'ordem da planilha' : l.filter((x) => x.col !== 'resp').map((x) => `${COL_LABELS[x.col]} ${x.dir === 'asc' ? '↑' : '↓'}`).join(' › ');
 
 const timeKey = (r: OvertimeRecord) => `${r.de || '99:99'}-${r.ate || '99:99'}`;
 const cmpText = (a: string, b: string) => a.localeCompare(b, 'pt-BR', { numeric: true });
@@ -137,6 +147,7 @@ const COL_CMP: Record<ColKey, (a: OvertimeRecord, b: OvertimeRecord) => number> 
 
 /** Aplica os níveis na ordem; desempate final: dia, depois nome. */
 export function sortRecords(recs: OvertimeRecord[], levels: SortLevel[]) {
+  if (levels.length === 0) return [...recs]; // sem classificação: ordem original da planilha
   return [...recs].sort((a, b) => {
     for (const lv of levels) {
       const c = COL_CMP[lv.col](a, b);
@@ -161,17 +172,31 @@ export function groupKeyOf(col: ColKey, r: OvertimeRecord): string | null {
 
 export type Row = { kind: 'group'; label: string; n: number } | { kind: 'rec'; r: OvertimeRecord; idx: number };
 
+const GROUPABLE: ColKey[] = ['data', 'peca', 'lider', 'cc', 'horario', 'transporte'];
+/** Faixa composta pelos níveis iniciais agrupáveis (ex.: Sáb · 03/10 › Odonei › 06:00 – 12:00). */
+function groupLabel(levels: SortLevel[], r: OvertimeRecord, multiDay: boolean): string | null {
+  const parts: string[] = [];
+  for (const lv of levels) {
+    if (!GROUPABLE.includes(lv.col) || parts.length >= 3) break;
+    if (lv.col === 'data' && !multiDay) continue;
+    const k = groupKeyOf(lv.col, r);
+    if (k) parts.push(k);
+  }
+  return parts.length ? parts.join(' · ') : null;
+}
+
 /** Linhas da lista nominal, já com cabeçalhos de grupo quando pedido. */
 export function buildRows(recs: OvertimeRecord[], levels: SortLevel[], group: boolean): Row[] {
   const sorted = sortRecords(recs, levels);
-  const first = levels[0]?.col;
+  const multiDay = new Set(recs.map((r) => r.data)).size > 1;
   const rows: Row[] = [];
   let last: string | null = null;
   let idx = 0;
   const counts = new Map<string, number>();
-  if (group && first) sorted.forEach((r) => { const k = groupKeyOf(first, r); if (k) counts.set(k, (counts.get(k) ?? 0) + 1); });
+  const keyOf = (r: OvertimeRecord) => (group ? groupLabel(levels, r, multiDay) : null);
+  if (group) sorted.forEach((r) => { const k = keyOf(r); if (k) counts.set(k, (counts.get(k) ?? 0) + 1); });
   sorted.forEach((r) => {
-    const k = group && first ? groupKeyOf(first, r) : null;
+    const k = keyOf(r);
     if (k && k !== last) {
       rows.push({ kind: 'group', label: k, n: counts.get(k) ?? 0 });
       last = k;

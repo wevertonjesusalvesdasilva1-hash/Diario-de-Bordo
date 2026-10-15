@@ -17,12 +17,14 @@ import {
   levelsLabel,
   matchPreset,
   presetLevels,
+  DEFAULT_LEVELS,
   SORT_LABELS,
   SortLevel,
   SortMode,
   transpLabel,
   turno,
 } from '../utils/planning';
+import { loadSetting, saveSetting } from '../lib/settingsSync';
 import { OFFICIAL_LEADERS } from '../data/leaderDatabase';
 import { BRAND } from '../utils/brand';
 import { exportPlanningExcel } from '../utils/planningExcel';
@@ -158,9 +160,34 @@ export default function PlanejamentoHoraExtra({
   const [picked, setPicked] = useState<string[]>([selectedDate]);
   const [layout, setLayout] = useState<Layout>('COMBINED');
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [levels, setLevels] = useState<SortLevel[]>(presetLevels('ALFA'));
+  const PREFS_KEY = 'horaextra_planning_prefs_v1';
+  const [levels, setLevels] = useState<SortLevel[]>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null');
+      if (v && Array.isArray(v.levels)) return v.levels as SortLevel[];
+    } catch { /* ignore */ }
+    return DEFAULT_LEVELS();
+  });
   const [sortOpen, setSortOpen] = useState(false);
-  const [group, setGroup] = useState(true);
+  const [group, setGroup] = useState(() => {
+    try { const v = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null'); if (v && typeof v.group === 'boolean') return v.group as boolean; } catch { /* ignore */ }
+    return true;
+  });
+  // Memória: a classificação escolhida fica guardada (aparelho + banco) e volta igual na próxima vez.
+  const prefsLoaded = useRef(false);
+  useEffect(() => {
+    void loadSetting<{ levels: SortLevel[]; group: boolean }>('planning_prefs').then((v) => {
+      if (v && Array.isArray(v.levels)) { setLevels(v.levels); if (typeof v.group === 'boolean') setGroup(v.group); }
+      prefsLoaded.current = true;
+    });
+  }, []);
+  useEffect(() => {
+    const v = { levels, group };
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(v)); } catch { /* ignore */ }
+    if (!prefsLoaded.current) return;
+    const t = setTimeout(() => void saveSetting('planning_prefs', v), 800);
+    return () => clearTimeout(t);
+  }, [levels, group]);
   const [busy, setBusy] = useState(false);
   const [pdfJob, setPdfJob] = useState(false);
   const [paper, setPaper] = useState<'A3' | 'A4'>('A3');
@@ -291,14 +318,14 @@ export default function PlanejamentoHoraExtra({
     setLevels((cur) => {
       const real = cur.filter((l) => l.col !== 'resp');
       const idx = real.findIndex((l) => l.col === col);
-      const next = (arr: SortLevel[]) => (arr.length ? arr : presetLevels('ALFA'));
+      const next = (arr: SortLevel[]) => arr;
       if (additive) {
         if (idx < 0) return [...real, { col, dir: 'asc' }];
         if (real[idx].dir === 'asc') return real.map((l, i) => (i === idx ? { ...l, dir: 'desc' } : l));
         return next(real.filter((_, i) => i !== idx));
       }
       if (real.length === 1 && idx === 0) {
-        return real[0].dir === 'asc' ? [{ col, dir: 'desc' }] : presetLevels('ALFA');
+        return real[0].dir === 'asc' ? [{ col, dir: 'desc' }] : [];
       }
       return [{ col, dir: 'asc' }];
     });
@@ -445,7 +472,7 @@ export default function PlanejamentoHoraExtra({
           onChange={(e) => e.target.value !== 'CUSTOM' && setLevels(presetLevels(e.target.value as SortMode))}
         >
           {(Object.keys(SORT_LABELS) as SortMode[]).map((k) => <option key={k} value={k}>Ordem: {SORT_LABELS[k]}</option>)}
-          {!matchPreset(levels) && <option value="CUSTOM">Ordem: Personalizada</option>}
+          {!matchPreset(levels) && <option value="CUSTOM">{levels.length === 0 ? 'Ordem: Sem classificação' : 'Ordem: Personalizada'}</option>}
         </select>
         <div className="relative min-w-0">
           <button type="button" onClick={() => setSortOpen(!sortOpen)} className={`${sel} w-full text-left font-bold ${matchPreset(levels) ? '' : 'border-amber-400 text-amber-200'}`}>
@@ -464,7 +491,7 @@ export default function PlanejamentoHoraExtra({
                     <option value="asc">A → Z</option>
                     <option value="desc">Z → A</option>
                   </select>
-                  <button type="button" aria-label="Excluir nível" disabled={arr.length === 1} onClick={() => setLevels(arr.filter((_, k) => k !== i))} className="rounded-md bg-slate-800 px-2 py-1 text-xs disabled:opacity-30">✕</button>
+                  <button type="button" aria-label="Excluir nível" onClick={() => setLevels(arr.filter((_, k) => k !== i))} className="rounded-md bg-slate-800 px-2 py-1 text-xs hover:bg-red-900">✕</button>
                 </div>
               ))}
               <div className="flex justify-between pt-1">
@@ -474,7 +501,8 @@ export default function PlanejamentoHoraExtra({
                   setLevels([...levels.filter((l) => l.col !== 'resp'), { col: nextCol, dir: 'asc' }]);
                 }}>+ Adicionar nível</button>
                 <span className="flex gap-3">
-                  <button type="button" className="text-xs text-slate-300 underline" onClick={() => setLevels(presetLevels('ALFA'))}>Restaurar padrão</button>
+                  <button type="button" className="text-xs text-red-300 underline" onClick={() => setLevels([])}>Excluir todas</button>
+                  <button type="button" className="text-xs text-slate-300 underline" onClick={() => setLevels(DEFAULT_LEVELS())}>Restaurar padrão</button>
                   <button type="button" className="text-xs font-bold text-emerald-300" onClick={() => setSortOpen(false)}>Fechar</button>
                 </span>
               </div>
@@ -493,7 +521,7 @@ export default function PlanejamentoHoraExtra({
           </label>
           <button
             type="button"
-            onClick={() => { setFilters(EMPTY_FILTERS); setLevels(presetLevels('ALFA')); setGroup(true); }}
+            onClick={() => { setFilters(EMPTY_FILTERS); setLevels(DEFAULT_LEVELS()); setGroup(true); }}
             className="whitespace-nowrap rounded-lg border border-red-400/60 bg-red-950/40 px-3 py-1.5 text-xs font-bold text-red-300 hover:bg-red-950/70"
           >
             ✕ Limpar todos os filtros

@@ -32,6 +32,7 @@ import {
 import PlanejamentoHoraExtra from './components/PlanejamentoHoraExtra';
 import AdminUsers from './components/AdminUsers';
 import LoginScreen from './components/LoginScreen';
+import { loadSetting, saveSetting } from './lib/settingsSync';
 import { useCloudSync } from './lib/useCloudSync';
 import { cloudEnabled } from './lib/supabase';
 import { getRealFactoryDataset, normalizeOvertimeRecord } from './data/realSampleData';
@@ -59,6 +60,7 @@ import { ExecutiveBentoDashboard } from './components/ExecutiveBentoDashboard';
 import { LeaderDirectoryModal } from './components/LeaderDirectoryModal';
 import {
   loadLeaderOverrides,
+  LEADER_OVERRIDES_STORAGE_KEY,
   matchesSelectedLeader,
   normalizePersonName,
   OFFICIAL_LEADERS,
@@ -226,6 +228,16 @@ export default function App() {
 
   const cloud = useCloudSync(records, setRecords);
 
+  // Memória do sistema: líderes já definidos voltam do banco em qualquer aparelho e valem nas próximas planilhas.
+  useEffect(() => {
+    void loadSetting<Record<string, string>>('leader_overrides').then((remote) => {
+      if (!remote) return;
+      const merged = { ...loadLeaderOverrides(), ...remote };
+      try { localStorage.setItem(LEADER_OVERRIDES_STORAGE_KEY, JSON.stringify(merged)); } catch { /* ignore */ }
+      setLeaderOverrides(merged);
+    });
+  }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_DATE_KEY, selectedDate);
@@ -253,6 +265,7 @@ export default function App() {
       updatedOverrides = saveLeaderOverride(`nome:${normName}`, newLeader);
     }
     setLeaderOverrides(updatedOverrides);
+    void saveSetting('leader_overrides', updatedOverrides);
 
     setRecords((prev) =>
       prev.map((rec) => {

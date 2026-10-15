@@ -134,3 +134,9 @@ create policy "he_open_shifts" on public.he_shifts for all to anon using (true) 
 create policy "he_open_assignments" on public.he_assignments for all to anon using (true) with check (true);
 create policy "he_open_timeline" on public.he_timeline_events for all to anon using (true) with check (true);
 create policy "he_open_realloc" on public.he_reallocations for all to anon using (true) with check (true);
+
+-- Memória do sistema (definições do usuário)
+create table if not exists public.he_settings (key text primary key, value jsonb not null, updated_at timestamptz not null default now());
+alter table public.he_settings enable row level security;
+create policy "he_open_settings" on public.he_settings for all to anon using (true) with check (true);
+create policy "he_auth_settings" on public.he_settings for all to authenticated using (true) with check (true);

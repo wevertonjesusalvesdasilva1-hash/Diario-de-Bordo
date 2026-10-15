@@ -131,6 +131,15 @@ export function PagedSheet({
   filterNote: string;
 }) {
   const s = useMemo(() => buildSummary(recs), [recs]);
+  const routes = useMemo(() => {
+    const big = s.byRota.filter(([, v]) => v >= 2);
+    const small = s.byRota.filter(([, v]) => v < 2);
+    const out: [string, number][] = [...big];
+    if (small.length) out.push([`Outras rotas (${small.length})`, small.reduce((a, [, v]) => a + v, 0)]);
+    return out;
+  }, [s]);
+  const routeMax = Math.max(1, ...routes.map(([, v]) => v));
+  const issued = useMemo(() => new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }), [recs]);
   const rows = useMemo(() => buildRows(recs, levels, group), [recs, levels, group]);
   const sumRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -235,6 +244,14 @@ export function PagedSheet({
               </div>
             </div>
 
+            <div className="flex items-center justify-center gap-x-8 gap-y-1 flex-wrap px-4 py-2 font-black" style={{ background: BRAND.yellow, color: BRAND.blue, fontSize: 26 }}>
+              {s.byTurno.map(([t, n]) => (
+                <span key={t} className="tabular-nums whitespace-nowrap">{t.replace(' – ', ' ~ ')}{s.byTurno.length > 1 ? ` (${n})` : ''}</span>
+              ))}
+              <span className="whitespace-nowrap">· {s.total} pessoas</span>
+              <span className="whitespace-nowrap">· {s.leaderCards.filter((c) => !c.others).length} {s.leaderCards.filter((c) => !c.others).length === 1 ? 'líder' : 'líderes'}</span>
+            </div>
+
             <div className="grid gap-3 items-stretch" style={{ gridTemplateColumns: `repeat(5, 1fr)` }}>
               <div className="border-2 p-2 text-center flex flex-col justify-center" style={{ borderColor: BRAND.blue, background: BRAND.yellow, color: BRAND.blue }}>
                 <p className="text-[10px] font-bold uppercase">Total</p>
@@ -250,23 +267,33 @@ export function PagedSheet({
               {!showDate && <Box title="Refeição"><MiniTable head={['Tipo', 'Qtd']} rows={s.byRef.map(([k, v]) => [k, v])} /></Box>}
             </div>
 
-            <div className="grid gap-3 items-stretch" style={{ gridTemplateColumns: '1fr 1.15fr 1.1fr', flex: 1, minHeight: 0 }}>
-              <Box title="Por líder / contramestre"><MiniTable stretch head={['Líder', 'Qtd']} rows={s.byLider.map(([k, v]) => [k, v])} /></Box>
-              <Box title={`Líderes em destaque (${s.leaderCards.length})`}>
+            <div className="grid gap-3 items-stretch" style={{ gridTemplateColumns: '2.2fr 1fr', flex: 1, minHeight: 0 }}>
+              <Box title={`Equipes por líder (${s.leaderCards.filter((c) => !c.others).length} líderes)`}>
                 {s.leaderCards.length === 0 ? (
                   <p className="text-[11px]">Nenhum líder na lista.</p>
                 ) : (
-                  <div className="flex-1 grid gap-2 content-start" style={{ gridTemplateColumns: s.leaderCards.length > 2 ? '1fr 1fr' : '1fr' }}>
+                  <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${s.leaderCards.length <= 2 ? s.leaderCards.length : s.leaderCards.length <= 6 ? 2 : 3}, 1fr)`, gridAutoRows: '1fr' }}>
                     {s.leaderCards.map((c) => (
-                      <div key={c.key} className="border-2 rounded" style={{ borderColor: BRAND.blue, background: BRAND.yellowSoft }}>
-                        <div className="px-2 py-1 text-white" style={{ background: BRAND.blue }}>
-                          <div className="font-black text-[13px] leading-tight">{c.nome}</div>
-                          <div className="text-[11px] tabular-nums" style={{ color: BRAND.yellow }}>{showDate ? c.dia.slice(0, 5) + ' · ' : ''}{c.turno.replace(' – ', ' ~ ')}</div>
+                      <div key={c.key} className="border-2 rounded flex flex-col" style={{ borderColor: c.others ? '#64748b' : BRAND.blue, background: c.others ? '#f1f5f9' : BRAND.yellowSoft }}>
+                        <div className="px-3 py-1.5 text-white flex items-baseline justify-between gap-2" style={{ background: c.others ? '#64748b' : BRAND.blue }}>
+                          <div>
+                            <div className="font-black text-[17px] leading-tight">{c.nome}</div>
+                            <div className="text-[13px] font-bold tabular-nums" style={{ color: c.others ? '#fff' : BRAND.yellow }}>{showDate ? c.dia.slice(0, 5) + ' · ' : ''}{c.turno.replace(' – ', ' ~ ')}</div>
+                          </div>
+                          <div className="text-right leading-none">
+                            <div className="text-4xl font-black tabular-nums">{c.total}</div>
+                            <div className="text-[10px] uppercase">equipe</div>
+                          </div>
                         </div>
-                        <div className="px-2 py-1 text-[12px]">
-                          <div className="flex justify-between font-black border-b border-gray-400"><span>Equipe</span><span className="tabular-nums">{c.total}</span></div>
+                        <div className="px-3 py-2 flex-1 flex flex-col justify-around gap-1">
                           {c.byCc.map(([k, v]) => (
-                            <div key={k} className="flex justify-between"><span>CC {k}</span><span className="tabular-nums font-bold">{v}</span></div>
+                            <div key={k} className="flex items-center gap-2 text-[14px]">
+                              <span className="w-16 shrink-0 font-bold">CC {k}</span>
+                              <div className="flex-1 h-4 bg-white border border-gray-300">
+                                <div style={{ width: `${(v / c.total) * 100}%`, height: '100%', background: c.others ? '#64748b' : BRAND.blue }} />
+                              </div>
+                              <span className="w-8 text-right font-black tabular-nums">{v}</span>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -274,7 +301,29 @@ export function PagedSheet({
                   </div>
                 )}
               </Box>
-              <Box title="Transporte por rota"><MiniTable stretch head={['Rota', 'Qtd']} rows={s.byRota.map(([k, v]) => [k, v])} /></Box>
+              <Box title="Transporte por rota">
+                <div className="flex-1 flex flex-col justify-around gap-1">
+                  {routes.map(([k, v]) => (
+                    <div key={k} className="flex items-center gap-2 text-[12px]">
+                      <span className="w-40 shrink-0 truncate font-semibold" title={k}>{k}</span>
+                      <div className="flex-1 h-3.5 bg-gray-100 border border-gray-300">
+                        <div style={{ width: `${(v / routeMax) * 100}%`, height: '100%', background: k.startsWith('Outras rotas') ? '#94a3b8' : BRAND.blue }} />
+                      </div>
+                      <span className="w-7 text-right font-black tabular-nums">{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </Box>
+            </div>
+
+            <div className="grid gap-6 pt-2 text-[12px]" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
+              {['Líder / Contramestre', 'Gestor', 'RH'].map((l) => (
+                <div key={l} className="text-center">
+                  <div style={{ borderBottom: '1.5px solid #000', height: 30 }} />
+                  <div className="font-bold mt-0.5">{l}</div>
+                </div>
+              ))}
+              <div className="text-right tabular-nums" style={{ color: '#475569' }}>Emitido em<br /><b>{issued}</b></div>
             </div>
           </div>
         </div>
