@@ -5,7 +5,7 @@ import { dmy, dayLoads, historyStandardOf, spanHours } from './core/history.js';
 import { loadBase, matrixRev } from './historico.js';
 import { recordsEditor } from './dbeditor.js';
 import { getOperators, operatorName } from './core/operators.js';
-import { el, chartBox, PALETTE } from './bicharts.js';
+import { el, chartBox as rawChartBox, PALETTE } from './bicharts.js';
 import { auditData } from './core/audit.js';
 import { getValor } from './valorhora.js';
 import { brl } from './core/plan.js';
@@ -18,6 +18,18 @@ const corEficS = (e) => sk(corEfic(e));
 const corPctS = (v) => sk(BI.corPct(v)), corGanhoS = (g) => sk(BI.corGanho(g)), corTempoS = (h) => sk(BI.corTempo(h)), corVariacaoS = (v) => sk(BI.corVariacao(v));
 
 const SEP = '\u0001';
+// Cross-highlight like Power BI: when a bar of ANOTHER chart is clicked, a column/bar chart keeps all its bars dim and lights up the part that belongs to the click
+let curVid = null;
+const hlWrap = (vid, build) => () => {
+  const f = build();
+  if (!ui.sel || ui.sel.vid === vid || f.kind === 'area' || !f.cats || !f.series) return f;
+  ui.noSel = true; let full; try { full = build(); } finally { ui.noSel = false; }
+  const idx = new Map(f.cats.map((c, i) => [c.key, i]));
+  for (const s of full.series) { const sf = f.series.find((q) => q.name === s.name); s.hl = full.cats.map((c) => { const i = idx.get(c.key); return i == null ? 0 : sf?.vals[i] ?? 0; }); }
+  full.hlOn = true;
+  return full;
+};
+const chartBox = (spec, cls) => { const vid = curVid; return rawChartBox(typeof spec === 'function' ? hlWrap(vid, spec) : spec, cls); };
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const fileSafe = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 -]+/g, ' ').trim().replace(/\s+/g, '-').slice(0, 60) || 'dados';
 let slicerFills = [];
@@ -120,7 +132,7 @@ function vis(title, build, { vid, side = 'p', wide = false, acts = [], filters =
   const box = el('section', { class: `bi-vis${wide ? ' wide' : ''}` }), slot = el('div');
   const max = el('button', { type: 'button', 'aria-label': 'Ampliar', onclick: () => { const on = box.classList.toggle('max'); max.textContent = on ? '✕ Fechar' : '⤢'; } }, '⤢');
   box.vid = vid;
-  box.rebuild = () => slot.replaceChildren(build());
+  box.rebuild = () => { curVid = vid; try { slot.replaceChildren(build()); } finally { curVid = null; } };
   const barHost = el('div', { class: 'vf-host' }), fkey = `${ui.g}.${ui.page}.${vid}`;
   let open = false;
   const isActive = () => { const t = ui.vf[fkey]; return !!t && (t.m?.size > 0 || !!t.from || !!t.to); };
@@ -487,7 +499,7 @@ export async function renderBiUI(root, ctx) {
   const x = { cube, g: ui.g, base, toast: ctx.toast ?? ((m) => window.alert(m)),
     // after an edit in a table: read the base again and redraw every visual in place
     refresh: async () => { x.base = await loadBase(ui.g, { force: true }); cube = cubeFor(ui.g, x.base); curCube = cube; x.cube = cube; slicerFills.forEach((fn) => fn()); REG.forEach((r) => r.rebuild()); },
-    F: (vid) => mergeF(mergeF(pageFilter(), ui.sel && ui.sel.vid !== vid ? ui.sel.f() : null), visFilterOf(vid)),
+    F: (vid) => mergeF(mergeF(pageFilter(), ui.sel && ui.sel.vid !== vid && !ui.noSel ? ui.sel.f() : null), visFilterOf(vid)),
     selOf: (vid) => (ui.sel?.vid === vid ? ui.sel.keys : null),
     // like Power BI: a click selects only that bar (again = clear); Ctrl/⌘ + click (or "Seleção múltipla") adds or removes bars
     pick: (vid, sd, cols) => (key, ev) => {

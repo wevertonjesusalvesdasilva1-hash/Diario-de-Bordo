@@ -255,3 +255,7 @@ Nos campos INÍCIO e FIM (produção e paradas, na conferência e na revisão r�
 
 - "Produção + paradas por dia (limite de 24 h)" mostra por padrão **todos os robôs, dia a dia**: uma barra por robô e dia, agrupadas pelo dia. Dá para trocar para "só o robô mais carregado de cada dia", "só os dias com erro" ou um robô.
 - Aba Base de dados → **Comparar com o Excel**: escolha a planilha original e o mês; o app lista o que na base difere dela (linhas editadas, incluídas, excluídas) e o botão "Voltar ‹mês› ao que está no Excel" desfaz tudo. Na Matriz de tempos, "Voltar à matriz original" descarta as mudanças salvas.
+
+## Clique em barra = destaque nos outros gráficos (como no Power BI)
+
+Clicar numa barra de um gráfico: nos outros gráficos de colunas e barras, tudo escurece e só a parte que pertence ao que foi clicado fica acesa (por exemplo, clicar no RAW05 acende só o RAW05 nas outras colunas, e a fatia do RAW05 dentro das barras por turno ou por peça). Cartões, tabelas e gráficos de linha/área são filtrados pelo clique. Clicar de novo na mesma barra limpa; Ctrl + clique soma barras.

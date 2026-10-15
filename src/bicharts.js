@@ -79,7 +79,10 @@ export function drawChart(box, full) {
         S('text', { x: labW - 6, y: y + rowH / 2, 'text-anchor': 'end', 'dominant-baseline': 'middle' }, clip(c.label, 26)));
       series.forEach((s, k) => {
         const w = Math.max(0, (s.vals[i] / max) * plot);
-        g.append(bar(svg, c.color ?? s.color, 'h', cats.length * series.length <= 60, { x: labW, y: y + k * bh, width: w, height: bh - 2 }),
+        const b0 = bar(svg, c.color ?? s.color, 'h', cats.length * series.length <= 60, { x: labW, y: y + k * bh, width: w, height: bh - 2 });
+        g.append(b0);
+        if (spec.hlOn && s.hl) { b0.setAttribute('opacity', '0.22'); const hw = Math.max(0, ((s.hl[i] || 0) / max) * plot); if (hw > 0) g.append(bar(svg, c.color ?? s.color, 'h', true, { x: labW, y: y + k * bh, width: hw, height: bh - 2 })); }
+        g.append(
           S('text', { x: labW + w + 4, y: y + k * bh + bh / 2 - 1, 'dominant-baseline': 'middle', class: 'mut' }, fmt(s.vals[i]) + (tip ? ` · ${tip(i)}` : '')));
       });
       svg.append(g);
@@ -126,7 +129,14 @@ export function drawChart(box, full) {
     series.forEach((s, k) => {
       const v = s.vals[i] || 0, bx = stacked ? x0 + (step - bw) / 2 : x0 + (step - bw * nS) / 2 + k * bw;
       const yTop = y(stacked ? acc + v : v), hgt = Math.max(0, (stacked ? y(acc) : y(0)) - yTop);
-      g.append(bar(svg, c.color ?? s.color, 'v', cats.length * nS <= 120, { x: bx, y: yTop, width: Math.max(1, bw - 1), height: hgt }));
+      const b0 = bar(svg, c.color ?? s.color, 'v', cats.length * nS <= 120, { x: bx, y: yTop, width: Math.max(1, bw - 1), height: hgt });
+      g.append(b0);
+      // cross-highlight (like Power BI): the whole bar goes dim and the part that belongs to the clicked selection stays bright
+      if (spec.hlOn && s.hl) {
+        b0.setAttribute('opacity', '0.22');
+        const hv = s.hl[i] || 0;
+        if (hv > 0) { const yb = stacked ? y(acc) : y(0), yt = stacked ? y(acc + hv) : y(hv); g.append(bar(svg, c.color ?? s.color, 'v', true, { x: bx, y: yt, width: Math.max(1, bw - 1), height: Math.max(0, yb - yt) })); }
+      }
       if (v && (bw >= 22 || (cats.length <= 14 && bw >= 14)) && !(stacked && hgt < 12)) g.append(S('text', { x: bx + bw / 2, y: stacked ? yTop + hgt / 2 : yTop - 3, 'text-anchor': 'middle', 'dominant-baseline': stacked ? 'middle' : 'auto', style: 'font-size:10px' }, fmt(v)));
       if (stacked) acc += v;
     });
