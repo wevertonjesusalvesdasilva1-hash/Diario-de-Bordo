@@ -542,10 +542,12 @@ export async function renderBiUI(root, ctx) {
   function drawMain() {
     if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { mirror(); prune(); mirror(); drawMain(); }), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }
     else {                                         // like Power BI: the other visuals redraw, the page does not move
-      const y = window.scrollY, vs = [...document.querySelectorAll('.bi-vis')], jump = () => window.scrollTo({ top: y, behavior: 'instant' });
+      // anchor on the first chart that is on screen: whatever grows or shrinks ABOVE it (alerts, the note, the cards) must not push it
+      const vs = [...document.querySelectorAll('.bi-vis')], ai = vs.findIndex((v) => v.getBoundingClientRect().bottom > 140), top0 = vs[ai]?.getBoundingClientRect().top;
+      const hold = () => { const t = vs[ai]?.getBoundingClientRect().top; if (t != null && Math.abs(t - top0) > 0.5) window.scrollBy({ top: t - top0, behavior: 'instant' }); };
       vs.forEach((v) => { v.style.minHeight = `${v.offsetHeight}px`; });   // a box never shrinks while it redraws
-      REG.forEach((r) => r.rebuild()); jump();
-      requestAnimationFrame(() => { vs.forEach((v) => { v.style.minHeight = ''; }); jump(); });
+      REG.forEach((r) => r.rebuild()); noteFn(); hold();
+      requestAnimationFrame(() => { hold(); vs.forEach((v) => { v.style.minHeight = ''; }); hold(); setTimeout(hold, 120); });
     }
     noteFn();
   }
