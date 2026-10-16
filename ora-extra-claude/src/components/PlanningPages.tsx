@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { OvertimeRecord } from '../types';
 import { BRAND } from '../utils/brand';
-import { buildRows, buildSummary, ColKey, isLeaderRow, levelsLabel, Row, SortLevel, transpLabel } from '../utils/planning';
+import { buildRows, buildSummary, ColKey, isLeaderRow, isRealLeaderName, levelsLabel, mergeLeaderCards, Row, SortLevel, transpLabel } from '../utils/planning';
 
 // A3 paisagem: 420 x 297 mm a 96 dpi
 export const A3_W = 1587;
@@ -98,17 +98,18 @@ function BodyRow({ row, h, zebra }: { row: Row; h?: number; zebra: boolean }) {
   const r = row.r;
   const lead = isLeaderRow(r);
   const cell: React.CSSProperties = { padding: '0.25em 0.7em', verticalAlign: 'middle', borderBottom: '1px solid #cbd5e1', whiteSpace: 'nowrap' };
+  const clip = (em: number): React.CSSProperties => ({ ...cell, maxWidth: `${em}em`, overflow: 'hidden', textOverflow: 'ellipsis' });
   return (
     <tr style={{ ...style, background: lead ? BRAND.yellowSoft : zebra ? '#f4f6fb' : '#fff', fontWeight: lead ? 800 : 400 }}>
       <td style={cell} className="tabular-nums">{r.data.slice(0, 5)}</td>
       <td style={cell} className="tabular-nums">{row.idx}</td>
       <td style={cell} className="tabular-nums">{r.chapa}</td>
-      <td style={{ ...cell, fontWeight: lead ? 800 : 600 }}>{r.funcionario}</td>
-      <td style={cell}>{r.motivoHe}</td>
+      <td style={{ ...clip(30), fontWeight: lead ? 800 : 600 }} title={r.funcionario}>{r.funcionario}</td>
+      <td style={clip(34)} title={r.motivoHe}>{r.motivoHe}</td>
       <td style={cell}>{r.cc}</td>
-      <td style={cell}>{r.lider}</td>
+      <td style={clip(22)} title={r.lider}>{r.lider}</td>
       <td style={{ ...cell, fontWeight: 700 }} className="tabular-nums">{r.de && r.ate ? `${r.de}–${r.ate}` : '—'}</td>
-      <td style={cell}>{transpLabel(r)}</td>
+      <td style={clip(34)} title={transpLabel(r)}>{transpLabel(r)}</td>
     </tr>
   );
 }
@@ -138,7 +139,8 @@ export function PagedSheet({
     if (small.length) out.push([`Outras rotas (${small.length})`, small.reduce((a, [, v]) => a + v, 0)]);
     return out;
   }, [s]);
-  const nLeaders = useMemo(() => new Set(s.leaderCards.map((c) => c.nome)).size, [s]);
+  const cards = useMemo(() => (showDate && s.leaderCards.length > 12 ? mergeLeaderCards(s.leaderCards) : s.leaderCards), [s, showDate]);
+  const nLeaders = useMemo(() => new Set(s.leaderCards.filter((c) => isRealLeaderName(c.nome)).map((c) => c.nome)).size, [s]);
   const routeMax = Math.max(1, ...routes.map(([, v]) => v));
   const issued = useMemo(() => new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }), [recs]);
   const rows = useMemo(() => buildRows(recs, levels, group), [recs, levels, group]);
@@ -162,7 +164,7 @@ export function PagedSheet({
       el.style.transform = 'none';
       return el.offsetHeight * sc;
     };
-    let lo = 0.6, hi = 1.35;
+    let lo = 0.25, hi = 1.35;
     for (let i = 0; i < 14; i++) {
       const mid = (lo + hi) / 2;
       if (apply(mid) <= CH) lo = mid; else hi = mid;
@@ -171,7 +173,7 @@ export function PagedSheet({
     el.style.minHeight = `${CH / lo}px`;
     el.style.transform = `scale(${lo})`;
     setSumScale(lo);
-  }, [s, showDate, filterNote, title, tick]);
+  }, [s, cards, showDate, filterNote, title, tick]);
 
   // 2) Lista: mede a largura natural (sem quebra de linha), escolhe a fonte e distribui as linhas pelas páginas.
   useLayoutEffect(() => {
@@ -249,7 +251,7 @@ export function PagedSheet({
               {s.byTurno.map(([t, n]) => (
                 <span key={t} className="tabular-nums whitespace-nowrap">{t.replace(' – ', ' ~ ')}{s.byTurno.length > 1 ? ` (${n})` : ''}</span>
               ))}
-              <span className="whitespace-nowrap">· {s.total} pessoas</span>
+              <span className="whitespace-nowrap">· {s.total} {s.total === 1 ? 'pessoa' : 'pessoas'}</span>
               <span className="whitespace-nowrap">· {nLeaders} {nLeaders === 1 ? 'líder' : 'líderes'}</span>
             </div>
 
@@ -257,7 +259,7 @@ export function PagedSheet({
               <div className="border-2 p-2 text-center flex flex-col justify-center" style={{ borderColor: BRAND.blue, background: BRAND.yellow, color: BRAND.blue }}>
                 <p className="text-[10px] font-bold uppercase">Total</p>
                 <p className="text-5xl font-black tabular-nums leading-none">{s.total}</p>
-                <p className="text-[10px]">colaboradores</p>
+                <p className="text-[10px]">{s.total === 1 ? 'colaborador' : 'colaboradores'}</p>
               </div>
               {showDate ? (
                 <Box title="Por dia"><MiniTable head={['Dia', 'Qtd']} rows={s.byDia.map(([k, v]) => [k, v])} /></Box>
@@ -269,17 +271,17 @@ export function PagedSheet({
             </div>
 
             <div className="grid gap-3 items-stretch" style={{ gridTemplateColumns: '2.2fr 1fr', flex: 1, minHeight: 0 }}>
-              <Box title={`Equipes por líder (${nLeaders} líderes)`}>
-                {s.leaderCards.length === 0 ? (
+              <Box title={`Equipes por líder (${nLeaders} ${nLeaders === 1 ? 'líder' : 'líderes'})`}>
+                {cards.length === 0 ? (
                   <p className="text-[11px]">Nenhum líder na lista.</p>
                 ) : (
-                  <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${s.leaderCards.length <= 2 ? s.leaderCards.length : s.leaderCards.length <= 6 ? 2 : 3}, 1fr)`, gridAutoRows: '1fr' }}>
-                    {s.leaderCards.map((c) => (
+                  <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${cards.length <= 2 ? cards.length : cards.length <= 6 ? 2 : cards.length <= 12 ? 3 : 4}, 1fr)`, gridAutoRows: '1fr' }}>
+                    {cards.map((c) => (
                       <div key={c.key} className="border-2 rounded flex flex-col" style={{ borderColor: c.others ? '#64748b' : BRAND.blue, background: c.others ? '#f1f5f9' : BRAND.yellowSoft }}>
                         <div className="px-3 py-1.5 text-white flex items-baseline justify-between gap-2" style={{ background: c.others ? '#64748b' : BRAND.blue }}>
                           <div>
                             <div className="font-black text-[17px] leading-tight">{c.nome}</div>
-                            <div className="text-[13px] font-bold tabular-nums" style={{ color: c.others ? '#fff' : BRAND.yellow }}>{showDate ? c.dia.slice(0, 5) + ' · ' : ''}{c.turno.replace(' – ', ' ~ ')}</div>
+                            <div className="text-[13px] font-bold tabular-nums" style={{ color: c.others ? '#fff' : BRAND.yellow }}>{showDate ? (c.days ? `${c.days} ${c.days === 1 ? 'dia' : 'dias'}` : c.dia.slice(0, 5)) + ' · ' : ''}{c.turno.replace(' – ', ' ~ ')}</div>
                           </div>
                           <div className="text-right leading-none">
                             <div className="text-4xl font-black tabular-nums">{c.total}</div>

@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { OvertimeRecord } from '../types';
 import {
   applyFilters,
   buildRows,
   buildSummary,
+  CHUNK_ERROR,
   EMPTY_FILTERS,
   exportBaseName,
   Filters,
@@ -17,6 +19,7 @@ import {
   levelsLabel,
   matchPreset,
   presetLevels,
+  sanitizeLevels,
   DEFAULT_LEVELS,
   SORT_LABELS,
   SortLevel,
@@ -52,7 +55,7 @@ function LeaderConflicts({ records, onSetLeader, blocking }: { records: Overtime
   }, [records]);
   const multi = list.filter((r) => (r.lider || '').includes('/')).length;
   if (list.length === 0) return null;
-  const allLeaders = [...OFFICIAL_LEADERS, 'Rogério'];
+  const allLeaders = [...OFFICIAL_LEADERS];
   return (
     <div className={`rounded-xl border text-xs ${blocking ? 'border-red-500/60 bg-red-950/40 text-red-200' : 'border-amber-500/40 bg-amber-950/30 text-amber-200'}`}>
       <div className="flex flex-wrap items-center gap-2 px-3 py-2">
@@ -160,7 +163,8 @@ export default function PlanejamentoHoraExtra({
   const [levels, setLevels] = useState<SortLevel[]>(() => {
     try {
       const v = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null');
-      if (v && Array.isArray(v.levels)) return v.levels as SortLevel[];
+      const lv = v ? sanitizeLevels(v.levels) : null;
+      if (lv) return lv;
     } catch { /* ignore */ }
     return DEFAULT_LEVELS();
   });
@@ -173,7 +177,8 @@ export default function PlanejamentoHoraExtra({
   const prefsLoaded = useRef(false);
   useEffect(() => {
     void loadSetting<{ levels: SortLevel[]; group: boolean }>('planning_prefs').then((v) => {
-      if (v && Array.isArray(v.levels)) { setLevels(v.levels); if (typeof v.group === 'boolean') setGroup(v.group); }
+      const lv = v ? sanitizeLevels(v.levels) : null;
+      if (v && lv) { setLevels(lv); if (typeof v.group === 'boolean') setGroup(v.group); }
       prefsLoaded.current = true;
     });
   }, []);
@@ -185,6 +190,9 @@ export default function PlanejamentoHoraExtra({
     return () => clearTimeout(t);
   }, [levels, group]);
   const [busy, setBusy] = useState(false);
+  const [exportErr, setExportErr] = useState<{ text: string; reload: boolean } | null>(null);
+  const failExport = (e: unknown) =>
+    setExportErr(e instanceof Error && e.message === CHUNK_ERROR ? { text: 'Nova versão disponível — recarregue a página.', reload: true } : { text: 'Não foi possível gerar o arquivo. Tente novamente.', reload: false });
   const [pdfJob, setPdfJob] = useState(false);
   const [paper, setPaper] = useState<'A3' | 'A4'>('A3');
   const A4_ZOOM = 792 / A3_H; // A4 = A3 reduzido (mesma proporção); 792px < 793,7px da folha A4 evita página em branco
@@ -336,6 +344,8 @@ export default function PlanejamentoHoraExtra({
         await (document as Document & { fonts?: { ready: Promise<unknown> } }).fonts?.ready;
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         if (!cancelled && exportRef.current) await exportPlanningPdf(exportRef.current, `${fileName}.pdf`, paper === 'A4' ? 'a4' : 'a3');
+      } catch (e) {
+        if (!cancelled) failExport(e);
       } finally {
         if (!cancelled) setPdfJob(false);
       }
@@ -344,6 +354,7 @@ export default function PlanejamentoHoraExtra({
   }, [pdfJob]); // eslint-disable-line react-hooks/exhaustive-deps
   const exportExcel = async () => {
     setBusy(true);
+    setExportErr(null);
     try {
       await exportPlanningExcel({
         recs: filtered,
@@ -355,6 +366,8 @@ export default function PlanejamentoHoraExtra({
         fileName,
         paper,
       });
+    } catch (e) {
+      failExport(e);
     } finally {
       setBusy(false);
     }
@@ -392,7 +405,11 @@ export default function PlanejamentoHoraExtra({
           .he-print .he-page { break-after: page; margin: 0 !important; ${paper === 'A4' ? `zoom: ${A4_ZOOM};` : ''} }
           .he-print > :last-child > .he-page:last-child { break-after: auto; }
           .he-print { display: ${blocked ? 'none !important' : 'block'}; }
+          ${blocked ? '#root { display: none !important; }' : ''}
+          .he-blocked-msg { display: block !important; visibility: visible !important; padding: 48px; font: 700 22px/1.4 sans-serif; color: #b91c1c; }
+          .he-blocked-msg * { visibility: visible !important; }
         }
+        .he-blocked-msg { display: none; }
       `}</style>
 
       {/* Cabeçalho: ações */}
@@ -411,7 +428,7 @@ export default function PlanejamentoHoraExtra({
             </button>
           ))}
         </span>
-        <button disabled={blocked || pdfJob || filtered.length === 0} onClick={() => setPdfJob(true)} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-50">
+        <button disabled={blocked || pdfJob || filtered.length === 0} onClick={() => { setExportErr(null); setPdfJob(true); }} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-slate-950 disabled:opacity-50">
           {pdfJob ? 'Gerando PDF…' : `Baixar PDF (${paper})`}
         </button>
         <button disabled={blocked || filtered.length === 0} onClick={() => window.print()} className="rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-bold text-slate-200 disabled:opacity-50">
@@ -419,6 +436,19 @@ export default function PlanejamentoHoraExtra({
         </button>
       </div>
 
+      {blocked && createPortal(
+        <div className="he-blocked-msg">
+          <p>Impressão bloqueada: há colaborador sem líder ou com mais de um líder.</p>
+          <p style={{ fontWeight: 400, fontSize: 16, color: '#000', marginTop: 12 }}>Defina o líder de todos na tela de Planejamento antes de imprimir.</p>
+        </div>,
+        document.body,
+      )}
+      {exportErr && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-red-500/60 bg-red-950/40 px-3 py-2 text-xs font-bold text-red-200">
+          <span>{exportErr.text}</span>
+          {exportErr.reload && <button type="button" onClick={() => window.location.reload()} className="rounded-lg bg-red-500 px-3 py-1 text-slate-950">Recarregar</button>}
+        </div>
+      )}
       <LeaderConflicts records={filtered} onSetLeader={onSetLeader} blocking />
 
       {/* Dias: marque quantos quiser; com 2+ dias escolha folha separada ou resumo único */}

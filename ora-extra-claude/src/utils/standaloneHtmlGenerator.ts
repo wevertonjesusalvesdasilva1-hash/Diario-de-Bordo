@@ -11,7 +11,7 @@ export function buildStandaloneHtml(): string {
   <meta name="theme-color" content="#0B0F19" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>HoraExtra — Diário de Bordo de Produção</title>
+  <title>HoraExtra — Demonstração offline</title>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"><\/script>
   <style>
     :root {
@@ -186,7 +186,7 @@ export function buildStandaloneHtml(): string {
 
   <header class="app-header">
     <div class="header-inner">
-      <div class="brand-title">HoraExtra</div>
+      <div class="brand-title">HoraExtra <span style="font-size:11px;font-weight:700;color:var(--amber)">DEMONSTRAÇÃO OFFLINE · dados de exemplo, não sincroniza com o app</span></div>
       <div class="nav-tabs">
         <button class="nav-btn active" id="tabLider" onclick="setView('lider')">Líder</button>
         <button class="nav-btn" id="tabGerente" onclick="setView('gerente')">Gerente</button>
@@ -295,6 +295,10 @@ export function buildStandaloneHtml(): string {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(records)); } catch (e) {}
     }
 
+    function esc(v) {
+      return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     function getSummaryLine(r) {
       const parts = [];
       if (r.paradoAgora) parts.push('Parado agora: ' + (r.motivoParadoAgora || 'Aguardando'));
@@ -328,7 +332,7 @@ export function buildStandaloneHtml(): string {
       if (!dates.includes(selectedDate) && dates.length > 0) selectedDate = dates[0];
 
       const sel = document.getElementById('dateSelect');
-      sel.innerHTML = dates.map(d => '<option value="' + d + '"' + (d === selectedDate ? ' selected' : '') + '>Dia ' + d + '</option>').join('');
+      sel.innerHTML = dates.map(d => '<option value="' + esc(d) + '"' + (d === selectedDate ? ' selected' : '') + '>Dia ' + esc(d) + '</option>').join('');
 
       const dayRecords = records.filter(r => r.data === selectedDate);
 
@@ -348,7 +352,7 @@ export function buildStandaloneHtml(): string {
           ['Não produzida', 'Não produzidas (' + counts['Não produzida'] + ')']
         ];
         document.getElementById('filterStrip').innerHTML = filters.map(([k, lbl]) =>
-          '<button class="filter-btn' + (statusFilter === k ? ' active' : '') + '" onclick="statusFilter=\\'' + k + '\\';render()">' + lbl + '</button>'
+          '<button class="filter-btn' + (statusFilter === k ? ' active' : '') + '" onclick="statusFilter=\\'' + k + '\\';render()">' + esc(lbl) + '</button>'
         ).join('');
 
         const q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
@@ -362,16 +366,16 @@ export function buildStandaloneHtml(): string {
           const stClass = r.pieceStatus === 'No prazo' ? 'status-noprazo' : r.pieceStatus === 'Atrasou' ? 'status-atrasou' : r.pieceStatus === 'Não produzida' ? 'status-naoproduzida' : '';
           const tagClass = r.pieceStatus === 'No prazo' ? 'tag-noprazo' : r.pieceStatus === 'Atrasou' ? 'tag-atrasou' : r.pieceStatus === 'Não produzida' ? 'tag-naoproduzida' : 'tag-pendente';
           const summary = getSummaryLine(r);
-          return '<div class="piece-card ' + stClass + '" onclick="openModal(\\'' + r.id + '\\')">' +
+          return '<div class="piece-card ' + stClass + '" onclick="openModal(\\'' + esc(r.id) + '\\')">' +
             '<div class="card-top">' +
-              '<div class="piece-title">' + r.motivoHe + '</div>' +
-              '<span class="status-tag ' + tagClass + '">' + r.pieceStatus + '</span>' +
+              '<div class="piece-title">' + esc(r.motivoHe) + '</div>' +
+              '<span class="status-tag ' + tagClass + '">' + esc(r.pieceStatus) + '</span>' +
             '</div>' +
-            '<div class="welder-line">' + r.soldadorAtual + ' <span style="color:var(--muted);font-weight:500">· Chapa ' + r.chapa + '</span>' +
-              (r.soldadorAtual !== r.funcionario ? ' <span style="color:#60A5FA;font-size:12px">(Substituiu ' + r.funcionario + ')</span>' : '') +
+            '<div class="welder-line">' + esc(r.soldadorAtual) + ' <span style="color:var(--muted);font-weight:500">· Chapa ' + esc(r.chapa) + '</span>' +
+              (r.soldadorAtual !== r.funcionario ? ' <span style="color:#60A5FA;font-size:12px">(Substituiu ' + esc(r.funcionario) + ')</span>' : '') +
             '</div>' +
-            '<div class="meta-line"><span>Horário: ' + r.de + ' → ' + r.ate + '</span><span>·</span><span>CC ' + r.cc + '</span><span>·</span><span>Presença: ' + r.presence + '</span></div>' +
-            (summary ? '<div class="interference-line">' + summary + '</div>' : '') +
+            '<div class="meta-line"><span>Horário: ' + esc(r.de) + ' → ' + esc(r.ate) + '</span><span>·</span><span>CC ' + esc(r.cc) + '</span><span>·</span><span>Presença: ' + esc(r.presence) + '</span></div>' +
+            (summary ? '<div class="interference-line">' + esc(summary) + '</div>' : '') +
           '</div>';
         }).join('');
       } else {
@@ -408,9 +412,9 @@ export function buildStandaloneHtml(): string {
         '<div class="step-box"><div class="step-title">Atenção imediata (Peças com interferência, falta ou paradas)</div>' +
           (comProblema.length === 0 ? '<div style="color:var(--muted);font-size:14px">Nenhuma peça com problema registrado neste turno.</div>' :
             comProblema.map(r => '<div style="padding:10px 0;border-bottom:1px solid var(--border)">' +
-              '<div style="display:flex;justify-content:space-between;font-weight:800"><span>' + r.motivoHe + ' (CC ' + r.cc + ')</span><span>' + r.pieceStatus + '</span></div>' +
-              '<div style="font-size:13px;color:var(--muted);margin-top:2px">' + r.soldadorAtual + ' · ' + r.de + ' → ' + r.ate + '</div>' +
-              '<div style="font-size:13px;color:#FBBF24;margin-top:4px">' + getSummaryLine(r) + '</div>' +
+              '<div style="display:flex;justify-content:space-between;font-weight:800"><span>' + esc(r.motivoHe) + ' (CC ' + esc(r.cc) + ')</span><span>' + esc(r.pieceStatus) + '</span></div>' +
+              '<div style="font-size:13px;color:var(--muted);margin-top:2px">' + esc(r.soldadorAtual) + ' · ' + esc(r.de) + ' → ' + esc(r.ate) + '</div>' +
+              '<div style="font-size:13px;color:#FBBF24;margin-top:4px">' + esc(getSummaryLine(r)) + '</div>' +
             '</div>').join('')) +
         '</div>';
     }
@@ -461,18 +465,18 @@ export function buildStandaloneHtml(): string {
       const otherWelders = records.filter(x => x.data === r.data && x.id !== r.id);
 
       let html = '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">' +
-        '<div><div style="font-size:20px;font-weight:800">' + r.motivoHe + '</div>' +
-        '<div style="font-size:13px;color:var(--muted);margin-top:2px">' + r.soldadorAtual + ' (Chapa ' + r.chapa + ') · ' + r.de + ' → ' + r.ate + ' · CC ' + r.cc + '</div></div>' +
+        '<div><div style="font-size:20px;font-weight:800">' + esc(r.motivoHe) + '</div>' +
+        '<div style="font-size:13px;color:var(--muted);margin-top:2px">' + esc(r.soldadorAtual) + ' (Chapa ' + esc(r.chapa) + ') · ' + esc(r.de) + ' → ' + esc(r.ate) + ' · CC ' + esc(r.cc) + '</div></div>' +
         '<button class="ctrl-btn" onclick="closeModal()">Fechar</button>' +
       '</div>';
 
       // 1. Presença
-      html += '<div class="step-box"><div class="step-title">1. Presença do soldador (' + r.funcionario + ')</div>' +
+      html += '<div class="step-box"><div class="step-title">1. Presença do soldador (' + esc(r.funcionario) + ')</div>' +
         '<div class="btn-row">' +
           '<button class="big-btn ' + (r.presence === 'Veio' ? 'active-green' : '') + '" onclick="updateActive({presence:\\'Veio\\',absentAction:\\'\\',paradoAgora:false})">Veio</button>' +
           '<button class="big-btn ' + (r.presence === 'Faltou' ? 'active-red' : '') + '" onclick="updateActive({presence:\\'Faltou\\'})">Faltou</button>' +
         '</div>' +
-        (r.presence === 'Faltou' ? '<input class="text-input" placeholder="Motivo da falta (obrigatório)..." value="' + (r.motivoFalta || '') + '" oninput="updateActive({motivoFalta:this.value})" />' : '') +
+        (r.presence === 'Faltou' ? '<input class="text-input" placeholder="Motivo da falta (obrigatório)..." value="' + esc(r.motivoFalta) + '" oninput="updateActive({motivoFalta:this.value})" />' : '') +
       '</div>';
 
       // 4. Soldador faltou mas a peça continua
@@ -484,10 +488,10 @@ export function buildStandaloneHtml(): string {
             '<button class="big-btn ' + (r.absentAction === 'Não realizar a peça' ? 'active-red' : '') + '" onclick="updateActive({absentAction:\\'Não realizar a peça\\',pieceStatus:\\'Não produzida\\',interferences:[\\'Soldador faltou\\'],paradoAgora:false})">Não realizar a peça</button>' +
           '</div>' +
           (r.absentAction === 'Alocar outro soldador' ? '<select class="text-input" onchange="reallocateWelder(this.value)"><option value="">Selecione o soldador substituto do dia...</option>' +
-            otherWelders.map(w => '<option value="' + w.funcionario + '"' + (r.soldadorAtual === w.funcionario ? ' selected' : '') + '>' + w.funcionario + ' (Chapa ' + w.chapa + ')</option>').join('') +
+            otherWelders.map(w => '<option value="' + esc(w.funcionario) + '"' + (r.soldadorAtual === w.funcionario ? ' selected' : '') + '>' + esc(w.funcionario) + ' (Chapa ' + esc(w.chapa) + ')</option>').join('') +
           '</select>' : '') +
-          (r.absentAction === 'Processo parado' ? '<input class="text-input" placeholder="Por que a peça está parada?" value="' + (r.motivoParadoAgora || '') + '" oninput="updateActive({motivoParadoAgora:this.value})" />' : '') +
-          (r.justificativaAutomatica ? '<div style="margin-top:8px;font-size:13px;color:#60A5FA">' + r.justificativaAutomatica + '</div>' : '') +
+          (r.absentAction === 'Processo parado' ? '<input class="text-input" placeholder="Por que a peça está parada?" value="' + esc(r.motivoParadoAgora) + '" oninput="updateActive({motivoParadoAgora:this.value})" />' : '') +
+          (r.justificativaAutomatica ? '<div style="margin-top:8px;font-size:13px;color:#60A5FA">' + esc(r.justificativaAutomatica) + '</div>' : '') +
         '</div>';
       }
 
@@ -507,12 +511,12 @@ export function buildStandaloneHtml(): string {
             const checked = (r.interferences || []).includes(item);
             return '<div class="check-item ' + (checked ? 'checked' : '') + '" onclick="toggleInterference(\\'' + item + '\\')">' +
               '<input type="checkbox" ' + (checked ? 'checked' : '') + ' onclick="event.stopPropagation();toggleInterference(\\'' + item + '\\')" />' +
-              '<span>' + item + '</span>' +
+              '<span>' + esc(item) + '</span>' +
             '</div>';
           }).join('') +
-          ((r.interferences || []).includes('Outro') ? '<input class="text-input" placeholder="Qual outro motivo?" value="' + (r.outroMotivoTexto || '') + '" oninput="updateActive({outroMotivoTexto:this.value})" />' : '') +
-          (r.pieceStatus === 'Atrasou' ? '<input type="number" class="text-input" placeholder="Atraso em minutos (ex: 30)" value="' + (r.delayMinutes || '') + '" oninput="updateActive({delayMinutes:parseInt(this.value,10)||0})" />' : '') +
-          '<input class="text-input" placeholder="Observação livre (opcional, 1 linha)" value="' + (r.observacao || '') + '" oninput="updateActive({observacao:this.value})" />' +
+          ((r.interferences || []).includes('Outro') ? '<input class="text-input" placeholder="Qual outro motivo?" value="' + esc(r.outroMotivoTexto) + '" oninput="updateActive({outroMotivoTexto:this.value})" />' : '') +
+          (r.pieceStatus === 'Atrasou' ? '<input type="number" class="text-input" placeholder="Atraso em minutos (ex: 30)" value="' + esc(r.delayMinutes || '') + '" oninput="updateActive({delayMinutes:parseInt(this.value,10)||0})" />' : '') +
+          '<input class="text-input" placeholder="Observação livre (opcional, 1 linha)" value="' + esc(r.observacao) + '" oninput="updateActive({observacao:this.value})" />' +
         '</div>';
       }
 

@@ -4,21 +4,40 @@ export const norm = (s: string) =>
   (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 export const fixText = (s: string) => (s || '').replace(/N\?O/g, 'NÃO').trim();
 export const turno = (r: OvertimeRecord) => (r.de && r.ate ? `${r.de} – ${r.ate}` : 'Sem horário');
-/** Contramestres/líderes oficiais: basta o nome na lista (1º nome + 2º nome) para virar destaque. */
+/** Contramestres/líderes oficiais: a chapa manda; sem chapa válida, vale o nome (1º nome + sobrenome nas 2 primeiras palavras úteis). */
 const LEADER_KEYS: [string, string][] = [
   ['odonei', 'donizete'], ['luiz', 'alves'], ['ronaldo', 'domingos'], ['fabio', 'nunes'],
   ['alexandre', 'goncalves'], ['rogerio', 'araujo'], ['diego', 'domingues'], ['joao', 'oliveira'],
 ];
-export const leaderKey = (nome: string) => {
-  const t = norm(nome).split(/\s+/);
-  return LEADER_KEYS.find(([a, b]) => t[0] === a && t.slice(1).includes(b));
+const LEADER_CHAPAS: Record<string, string> = {
+  '7488': 'odonei', '8264': 'luiz', '6879': 'ronaldo', '8089': 'fabio',
+  '8141': 'alexandre', '11342': 'rogerio', '9189': 'diego', '8335': 'joao',
 };
-export const isLeaderName = (nome: string) => !!leaderKey(nome);
+const PARTICLES = new Set(['de', 'da', 'do', 'dos', 'das']);
+const chapaId = (c?: string | number) => String(c ?? '').replace(/\D/g, '').replace(/^0+/, '');
+export const leaderKey = (nome: string, chapa?: string | number) => {
+  const byChapa = LEADER_CHAPAS[chapaId(chapa)];
+  if (byChapa) return LEADER_KEYS.find(([a]) => a === byChapa);
+  const t = norm(nome).split(/\s+/);
+  const second = PARTICLES.has(t[1]) ? t[2] : t[1];
+  return LEADER_KEYS.find(([a, b]) => t[0] === a && second === b);
+};
+export const isLeaderName = (nome: string, chapa?: string | number) => !!leaderKey(nome, chapa);
 const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
 const DISPLAY: Record<string, string> = { fabio: 'Fábio', joao: 'João', rogerio: 'Rogério', goncalves: 'Gonçalves', araujo: 'Araújo' };
 const disp = (x: string) => DISPLAY[x] ?? cap(x);
 
-export interface LeaderCard { key: string; nome: string; turno: string; dia: string; total: number; byCc: [string, number][]; others?: boolean }
+/** Texto do líder canonizado: sem variação de caixa/acento, com o nome oficial ("ODONEI / alexandre" -> "Odonei / Alexandre"). */
+export const canonLider = (lider: string) => {
+  const parts = (lider || '').split('/').map((x) => x.trim()).filter(Boolean).map((p) => {
+    const f = norm(p).split(/\s+/)[0];
+    return LEADER_KEYS.some(([a]) => a === f) ? disp(f) : p;
+  });
+  return parts.length ? parts.join(' / ') : 'Não identificado';
+};
+export const isRealLeaderName = (nome: string) => !['', 'nao identificado', 'sem lider'].includes(norm(nome));
+
+export interface LeaderCard { key: string; nome: string; turno: string; dia: string; total: number; byCc: [string, number][]; others?: boolean; days?: number }
 const dayKey = (d: string) => d.split('/').reverse().join();
 /** Um cartão por (dia, turno, líder DA PESSOA): toda a equipe aparece no cartão do seu contramestre, esteja ele na lista ou não. */
 export function buildLeaderCards(recs: OvertimeRecord[]): LeaderCard[] {
@@ -36,10 +55,25 @@ export function buildLeaderCards(recs: OvertimeRecord[]): LeaderCard[] {
     .map(([key, g]) => ({ key, nome: g.nome, turno: turno(g.rs[0]), dia: g.rs[0].data, total: g.rs.length, byCc: countBy(g.rs, (r) => r.cc || 'Sem CC') }))
     .sort((x, y) => dayKey(x.dia).localeCompare(dayKey(y.dia)) || x.turno.localeCompare(y.turno) || x.nome.localeCompare(y.nome, 'pt-BR'));
 }
-export const isLeaderRow = (r: OvertimeRecord) => norm(r.motivoHe) === 'responsavel' || isLeaderName(r.funcionario);
+/** Capa multi-dia com muitos cartões: junta os dias de cada (turno, líder), somando equipe e CC. */
+export function mergeLeaderCards(cards: LeaderCard[]): LeaderCard[] {
+  const m = new Map<string, LeaderCard & { cc: Map<string, number>; ds: Set<string> }>();
+  cards.forEach((c) => {
+    const k = `${c.turno}|${c.nome}`;
+    const g = m.get(k) ?? { ...c, key: k, total: 0, byCc: [], cc: new Map<string, number>(), ds: new Set<string>() };
+    g.total += c.total;
+    g.ds.add(c.dia);
+    c.byCc.forEach(([cc, n]) => g.cc.set(cc, (g.cc.get(cc) ?? 0) + n));
+    m.set(k, g);
+  });
+  return [...m.values()]
+    .map((g) => ({ key: g.key, nome: g.nome, turno: g.turno, dia: '', days: g.ds.size, total: g.total, byCc: [...g.cc.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])) as [string, number][], others: g.others }))
+    .sort((x, y) => x.turno.localeCompare(y.turno) || x.nome.localeCompare(y.nome, 'pt-BR'));
+}
+export const isLeaderRow = (r: OvertimeRecord) => norm(r.motivoHe) === 'responsavel' || isLeaderName(r.funcionario, r.chapa);
 export const needsTransport = (r: OvertimeRecord) => {
   const t = norm(r.transporte);
-  return t !== '' && !t.startsWith('outros');
+  return t !== '' && !t.startsWith('outros') && !t.startsWith('nao informado');
 };
 export const transpLabel = (r: OvertimeRecord) =>
   fixText(r.transporte).replace('OUTROS MEIOS - NÃO TEM DESCONTO', 'Outros meios');
@@ -123,6 +157,15 @@ export function presetLevels(mode: SortMode): SortLevel[] {
   }
 }
 export const DEFAULT_LEVELS = (): SortLevel[] => presetLevels('EQUIPES');
+/** Preferência salva (aparelho/banco) pode vir corrompida: níveis inválidos são descartados; se nada sobrar, volta ao padrão. */
+export function sanitizeLevels(v: unknown): SortLevel[] | null {
+  if (!Array.isArray(v)) return null;
+  const ok = v.filter((l): l is SortLevel => !!l && typeof l === 'object' && Object.prototype.hasOwnProperty.call(COL_LABELS, (l as SortLevel).col) && ((l as SortLevel).dir === 'asc' || (l as SortLevel).dir === 'desc'));
+  return ok.length === 0 && v.length > 0 ? DEFAULT_LEVELS() : ok;
+}
+/** import() dinâmico que sinaliza "nova versão" quando o chunk não existe mais (deploy novo). */
+export const CHUNK_ERROR = 'CHUNK_LOAD';
+export const loadChunk = <T,>(load: () => Promise<T>) => load().catch(() => { throw new Error(CHUNK_ERROR); });
 export const levelsKey = (l: SortLevel[]) => l.map((x) => `${x.col}:${x.dir}`).join('|');
 export const matchPreset = (l: SortLevel[]): SortMode | null =>
   (Object.keys(SORT_LABELS) as SortMode[]).find((m) => levelsKey(presetLevels(m)) === levelsKey(l)) ?? null;
@@ -137,7 +180,7 @@ const COL_CMP: Record<ColKey, (a: OvertimeRecord, b: OvertimeRecord) => number> 
   nome: (a, b) => cmpText(a.funcionario, b.funcionario),
   peca: (a, b) => cmpText(norm(a.motivoHe), norm(b.motivoHe)),
   cc: (a, b) => cmpText(a.cc || '', b.cc || ''),
-  lider: (a, b) => cmpText(a.lider || '', b.lider || ''),
+  lider: (a, b) => cmpText(canonLider(a.lider), canonLider(b.lider)),
   horario: (a, b) => timeKey(a).localeCompare(timeKey(b)),
   transporte: (a, b) => cmpText(transpLabel(a), transpLabel(b)),
   resp: (a, b) => Number(isLeaderRow(b)) - Number(isLeaderRow(a)),
@@ -148,7 +191,7 @@ export function sortRecords(recs: OvertimeRecord[], levels: SortLevel[]) {
   if (levels.length === 0) return [...recs]; // sem classificação: ordem original da planilha
   return [...recs].sort((a, b) => {
     for (const lv of levels) {
-      const c = COL_CMP[lv.col](a, b);
+      const c = (COL_CMP[lv.col] ?? COL_CMP.nome)(a, b);
       if (c) return lv.dir === 'asc' ? c : -c;
     }
     return COL_CMP.data(a, b) || COL_CMP.nome(a, b);
@@ -160,7 +203,7 @@ export function groupKeyOf(col: ColKey, r: OvertimeRecord): string | null {
   switch (col) {
     case 'data': return dayLabel(r);
     case 'peca': return r.motivoHe.trim() || '—';
-    case 'lider': return r.lider || 'Não identificado';
+    case 'lider': return canonLider(r.lider);
     case 'cc': return r.cc || 'Sem CC';
     case 'horario': return turno(r);
     case 'transporte': return transpLabel(r) || 'Sem transporte';
@@ -223,7 +266,7 @@ export function buildSummary(recs: OvertimeRecord[]) {
     leaderCards: buildLeaderCards(recs),
     byTurno: countBy(recs, turno),
     byCc: countBy(recs, (r) => r.cc || 'Sem CC'),
-    byLider: countBy(recs, (r) => r.lider || 'Não identificado'),
+    byLider: countBy(recs, (r) => canonLider(r.lider)),
     byRef: countBy(recs, (r) => fixText(r.refeicao) || 'Sem refeição'),
     byRota: countBy(transp, (r) => fixText(r.transporte)),
     byDia: countBy(recs, (r) => r.data).sort((a, b) => a[0].split('/').reverse().join().localeCompare(b[0].split('/').reverse().join())),

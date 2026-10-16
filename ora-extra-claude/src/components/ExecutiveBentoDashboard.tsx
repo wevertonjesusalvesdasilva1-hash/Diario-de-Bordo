@@ -57,6 +57,71 @@ function parseTimeToMinutes(timeStr: string): number {
   return h * 60 + m;
 }
 
+function formatMinutesOfDay(mins: number): string {
+  const m = ((mins % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+function isStopEvent(ev: { type?: string; description: string }): boolean {
+  return ev.type === 'stop' || ev.description.toLowerCase().startsWith('parou');
+}
+
+export interface StopOccurrenceMinutes {
+  index: number;
+  minutes: number;
+  estimated: boolean;
+}
+
+export function getStopOccurrences(r: OvertimeRecord): StopOccurrenceMinutes[] {
+  const stops: StopOccurrenceMinutes[] = [];
+  const events = r.timeline || [];
+  events.forEach((ev, idx) => {
+    if (!isStopEvent(ev)) return;
+    const start = parseTimeToMinutes(ev.time);
+    let paired = 0;
+    for (let i = idx + 1; i < events.length; i++) {
+      const next = events[i];
+      const desc = next.description.toLowerCase();
+      if (
+        next.type === 'resume' ||
+        next.type === 'finish' ||
+        next.type === 'early_exit' ||
+        desc.startsWith('retomou') ||
+        desc.includes('finalizada') ||
+        desc.includes('embora mais cedo')
+      ) {
+        const end = parseTimeToMinutes(next.time);
+        if (end > start) paired = end - start;
+        break;
+      }
+    }
+    stops.push({ index: idx, minutes: paired, estimated: false });
+  });
+  const typed = r.delayMinutes || 0;
+  if (typed > 0 && stops.length > 0) {
+    const share = Math.round(typed / stops.length);
+    stops.forEach((s) => {
+      s.minutes = share;
+      s.estimated = stops.length > 1;
+    });
+  } else {
+    stops.forEach((s) => {
+      if (s.minutes === 0) s.estimated = true;
+    });
+  }
+  return stops;
+}
+
+export function getRecordStopMinutes(r: OvertimeRecord): { minutes: number; estimated: boolean } {
+  const typed = r.delayMinutes || 0;
+  if (typed > 0) return { minutes: typed, estimated: false };
+  const stops = getStopOccurrences(r);
+  return {
+    minutes: stops.reduce((acc, s) => acc + s.minutes, 0),
+    estimated: stops.some((s) => s.estimated),
+  };
+}
+
 export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = ({
   records,
   scopedRecords,
@@ -112,15 +177,14 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
     const productionPct =
       totalPlannedQty > 0 ? Math.round((totalActualQty / totalPlannedQty) * 100) : 0;
 
-    const totalDelayMins = scopedRecords.reduce((acc, r) => acc + (r.delayMinutes || 0), 0);
-
+    let totalDelayMins = 0;
+    let delayEstimated = false;
     let stopEventsCount = 0;
     scopedRecords.forEach((r) => {
-      r.timeline.forEach((ev) => {
-        if (ev.type === 'stop' || ev.description.toLowerCase().startsWith('parou')) {
-          stopEventsCount++;
-        }
-      });
+      const stopMins = getRecordStopMinutes(r);
+      totalDelayMins += stopMins.minutes;
+      if (stopMins.estimated) delayEstimated = true;
+      stopEventsCount += r.timeline.filter(isStopEvent).length;
     });
 
     const presencePct = total > 0 ? Math.round((presentes / total) * 100) : 0;
@@ -152,6 +216,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
       totalActualQty,
       productionPct,
       totalDelayMins,
+      delayEstimated,
       stopEventsCount,
       presencePct,
       deliveryPct,
@@ -160,38 +225,38 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
     };
   }, [scopedRecords]);
 
-  // 2. Hourly Rhythm Wave Data (06:00 to 15:00) for Smooth Area Chart (like Images 1, 2, 3, 4)
-  const hourlyWaveData = useMemo(() => {
-    const slots = [
-      { label: '06:00', mins: 360 },
-      { label: '07:30', mins: 450 },
-      { label: '08:30', mins: 510 },
-      { label: '10:00', mins: 600 },
-      { label: '11:30', mins: 690 },
-      { label: '13:00', mins: 780 },
-      { label: '14:32', mins: 872 },
-    ];
+  // 2. Curva de ritmo: janela calculada a partir dos registros presentes (inclui virada de meia-noite)
+  const hourlyWave = useMemo(() => {
+    const present = scopedRecords.filter((r) => r.status === AttendanceStatus.Presente);
+    if (present.length === 0) {
+      return { data: [] as Array<{ hora: string; Soldando: number; Eventos: number }>, inicio: '', fim: '' };
+    }
+    const spans = present.map((r) => {
+      const entry = parseTimeToMinutes(r.horaEntradaReal || r.de || '00:00');
+      let exit =
+        r.operationalStatus === OperationalStatus.SaiuMaisCedo && r.horaSaidaReal
+          ? parseTimeToMinutes(r.horaSaidaReal)
+          : parseTimeToMinutes(r.ate || r.de || '00:00');
+      if (exit < entry) exit += 1440;
+      return { entry, exit };
+    });
+    const minDe = Math.min(...spans.map((x) => x.entry));
+    let maxAte = Math.max(...spans.map((x) => x.exit));
+    if (maxAte <= minDe) maxAte = minDe + 60;
+    const step = maxAte - minDe > 480 ? 60 : 30;
+    const slots: number[] = [];
+    for (let m = minDe; m < maxAte; m += step) slots.push(m);
+    slots.push(maxAte);
 
-    return slots.map((slot) => {
+    const data = slots.map((slotMins) => {
       let ativos = 0;
       let ocorrencias = 0;
-
-      scopedRecords.forEach((r) => {
-        if (r.status !== AttendanceStatus.Presente) return;
-        const entryMins = parseTimeToMinutes(r.horaEntradaReal || r.de || '06:00');
-        const exitMins =
-          r.operationalStatus === OperationalStatus.SaiuMaisCedo && r.horaSaidaReal
-            ? parseTimeToMinutes(r.horaSaidaReal)
-            : parseTimeToMinutes(r.ate || '14:32');
-
-        if (slot.mins >= entryMins && slot.mins <= exitMins) {
-          ativos++;
-        }
-
-        // Count stops or reallocations near this time window
+      present.forEach((r, i) => {
+        if (slotMins >= spans[i].entry && slotMins <= spans[i].exit) ativos++;
         r.timeline.forEach((ev) => {
-          const evMins = parseTimeToMinutes(ev.time);
-          if (Math.abs(evMins - slot.mins) <= 45) {
+          let evMins = parseTimeToMinutes(ev.time);
+          if (evMins < minDe) evMins += 1440;
+          if (Math.abs(evMins - slotMins) <= step / 2 + 15) {
             if (
               ev.type === 'stop' ||
               ev.type === 'early_exit' ||
@@ -204,14 +269,18 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
           }
         });
       });
-
-      return {
-        hora: slot.label,
-        Soldando: ativos,
-        Eventos: ocorrencias,
-      };
+      return { hora: formatMinutesOfDay(slotMins), Soldando: ativos, Eventos: ocorrencias };
     });
+    return { data, inicio: formatMinutesOfDay(minDe), fim: formatMinutesOfDay(maxAte) };
   }, [scopedRecords]);
+
+  const peakEvent = useMemo(() => {
+    let best: { hora: string; Eventos: number } | null = null;
+    hourlyWave.data.forEach((d) => {
+      if (d.Eventos > 0 && (!best || d.Eventos > best.Eventos)) best = d;
+    });
+    return best as { hora: string; Eventos: number } | null;
+  }, [hourlyWave]);
 
   // 3. Triage Pipeline Alerts (Compact rows that expand on click — "o texto aparece se eu clicar")
   const triageAlerts = useMemo(() => {
@@ -292,8 +361,9 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
     >();
 
     scopedRecords.forEach((r) => {
-      r.timeline.forEach((ev) => {
-        if (ev.type === 'stop' || ev.description.toLowerCase().startsWith('parou')) {
+      const stopMinsByIndex = new Map(getStopOccurrences(r).map((o) => [o.index, o.minutes]));
+      r.timeline.forEach((ev, evIdx) => {
+        if (isStopEvent(ev)) {
           const match = ev.description.match(/parou\s*\(([^)]+)\)/i);
           const cause = match ? match[1].trim() : r.motivoParadaAtual || 'Parada operacional';
           const curr = causeMap.get(cause) || {
@@ -304,7 +374,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
             emps: [],
           };
           curr.count += 1;
-          curr.minutes += r.delayMinutes > 0 ? Math.round(r.delayMinutes / Math.max(1, curr.count)) : 30;
+          curr.minutes += stopMinsByIndex.get(evIdx) || 0;
           curr.processes.add(r.motivoHe);
           curr.emps.push({
             id: r.id,
@@ -326,7 +396,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
           subtitle: `${grp.processes.size} processo(s) afetado(s)`,
           badge: grp.count >= 2 ? `GARGALO ${grp.count}X` : 'PARADA',
           badgeTone: 'amber',
-          metricPrimary: `${grp.count}x paradas`,
+          metricPrimary: `${grp.count}x paradas${grp.minutes > 0 ? ` (${grp.minutes} min)` : ''}`,
           metricSecondary: `Processos: ${Array.from(grp.processes).slice(0, 2).join(', ')}`,
           details: grp.emps.map(
             (e) => `${e.time} · ${e.name} parou na peça "${e.piece}" por ${grp.cause}.`
@@ -371,24 +441,28 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
         done: number;
         partial: number;
         stoppedOrAbsent: number;
+        reported: number;
         emps: OvertimeRecord[];
       }
     >();
 
     scopedRecords.forEach((r) => {
       const pieceName = r.motivoHe || 'Não definida';
+      if (/^respons[aá]vel$/i.test(pieceName.trim())) return;
       const entry = map.get(pieceName) || {
         piece: pieceName,
         total: 0,
         done: 0,
         partial: 0,
         stoppedOrAbsent: 0,
+        reported: 0,
         emps: [],
       };
       entry.total += 1;
       if (r.producedState === ProducedState.Sim) entry.done += 1;
       else if (r.producedState === ProducedState.Parcial) entry.partial += 1;
       else entry.stoppedOrAbsent += 1;
+      if (r.producedState !== ProducedState.NaoIniciado) entry.reported += 1;
       entry.emps.push(r);
       map.set(pieceName, entry);
     });
@@ -426,7 +500,27 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
   const pctConcluidas = Math.round((metrics.concluidas / totalForMix) * 100);
   const pctParciais = Math.round((metrics.parciais / totalForMix) * 100);
   const pctAusentes = Math.round((metrics.ausentes / totalForMix) * 100);
-  const pctAndamento = Math.max(0, 100 - pctConcluidas - pctParciais - pctAusentes);
+  const pctAguardando = Math.max(0, 100 - pctConcluidas - pctParciais - pctAusentes);
+  const faltasTotal = metrics.ausentes + metrics.saiuMaisCedo;
+
+  const semLiderCount = useMemo(
+    () =>
+      scopedRecords.filter((r) => {
+        const l = (r.lider || '').trim();
+        return !l || /^n[aã]o identificado$/i.test(l) || l.includes('/');
+      }).length,
+    [scopedRecords]
+  );
+
+  const ausentesListCount = useMemo(
+    () =>
+      scopedRecords.filter(
+        (r) =>
+          r.status === AttendanceStatus.Ausente ||
+          r.operationalStatus === OperationalStatus.SaiuMaisCedo
+      ).length,
+    [scopedRecords]
+  );
 
   const kpiFilteredList = useMemo(() => {
     if (activeKpiCard === 'PRESENTES') {
@@ -452,6 +546,11 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
 
   return (
     <div className="space-y-4">
+      {semLiderCount > 0 && (
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-3.5 py-2 text-xs text-amber-200">
+          {semLiderCount} colaborador(es) sem líder definido ou com 2 líderes. Ajuste na aba Planejamento.
+        </div>
+      )}
       {/* =================================================================
           TOP 4 SPARKLINE GRAPHICAL KPI CARDS (Visão do Gerente & Relatórios)
          ================================================================= */}
@@ -493,7 +592,6 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
                   ? selectedDate
                   : `Turno ${selectedDate.slice(0, 5)}`}
               </span>
-              <span className="font-mono-tabular text-cyan-400 font-bold">100%</span>
             </div>
             <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
               <div className="h-full bg-cyan-400 w-full rounded-full" />
@@ -561,7 +659,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
                 Ausentes
               </span>
               <div className="text-2xl sm:text-3xl font-extrabold font-mono-tabular text-white mt-0.5">
-                {metrics.ausentes}
+                {ausentesListCount}
               </div>
             </div>
             <svg className="w-14 h-9 text-rose-400 shrink-0" viewBox="0 0 60 32" fill="none">
@@ -576,7 +674,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
           </div>
           <div className="mt-2 w-full">
             <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
-              <span>{metrics.saiuMaisCedo} saíram mais cedo</span>
+              <span>{metrics.ausentes} faltas · {metrics.saiuMaisCedo} saíram mais cedo</span>
               <span className="font-mono-tabular text-rose-400 font-bold">
                 {metrics.total > 0 ? Math.round((metrics.ausentes / metrics.total) * 100) : 0}%
               </span>
@@ -607,10 +705,10 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
           <div className="flex items-start justify-between gap-2 w-full">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
-                {metrics.pendentes > 0 ? 'Pendentes' : 'Entrega Turno'}
+                Pendentes
               </span>
               <div className="text-2xl sm:text-3xl font-extrabold font-mono-tabular text-white mt-0.5">
-                {metrics.pendentes > 0 ? metrics.pendentes : `${metrics.productionPct}%`}
+                {metrics.pendentes}
               </div>
             </div>
             <svg className="w-14 h-9 text-amber-400 shrink-0" viewBox="0 0 60 32" fill="none">
@@ -625,7 +723,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
           <div className="mt-2 w-full">
             <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
               <span>
-                {metrics.totalActualQty}/{metrics.totalPlannedQty} peças
+                {metrics.totalActualQty}/{metrics.totalPlannedQty} peças entregues
               </span>
               <span className="font-mono-tabular text-amber-400 font-bold">
                 {metrics.productionPct}%
@@ -721,7 +819,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
           <div>
             <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-cyan-400">
               <Activity className="w-3.5 h-3.5" />
-              <span>CENTRAL DE INTELIGÊNCIA DE MANUFATURA · TURNO {selectedDate}</span>
+              <span>PAINEL DO DIA · TURNO {selectedDate}</span>
             </div>
 
             {/* Inline Hero Metrics (Big Tabular Numbers + Calm Labels) */}
@@ -731,7 +829,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
                   {metrics.presentes}
                   <span className="text-slate-500 text-lg font-semibold">/{metrics.total}</span>
                 </span>
-                <span className="text-xs text-slate-400">operando no turno</span>
+                <span className="text-xs text-slate-400">presentes no turno</span>
               </div>
 
               <div className="flex items-baseline gap-2">
@@ -743,6 +841,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
 
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl sm:text-3xl font-extrabold font-mono-tabular text-amber-400">
+                  {metrics.delayEstimated ? '≈ ' : ''}
                   {(metrics.totalDelayMins / 60).toFixed(1)}h
                 </span>
                 <span className="text-xs text-slate-400">
@@ -817,16 +916,16 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
           <div className="flex items-center justify-between gap-2 mb-3">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                (a) CURVA DE RITMO OPERACIONAL NO TURNO (06:00 – 14:32)
+                RITMO DE TRABALHO{hourlyWave.inicio ? ` (${hourlyWave.inicio} – ${hourlyWave.fim})` : ''}
               </span>
               <p className="text-xs text-slate-500 mt-0.5">
-                Soldadores ativos vs. momentos de parada ou remanejamento
+                Soldadores presentes ao longo do turno e momentos de parada ou troca
               </p>
             </div>
             <div className="flex items-center gap-3 text-[11px] font-semibold">
               <span className="flex items-center gap-1.5 text-cyan-400">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
-                Operando
+                Presentes
               </span>
               <span className="flex items-center gap-1.5 text-amber-400">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
@@ -835,9 +934,14 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
             </div>
           </div>
 
+          {hourlyWave.data.length === 0 ? (
+            <div className="h-52 w-full flex items-center justify-center text-xs text-slate-400">
+              Sem apontamentos ainda
+            </div>
+          ) : (
           <div className="h-52 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={hourlyWaveData} margin={{ top: 10, right: 10, left: -22, bottom: 0 }}>
+              <AreaChart data={hourlyWave.data} margin={{ top: 10, right: 10, left: -22, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradCyan" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.45} />
@@ -873,7 +977,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
                 <Area
                   type="monotone"
                   dataKey="Soldando"
-                  name="Soldadores Operando"
+                  name="Soldadores presentes"
                   stroke="#22d3ee"
                   strokeWidth={2.5}
                   fillOpacity={1}
@@ -891,14 +995,17 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
               </AreaChart>
             </ResponsiveContainer>
           </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-3 mt-2 border-t border-slate-800/80 text-xs">
             <span className="text-slate-300 font-medium">
               <strong className="font-mono-tabular text-white">{metrics.presencePct}%</strong> de
               presença efetiva na escala
             </span>
-            <span className="text-emerald-400 font-mono-tabular font-semibold">
-              Pico de troca: 10:00 (Prioridade Tw trave)
+            <span className="text-slate-400 font-mono-tabular font-semibold">
+              {peakEvent
+                ? `Pico de paradas/trocas: ${peakEvent.hora}`
+                : 'Sem paradas ou trocas apontadas'}
             </span>
           </div>
         </section>
@@ -907,14 +1014,14 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
         <section className="lg:col-span-5 rounded-2xl bg-[#111726] border border-slate-800/90 p-4 sm:p-5 flex flex-col justify-between">
           <div>
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              (b) DISTRIBUIÇÃO DE CAPACIDADE & ENTREGA DE PEÇAS
+              CAPACIDADE E ENTREGA DE PEÇAS
             </span>
 
             {/* Legend Row above Proportion Bar */}
             <div className="grid grid-cols-4 gap-1 text-[10px] font-semibold text-slate-400 mt-3 mb-1.5">
               <span>Concluídas</span>
               <span>Parciais</span>
-              <span>Operando</span>
+              <span>Aguardando</span>
               <span>Ausentes</span>
             </div>
 
@@ -936,12 +1043,13 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
                   {pctParciais}%
                 </div>
               )}
-              {pctAndamento > 0 && (
+              {pctAguardando > 0 && (
                 <div
-                  style={{ width: `${Math.max(10, pctAndamento)}%` }}
-                  className="bg-cyan-500/80 text-slate-950 font-mono-tabular text-xs font-extrabold flex items-center justify-center rounded-lg transition-all"
+                  style={{ width: `${Math.max(10, pctAguardando)}%` }}
+                  className="bg-slate-600 text-white font-mono-tabular text-xs font-extrabold flex items-center justify-center rounded-lg transition-all"
+                  title="Ainda sem apontamento"
                 >
-                  {pctAndamento}%
+                  {pctAguardando}%
                 </div>
               )}
               {pctAusentes > 0 && (
@@ -986,7 +1094,9 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
               </div>
               <div className="text-[10px] text-slate-500 mt-1">Cobertura</div>
               <div className="text-xs font-mono-tabular font-bold text-indigo-300 mt-0.5">
-                100% salvas
+                {faltasTotal > 0
+                  ? `${Math.min(metrics.remanejados, faltasTotal)} de ${faltasTotal} cobertas`
+                  : 'Sem trocas'}
               </div>
             </div>
 
@@ -1015,7 +1125,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
           <div>
             <div className="flex items-center justify-between gap-2 mb-3">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                (c) PIPELINE DE ALERTAS & PRIORIDADES (CLIQUE P/ VER DETALHES)
+                ALERTAS E PRIORIDADES (CLIQUE PARA VER DETALHES)
               </span>
               <span className="text-[11px] font-mono-tabular text-amber-400 font-bold">
                 {triageAlerts.length} situação(ões)
@@ -1121,14 +1231,23 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
           <div className="mt-4 p-3.5 rounded-xl bg-slate-950/90 border border-slate-800/90 flex items-center justify-between gap-3">
             <div>
               <div className="text-xl sm:text-2xl font-extrabold font-mono-tabular text-amber-400">
+                {metrics.delayEstimated ? '≈ ' : ''}
                 {metrics.totalDelayMins} min
               </div>
               <div className="text-xs font-bold text-white">
                 Tempo Acumulado de Paradas no Turno
               </div>
-              <div className="text-[11px] text-emerald-400 mt-0.5">
-                ✓ Todas as peças prioritárias tiveram cobertura
-              </div>
+              {faltasTotal > 0 && (
+                <div
+                  className={`text-[11px] mt-0.5 ${
+                    metrics.remanejados >= faltasTotal ? 'text-emerald-400' : 'text-amber-400'
+                  }`}
+                >
+                  {metrics.remanejados >= faltasTotal
+                    ? '✓ Todas as faltas tiveram cobertura'
+                    : `${faltasTotal - metrics.remanejados} falta(s)/saída(s) sem cobertura`}
+                </div>
+              )}
             </div>
             <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
               <Clock className="w-5 h-5" />
@@ -1141,7 +1260,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
           <div>
             <div className="flex items-center justify-between gap-2 mb-3">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                (d) DESEMPENHO POR PEÇA / PROCESSO
+                DESEMPENHO POR PEÇA
               </span>
               <span className="text-[10px] text-slate-400">Toque na peça p/ ver equipe</span>
             </div>
@@ -1149,15 +1268,18 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
             <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
               {pieceDemographics.slice(0, 7).map((item) => {
                 const isSelected = selectedPieceFilter === item.piece;
-                const pillTone =
-                  item.rate >= 80
+                const noReport = item.reported === 0;
+                const pillTone = noReport
+                  ? 'bg-slate-700/40 text-slate-400 border-slate-600/50'
+                  : item.rate >= 80
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                     : item.rate >= 50
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                     : 'bg-rose-500/20 text-rose-300 border-rose-500/40';
 
-                const barTone =
-                  item.rate >= 80
+                const barTone = noReport
+                  ? 'bg-slate-600'
+                  : item.rate >= 80
                     ? 'bg-emerald-400'
                     : item.rate >= 50
                     ? 'bg-amber-400'
@@ -1182,7 +1304,7 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
                         <span
                           className={`font-mono-tabular text-[11px] font-extrabold px-2 py-0.5 rounded-full border ${pillTone}`}
                         >
-                          {item.rate}%
+                          {noReport ? 'Sem apontamento' : `${item.rate}%`}
                         </span>
                       </div>
                       <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
@@ -1230,6 +1352,14 @@ export const ExecutiveBentoDashboard: React.FC<ExecutiveBentoDashboardProps> = (
                   </div>
                 );
               })}
+              {pieceDemographics.length > 7 && (
+                <div className="text-[11px] text-slate-500">
+                  +{pieceDemographics.length - 7} peça(s) não exibida(s)
+                </div>
+              )}
+              {pieceDemographics.length === 0 && (
+                <div className="text-xs text-slate-400 py-6 text-center">Sem apontamentos ainda</div>
+              )}
             </div>
           </div>
 

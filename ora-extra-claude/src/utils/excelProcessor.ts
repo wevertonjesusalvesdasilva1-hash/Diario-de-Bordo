@@ -171,11 +171,16 @@ export async function parseOvertimeExcel(file: File): Promise<OvertimeRecord[]> 
       if (idx !== -1) return idx;
     }
     for (const cand of candidates) {
+      if (cand.length <= 3) continue; // siglas curtas (RE, DE, CC) só valem exatas
       const idx = headerRow.findIndex((h) => h.includes(cand));
       if (idx !== -1) return idx;
     }
     return fallbackIndex;
   };
+  const hasHeader = (cands: string[]) => cands.some((c) => headerRow.includes(c) || (c.length > 3 && headerRow.some((h) => h.includes(c))));
+  if (!hasHeader(['DATA']) || !hasHeader(['CHAPA', 'MATRICULA', 'RE']) || !hasHeader(['FUNCIONARIO', 'NOME', 'COLABORADOR'])) {
+    throw new Error('Planilha sem as colunas obrigatórias DATA, CHAPA e FUNCIONÁRIO. Confira o cabeçalho.');
+  }
 
   const idxData = findCol(['DATA'], 0);
   const idxChapa = findCol(['CHAPA', 'MATRICULA', 'RE'], 1);

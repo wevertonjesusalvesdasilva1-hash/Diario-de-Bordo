@@ -32,7 +32,11 @@ import {
   ProducedState,
   ShiftGroup,
 } from '../types';
-import { ExecutiveBentoDashboard } from './ExecutiveBentoDashboard';
+import {
+  ExecutiveBentoDashboard,
+  getRecordStopMinutes,
+  getStopOccurrences,
+} from './ExecutiveBentoDashboard';
 
 interface ManagerReportsViewProps {
   records: OvertimeRecord[];
@@ -72,38 +76,6 @@ function normalizeStopCause(rawDescription: string): string {
   if (lower.includes('ponte rolante')) return 'Ponte rolante ocupada';
 
   return extracted || 'Parada operacional';
-}
-
-function estimateSingleStopMinutes(
-  events: Array<{ time: string; description: string; type?: string }>,
-  stopIndex: number,
-  fallbackRecordDelay: number
-): number {
-  const stopEv = events[stopIndex];
-  if (!stopEv) return 30;
-  const [sh = '0', sm = '0'] = (stopEv.time || '00:00').split(':');
-  const startMins = parseInt(sh, 10) * 60 + parseInt(sm, 10);
-
-  for (let i = stopIndex + 1; i < events.length; i++) {
-    const nextEv = events[i];
-    const nextDesc = nextEv.description.toLowerCase();
-    if (
-      nextEv.type === 'resume' ||
-      nextEv.type === 'finish' ||
-      nextEv.type === 'early_exit' ||
-      nextDesc.startsWith('retomou') ||
-      nextDesc.includes('finalizada') ||
-      nextDesc.includes('embora mais cedo')
-    ) {
-      const [eh = '0', em = '0'] = (nextEv.time || '00:00').split(':');
-      const endMins = parseInt(eh, 10) * 60 + parseInt(em, 10);
-      if (endMins > startMins) {
-        return endMins - startMins;
-      }
-    }
-  }
-
-  return fallbackRecordDelay > 0 ? fallbackRecordDelay : 35;
 }
 
 export interface StopOccurrenceDetail {
@@ -156,11 +128,12 @@ export const ManagerReportsView: React.FC<ManagerReportsViewProps> = ({
     const allOccurrences: StopOccurrenceDetail[] = [];
 
     activeRecords.forEach((emp) => {
+      const minsByIndex = new Map(getStopOccurrences(emp).map((o) => [o.index, o.minutes]));
       emp.timeline.forEach((ev, idx) => {
         const descLower = ev.description.toLowerCase();
         if (ev.type === 'stop' || descLower.startsWith('parou')) {
           const cause = normalizeStopCause(ev.description);
-          const mins = estimateSingleStopMinutes(emp.timeline, idx, emp.delayMinutes);
+          const mins = minsByIndex.get(idx) || 0;
           allOccurrences.push({
             empId: emp.id,
             funcionario: emp.funcionario,
@@ -201,12 +174,19 @@ export const ManagerReportsView: React.FC<ManagerReportsViewProps> = ({
       .sort((a, b) => b.count - a.count || b.totalMinutes - a.totalMinutes);
 
     const totalStops = allOccurrences.length;
-    const totalStopMinutes = allOccurrences.reduce((acc, o) => acc + o.delayMinutes, 0);
+    let totalStopMinutes = 0;
+    let stopEstimated = false;
+    activeRecords.forEach((emp) => {
+      const rec = getRecordStopMinutes(emp);
+      totalStopMinutes += rec.minutes;
+      if (rec.estimated) stopEstimated = true;
+    });
 
     return {
       grouped,
       totalStops,
       totalStopMinutes,
+      stopEstimated,
     };
   }, [activeRecords]);
 
@@ -301,7 +281,7 @@ export const ManagerReportsView: React.FC<ManagerReportsViewProps> = ({
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                5 Turnos ({records.length})
+                {shiftGroups.length} {shiftGroups.length === 1 ? 'turno' : 'turnos'} ({records.length})
               </button>
             </div>
 
@@ -360,7 +340,7 @@ export const ManagerReportsView: React.FC<ManagerReportsViewProps> = ({
 
             {stopAnalysis.grouped.length === 0 ? (
               <div className="h-52 flex items-center justify-center text-xs text-slate-400">
-                Nenhuma parada apontada neste período.
+                Sem apontamentos ainda: nenhuma parada neste período.
               </div>
             ) : (
               <div className="h-52 w-full mt-2">
@@ -426,7 +406,7 @@ export const ManagerReportsView: React.FC<ManagerReportsViewProps> = ({
               </strong>
             </span>
             <span className="font-mono-tabular">
-              {stopAnalysis.totalStops}x ({stopAnalysis.totalStopMinutes}m)
+              {stopAnalysis.totalStops}x ({stopAnalysis.stopEstimated ? '≈ ' : ''}{stopAnalysis.totalStopMinutes}m)
             </span>
           </div>
         </section>
@@ -439,6 +419,13 @@ export const ManagerReportsView: React.FC<ManagerReportsViewProps> = ({
               <span>Comparativo de Entregas por Turno</span>
             </h2>
 
+            {productionByShiftData.every(
+              (d) => d.Concluidas === 0 && d.EmAndamentoParcial === 0 && d.ParadasOuFalta === 0
+            ) ? (
+              <div className="h-52 flex items-center justify-center text-xs text-slate-400">
+                Sem apontamentos ainda
+              </div>
+            ) : (
             <div className="h-52 w-full mt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
@@ -493,6 +480,7 @@ export const ManagerReportsView: React.FC<ManagerReportsViewProps> = ({
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            )}
           </div>
 
           <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
@@ -763,7 +751,7 @@ export const ManagerReportsView: React.FC<ManagerReportsViewProps> = ({
                               <span className="text-slate-400">({occ.peca})</span>
                             </div>
                             <span className="font-mono-tabular text-[11px] text-amber-300 shrink-0">
-                              -{occ.delayMinutes}m &rarr;
+                              {occ.delayMinutes > 0 ? `-${occ.delayMinutes}m` : 'sem duração'} &rarr;
                             </span>
                           </div>
                         ))}

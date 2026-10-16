@@ -19,3 +19,11 @@ export async function saveSetting(key: string, value: unknown): Promise<void> {
     // offline: a próxima mudança grava de novo
   }
 }
+
+/** Lê a linha da nuvem, mescla {...remoto, ...patch}, grava e devolve o objeto mesclado (não perde escolhas de outro aparelho). */
+export async function mergeSetting<T extends Record<string, unknown>>(key: string, patch: T): Promise<T> {
+  const remote = (await loadSetting<Record<string, unknown>>(key)) ?? {};
+  const merged = { ...remote, ...patch } as T;
+  await saveSetting(key, merged);
+  return merged;
+}

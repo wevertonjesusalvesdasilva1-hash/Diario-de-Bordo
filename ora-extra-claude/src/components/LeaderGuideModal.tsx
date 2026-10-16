@@ -1,30 +1,21 @@
 import React from 'react';
-import {
-  CheckCircle2,
-  Clock,
-  DoorOpen,
-  HelpCircle,
-  PauseCircle,
-  Play,
-  UserX,
-  X,
-} from 'lucide-react';
+import { CheckCircle2, HelpCircle, X } from 'lucide-react';
 
 interface LeaderGuideModalProps {
   isOpen: boolean;
-  hideOnStartup: boolean;
-  onToggleHideOnStartup: (hide: boolean) => void;
   onClose: () => void;
-  onTryAirtonExample: () => void;
 }
 
-export const LeaderGuideModal: React.FC<LeaderGuideModalProps> = ({
-  isOpen,
-  hideOnStartup,
-  onToggleHideOnStartup,
-  onClose,
-  onTryAirtonExample,
-}) => {
+const STEPS: { title: string; text: string }[] = [
+  { title: 'Abrir o link', text: 'Abra o link que o gestor mandou no celular. Não precisa de senha.' },
+  { title: 'Escolher o dia', text: 'Toque no botão do dia, no alto da tela, e escolha a data do turno.' },
+  { title: 'Escolher seu nome', text: 'Toque em "Selecionar Líder" e escolha o seu nome. Só a sua equipe aparece.' },
+  { title: 'Marcar presença', text: 'Toque no botão redondo do cartão. Um toque marca Presente, outro toque marca Ausente. Se errar, toque "Desfazer".' },
+  { title: 'Registrar parada ou saída antecipada', text: 'Toque no nome da pessoa. Toque no horário e escolha: Parada, Retomada, Peça finalizada ou Saiu mais cedo.' },
+  { title: 'Ver o dia no Planejamento ou PDF', text: 'Abra a aba Planejamento para ver o dia inteiro. Lá você também imprime ou baixa o PDF.' },
+];
+
+export const LeaderGuideModal: React.FC<LeaderGuideModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
@@ -38,72 +29,41 @@ export const LeaderGuideModal: React.FC<LeaderGuideModalProps> = ({
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
-            <HelpCircle className="w-5 h-5 text-amber-400 shrink-0" />
-            <h2 className="text-base sm:text-lg font-bold text-white">
-              Guia Rápido de Uso no Turno
-            </h2>
+            <HelpCircle className="w-6 h-6 text-amber-400 shrink-0" />
+            <h2 className="text-lg font-bold text-white">Como usar no turno</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="min-w-[40px] min-h-[40px] rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300"
+            aria-label="Fechar guia"
+            className="min-w-[44px] min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="space-y-3 text-xs sm:text-sm text-slate-300">
-          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-3.5 space-y-1.5">
-            <div className="font-bold text-emerald-400 flex items-center gap-1.5">
-              <Clock className="w-4 h-4 shrink-0" />
-              <span>1. Apontar Paradas na Linha Vertical do Turno</span>
-            </div>
-            <p className="text-xs text-slate-300">
-              Toque no nome do colaborador para abrir a linha vertical do horário de início ao fim do turno. Toque em qualquer horário para registrar <strong>Parada de Produção</strong> (ex: Ponte rolante ocupada), <strong>Retomada</strong> ou <strong>Peça Finalizada</strong>.
-            </p>
-          </div>
+        <ol className="space-y-2.5">
+          {STEPS.map((step, i) => (
+            <li key={step.title} className="flex gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-3.5">
+              <span className="shrink-0 w-8 h-8 rounded-full bg-emerald-500 text-slate-950 font-bold text-base flex items-center justify-center">
+                {i + 1}
+              </span>
+              <div className="space-y-0.5">
+                <div className="font-bold text-white text-base">{step.title}</div>
+                <p className="text-sm text-slate-300">{step.text}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-3.5 space-y-2">
-            <div className="font-bold text-orange-400 flex items-center gap-1.5">
-              <DoorOpen className="w-4 h-4 shrink-0" />
-              <span>2. Colaborador Saiu Mais Cedo (Ex: 06:00 às 10:00)</span>
-            </div>
-            <p className="text-xs text-slate-300">
-              Na linha vertical do colaborador, toque no horário em que ele saiu (ex: <code>10:00</code>), escolha <strong>Saiu mais cedo</strong>, informe o motivo e defina o destino da peça.
-            </p>
-            <button
-              type="button"
-              onClick={onTryAirtonExample}
-              className="min-h-[38px] px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold inline-flex items-center gap-1.5"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>Testar Exemplo (Airton 06:00 às 10:00)</span>
-            </button>
-          </div>
-
-          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-3.5 space-y-1.5">
-            <div className="font-bold text-rose-400 flex items-center gap-1.5">
-              <UserX className="w-4 h-4 shrink-0" />
-              <span>3. Colaborador Faltou ao Turno</span>
-            </div>
-            <p className="text-xs text-slate-300">
-              Marque <strong>Faltou o turno todo</strong>, escolha o motivo da falta e indique se a peça foi realocada para outro soldador ou se o processo ficou parado.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800">
-          <span />
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-[42px] px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-1.5"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Entendi, fechar guia</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full min-h-[52px] px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-base font-bold flex items-center justify-center gap-2"
+        >
+          <CheckCircle2 className="w-5 h-5" />
+          <span>Entendi</span>
+        </button>
       </div>
     </div>
   );

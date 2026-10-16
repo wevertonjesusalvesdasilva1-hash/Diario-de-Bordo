@@ -1,6 +1,6 @@
 import { OvertimeRecord } from '../types';
 import { argb, BRAND } from './brand';
-import { buildRows, buildSummary, fixText, isLeaderRow, levelsLabel, needsTransport, SortLevel, transpLabel, turno } from './planning';
+import { buildRows, buildSummary, fixText, isLeaderRow, levelsLabel, loadChunk, needsTransport, SortLevel, transpLabel, turno } from './planning';
 
 const BLACK = argb(BRAND.blue); // azul Komatsu (cabeçalhos)
 const YELLOW = argb(BRAND.yellow);
@@ -17,10 +17,9 @@ export async function exportPlanningExcel(opts: {
   fileName: string;
   paper?: 'A3' | 'A4';
 }) {
-  const ExcelJS = (await import('exceljs')).default;
+  const ExcelJS = (await loadChunk(() => import('exceljs'))).default;
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Hora Extra';
-  const sum = buildSummary(opts.recs);
   let logoId: number | null = null;
   try {
     const res = await fetch('/komatsu-logo-white.png');
@@ -50,7 +49,9 @@ export async function exportPlanningExcel(opts: {
   const border = { top: { style: 'thin' as const }, left: { style: 'thin' as const }, bottom: { style: 'thin' as const }, right: { style: 'thin' as const } };
 
   // ---------- Resumo ----------
-  const rs = wb.addWorksheet('Resumo');
+  const addResumo = (sheetName: string, recs: OvertimeRecord[], ttl: string) => {
+  const sum = buildSummary(recs);
+  const rs = wb.addWorksheet(sheetName);
   setup(rs);
   rs.columns = [{ width: 38 }, { width: 12 }, { width: 4 }, { width: 38 }, { width: 12 }, { width: 4 }, { width: 38 }, { width: 12 }];
   rs.mergeCells('A1:H1');
@@ -61,11 +62,11 @@ export async function exportPlanningExcel(opts: {
   if (logoId !== null) rs.addImage(logoId, { tl: { col: 6.3, row: 0.1 }, ext: { width: 175, height: 36 } });
   rs.properties.tabColor = { argb: YELLOW };
   rs.mergeCells('A2:H2');
-  rs.getCell('A2').value = `${opts.title} · ${sum.locais.join(' / ')} · Gestor: ${sum.gestores.join(' / ')}`;
+  rs.getCell('A2').value = `${ttl} · ${sum.locais.join(' / ')} · Gestor: ${sum.gestores.join(' / ')}`;
   rs.getCell('A2').font = { size: 11, bold: true, color: { argb: BLACK } };
   rs.getCell('A2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: YELLOW } };
   rs.mergeCells('A3:H3');
-  rs.getCell('A3').value = `Total: ${sum.total} colaboradores · ${sum.aprovados} aprovados${opts.filterNote ? ' · Filtros: ' + opts.filterNote : ''}`;
+  rs.getCell('A3').value = `Total: ${sum.total} ${sum.total === 1 ? 'colaborador' : 'colaboradores'} · ${sum.aprovados} ${sum.aprovados === 1 ? 'aprovado' : 'aprovados'}${opts.filterNote ? ' · Filtros: ' + opts.filterNote : ''}`;
 
   const block = (col: number, top: number, title: string, rows: (string | number)[][]) => {
     rs.mergeCells(top, col, top, col + 1);
@@ -94,6 +95,8 @@ export async function exportPlanningExcel(opts: {
     r2 = block(4, r2, `${c.nome} · ${c.turno}${sum.byDia.length > 1 ? ' · ' + c.dia.slice(0, 5) : ''} · equipe ${c.total}`, c.byCc.map(([k, v]) => [`CC ${k}`, v]));
   });
   r2 = block(4, r2, 'TRANSPORTE POR ROTA', sum.byRota.map(([k, v]) => [k, v]));
+  };
+  addResumo('Resumo', opts.recs, opts.title);
 
   // ---------- Lista nominal ----------
   const addList = (name: string, recs: OvertimeRecord[], showDate: boolean) => {
@@ -142,7 +145,11 @@ export async function exportPlanningExcel(opts: {
   };
   addList('Lista', opts.recs, true);
   if (opts.perDay) {
-    [...new Map(opts.recs.map((r) => [r.data, r.dataSortKey] as const))].sort((a, b) => a[1].localeCompare(b[1])).map(([d]) => d).forEach((d) => addList(d.replace(/\//g, '-'), opts.recs.filter((r) => r.data === d), false));
+    [...new Map(opts.recs.map((r) => [r.data, r.dataSortKey] as const))].sort((a, b) => a[1].localeCompare(b[1])).map(([d]) => d).forEach((d) => {
+      const dayRecs = opts.recs.filter((r) => r.data === d);
+      addResumo(`Resumo ${d.slice(0, 5).replace('/', '-')}`, dayRecs, d);
+      addList(d.replace(/\//g, '-'), dayRecs, false);
+    });
   }
 
   const buf = await wb.xlsx.writeBuffer();

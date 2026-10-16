@@ -32,7 +32,7 @@ import {
 import PlanejamentoHoraExtra from './components/PlanejamentoHoraExtra';
 import AdminUsers from './components/AdminUsers';
 import LoginScreen from './components/LoginScreen';
-import { loadSetting, saveSetting } from './lib/settingsSync';
+import { loadSetting, mergeSetting } from './lib/settingsSync';
 import { useCloudSync } from './lib/useCloudSync';
 import { cloudEnabled } from './lib/supabase';
 import { getRealFactoryDataset, normalizeOvertimeRecord } from './data/realSampleData';
@@ -53,7 +53,7 @@ import {
 import { downloadStandaloneHtmlFile } from './utils/standaloneHtmlGenerator';
 import { ConsolidatedShiftsChart } from './components/ConsolidatedShiftsChart';
 import { LeaderGuideModal } from './components/LeaderGuideModal';
-import { InteractiveShiftTimeline } from './components/InteractiveShiftTimeline';
+import { InteractiveShiftTimeline, byShiftTime } from './components/InteractiveShiftTimeline';
 import { GeneralDayTimeline } from './components/GeneralDayTimeline';
 import { ManagerReportsView } from './components/ManagerReportsView';
 import { ExecutiveBentoDashboard } from './components/ExecutiveBentoDashboard';
@@ -73,7 +73,6 @@ const STORAGE_KEY = 'horaextra_diario_records_v4';
 const CLEARED_KEY = 'horaextra_cleared_v1'; // "Apagar todos os dados": não recarregar a simulação sozinha
 const STORAGE_DATE_KEY = 'horaextra_selected_date_v4';
 const STORAGE_LEADER_KEY = 'horaextra_selected_leader_v1';
-const STORAGE_HIDE_GUIDE_KEY = 'horaextra_hide_onboarding_v1';
 
 const QUICK_ABSENCE_REASONS = [
   'Falta injustificada',
@@ -150,6 +149,7 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [confirmingResetInline, setConfirmingResetInline] = useState<boolean>(false);
   const [confirmingWipe, setConfirmingWipe] = useState<boolean>(false);
+  const [wipeText, setWipeText] = useState<string>('');
   const [wiping, setWiping] = useState<boolean>(false);
 
   // Filters in Visão do Líder
@@ -188,25 +188,8 @@ export default function App() {
   // Date selector sheet
   const [isDateSheetOpen, setIsDateSheetOpen] = useState<boolean>(false);
 
-  // Onboarding / Help Guide Modal ("Primeiros Passos" + "Não mostrar novamente")
-  const [hideGuideOnStartup, setHideGuideOnStartup] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(STORAGE_HIDE_GUIDE_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  });
   // O guia nunca abre sozinho: só pelo botão "Como usar".
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
-
-  const handleToggleHideGuideOnStartup = (hide: boolean) => {
-    setHideGuideOnStartup(hide);
-    try {
-      localStorage.setItem(STORAGE_HIDE_GUIDE_KEY, hide ? 'true' : 'false');
-    } catch {
-      // ignore
-    }
-  };
 
   // Toast feedback
   const [feedback, setFeedback] = useState<{
@@ -281,7 +264,15 @@ export default function App() {
       updatedOverrides = saveLeaderOverride(`nome:${normName}`, newLeader);
     }
     setLeaderOverrides(updatedOverrides);
-    void saveSetting('leader_overrides', updatedOverrides);
+    const patch: Record<string, string> = {};
+    if (cleanChapa && cleanChapa !== '—') patch[`chapa:${cleanChapa}`] = newLeader;
+    if (normName) patch[`nome:${normName}`] = newLeader;
+    void mergeSetting('leader_overrides', patch).then((merged) => {
+      if (!merged) return;
+      const all = { ...loadLeaderOverrides(), ...merged };
+      try { localStorage.setItem(LEADER_OVERRIDES_STORAGE_KEY, JSON.stringify(all)); } catch { /* ignore */ }
+      setLeaderOverrides(all);
+    });
 
     setRecords((prev) =>
       prev.map((rec) => {
@@ -310,8 +301,14 @@ export default function App() {
   // Group records by shift date (respecting selectedLeader when active)
   const recordsFilteredByLeader = useMemo(() => {
     if (selectedLeader === 'ALL') return records;
-    return records.filter((r) => matchesSelectedLeader(r.lider, selectedLeader));
-  }, [records, selectedLeader]);
+    return records.filter((r) => {
+      const lider =
+        !r.lider || r.lider === 'Não identificado'
+          ? resolveCollaboratorLeader(r.chapa, r.funcionario, leaderOverrides)
+          : r.lider;
+      return matchesSelectedLeader(lider, selectedLeader);
+    });
+  }, [records, selectedLeader, leaderOverrides]);
 
   // Lista TODOS os dias da planilha; os contadores respeitam o líder selecionado (0 se ele não tem equipe no dia).
   const shiftGroups = useMemo<ShiftGroup[]>(() => {
@@ -371,7 +368,10 @@ export default function App() {
     });
 
     dateRecords.forEach((r) => {
-      const resolved = r.lider || resolveCollaboratorLeader(r.chapa, r.funcionario, leaderOverrides);
+      const resolved =
+        !r.lider || r.lider === 'Não identificado'
+          ? resolveCollaboratorLeader(r.chapa, r.funcionario, leaderOverrides)
+          : r.lider;
       OFFICIAL_LEADERS.forEach((l) => {
         if (matchesSelectedLeader(resolved, l)) {
           counts[l] = (counts[l] || 0) + 1;
@@ -405,7 +405,9 @@ export default function App() {
         return false;
       }
       const resolvedLeader =
-        r.lider || resolveCollaboratorLeader(r.chapa, r.funcionario, leaderOverrides);
+        !r.lider || r.lider === 'Não identificado'
+          ? resolveCollaboratorLeader(r.chapa, r.funcionario, leaderOverrides)
+          : r.lider;
       if (!matchesSelectedLeader(resolvedLeader, selectedLeader)) {
         return false;
       }
@@ -495,15 +497,48 @@ export default function App() {
     setRecords((prev) => prev.map((item) => (item.id === id ? updater(item) : item)));
   };
 
+  // Ao sair de "Ausente", limpa o que a falta tinha gravado (peça não entregue, motivo, destino).
+  const clearAbsenceState = (prev: OvertimeRecord): OvertimeRecord => {
+    if (prev.status !== AttendanceStatus.Ausente) return prev;
+    const hadAction = prev.absentPieceAction !== AbsentPieceAction.Nenhum;
+    return {
+      ...prev,
+      producedState: ProducedState.NaoIniciado,
+      qtyActual: 0,
+      motivoFalta: '',
+      absentPieceAction: AbsentPieceAction.Nenhum,
+      reallocatedToWelder: '',
+      productionJustification: hadAction ? '' : prev.productionJustification,
+      timeline: hadAction ? prev.timeline.filter((ev) => ev.type !== 'reallocation') : prev.timeline,
+    };
+  };
+
+  // Aviso "Desfazer" por 4s depois de mudar a presença.
+  const [presenceUndo, setPresenceUndo] = useState<{ nome: string; previous: OvertimeRecord } | null>(null);
+  const presenceUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const offerPresenceUndo = (previous: OvertimeRecord) => {
+    if (presenceUndoTimer.current) clearTimeout(presenceUndoTimer.current);
+    setPresenceUndo({ nome: previous.funcionario, previous });
+    presenceUndoTimer.current = setTimeout(() => setPresenceUndo(null), 4000);
+  };
+  const handleUndoPresence = () => {
+    if (!presenceUndo) return;
+    const { previous } = presenceUndo;
+    updateEmployee(previous.id, () => previous);
+    if (presenceUndoTimer.current) clearTimeout(presenceUndoTimer.current);
+    setPresenceUndo(null);
+  };
+
   // Quick 1-tap presence button on the left of the card
   const handleQuickPresenceTap = (e: React.MouseEvent, emp: OvertimeRecord) => {
     e.stopPropagation();
+    offerPresenceUndo(emp);
 
     if (emp.status === AttendanceStatus.Pendente) {
       // Mark Presente & Soldando + log entry if timeline is empty
       const entryTime = emp.de || getCurrentTimeHHMM();
       updateEmployee(emp.id, (prev) => ({
-        ...prev,
+        ...clearAbsenceState(prev),
         status: AttendanceStatus.Presente,
         operationalStatus:
           prev.operationalStatus === OperationalStatus.Aguardando ||
@@ -536,7 +571,7 @@ export default function App() {
     } else {
       // Back to Pendente
       updateEmployee(emp.id, (prev) => ({
-        ...prev,
+        ...clearAbsenceState(prev),
         status: AttendanceStatus.Pendente,
         operationalStatus: OperationalStatus.Aguardando,
       }));
@@ -545,10 +580,12 @@ export default function App() {
 
   // Set Presence inside the Detail Drawer
   const handleSetPresenceInDrawer = (emp: OvertimeRecord, newStatus: AttendanceStatus) => {
+    if (newStatus === emp.status) return;
+    offerPresenceUndo(emp);
     if (newStatus === AttendanceStatus.Presente) {
       const entryTime = emp.de || getCurrentTimeHHMM();
       updateEmployee(emp.id, (prev) => ({
-        ...prev,
+        ...clearAbsenceState(prev),
         status: AttendanceStatus.Presente,
         operationalStatus:
           prev.operationalStatus === OperationalStatus.Ausente ||
@@ -618,7 +655,7 @@ export default function App() {
               description: timelineAdditionDesc,
               type: 'reallocation' as const,
             },
-          ].sort((a, b) => a.time.localeCompare(b.time))
+          ].sort(byShiftTime(prev.de))
         : filteredTimeline;
 
       return {
@@ -664,7 +701,7 @@ export default function App() {
           description: `Foi embora mais cedo (trabalhou das ${entryTime} às ${cleanExitTime}) — Motivo: ${cleanReason}`,
           type: 'early_exit' as const,
         },
-      ].sort((a, b) => a.time.localeCompare(b.time));
+      ].sort(byShiftTime(prev.de));
 
       return {
         ...prev,
@@ -750,7 +787,7 @@ export default function App() {
                   },
                 ]
               : []),
-          ].sort((a, b) => a.time.localeCompare(b.time));
+          ].sort(byShiftTime(item.de));
 
           return {
             ...item,
@@ -824,7 +861,7 @@ export default function App() {
               description: `Entregou a peça prioritária "${sourceEmp.motivoHe}" (de ${sourceEmp.funcionario}). A peça que ${targetFirstName} iria entregar ("${item.motivoHe}") não entregou devido ao remanejamento.`,
               type: 'finish' as const,
             },
-          ].sort((a, b) => a.time.localeCompare(b.time));
+          ].sort(byShiftTime(item.de));
 
           return {
             ...item,
@@ -833,7 +870,7 @@ export default function App() {
             horaEntradaReal: item.horaEntradaReal || item.de || '06:00',
             producedState: ProducedState.Nao,
             qtyActual: 0,
-            delayMinutes: Math.max(item.delayMinutes || 0, 120),
+            delayMinutes: item.delayMinutes || 0,
             coveringForEmployee: `${sourceEmp.funcionario} (#${sourceEmp.chapa})`,
             coveringForChapa: sourceEmp.chapa,
             coveringForPiece: sourceEmp.motivoHe,
@@ -858,52 +895,6 @@ export default function App() {
     setTimeout(() => setFeedback(null), 5000);
   };
 
-  // Interactive Demo from Help Guide: "Airton arrived at 06:00 and left at 10:00"
-  const handleTryAirtonExample = () => {
-    // Prefer 03/10/2026 (shift 06:00-12:00) or fallback to any Airton in dataset
-    const airton03 = records.find(
-      (r) => r.data === '03/10/2026' && r.funcionario.toUpperCase().includes('AIRTON')
-    );
-    const targetAirton =
-      airton03 ||
-      records.find((r) => r.funcionario.toUpperCase().includes('AIRTON')) ||
-      records[0];
-
-    if (!targetAirton) return;
-
-    setActiveView('LEADER');
-    setSelectedDate(targetAirton.data);
-    setStatusFilter('ALL');
-    setShiftWindowFilter('ALL');
-    setSearchQuery('');
-    setIsGuideOpen(false);
-
-    handleRegisterEarlyExit(
-      targetAirton,
-      '10:00',
-      'Compromisso particular',
-      '06:00'
-    );
-    handleAssignReplacementWelder(
-      {
-        ...targetAirton,
-        operationalStatus: OperationalStatus.SaiuMaisCedo,
-        horaEntradaReal: '06:00',
-        horaSaidaReal: '10:00',
-        motivoSaidaAntecipada: 'Compromisso particular',
-      },
-      'ADEMIR DA SILVA NEVES (#11418)',
-      true
-    );
-
-    setSelectedEmployeeId(targetAirton.id);
-    setFeedback({
-      type: 'success',
-      message: `Simulado carregado: Airton saiu às 10:00 e Ademir (#11418) deixou sua peça (Saw mesa) às 10:00 para entregar a peça prioritária (Tw trave)!`,
-    });
-    setTimeout(() => setFeedback(null), 6000);
-  };
-
   // Add event to employee timeline
   const handleAddTimelineEvent = (
     emp: OvertimeRecord,
@@ -923,7 +914,7 @@ export default function App() {
           description: descToUse,
           type: customType || 'note',
         },
-      ].sort((a, b) => a.time.localeCompare(b.time));
+      ].sort(byShiftTime(prev.de));
 
       // Also sync operationalStatus if preset indicates stop / resume / finish
       let nextOpStatus = prev.operationalStatus;
@@ -993,6 +984,13 @@ export default function App() {
 
     try {
       const parsed = await parseOvertimeExcel(file);
+      const marked = records.filter((r) => r.status !== AttendanceStatus.Pendente).length;
+      if (records.length > 0 && marked > 0) {
+        const ok = window.confirm(
+          `Importar esta planilha vai SUBSTITUIR todos os dados atuais (${records.length} registros) e apagar as ${marked} marcações de presença, paradas e saídas já feitas, em TODOS os aparelhos.\n\nA planilha nova tem ${parsed.length} registros. Deseja continuar?`
+        );
+        if (!ok) return;
+      }
       cloud.markReplace();
       try { localStorage.removeItem(CLEARED_KEY); } catch { /* ignore */ }
       setRecords(parsed);
@@ -1074,6 +1072,7 @@ export default function App() {
     try { localStorage.setItem(CLEARED_KEY, 'true'); } catch { /* ignore */ }
     setRecords([]);
     setConfirmingWipe(false);
+    setWipeText('');
     setIsMenuOpen(false);
     setActiveView('PLANNING');
     setFeedback({ type: 'success', message: 'Todos os dados foram apagados. Agora é só subir o Excel novo.' });
@@ -1179,11 +1178,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0B0F19] text-slate-100 flex flex-col">
       {cloud.session && <AdminUsers />}
-      {cloud.state !== 'local' && (
-        <div className="fixed bottom-2 right-2 z-50 rounded-full bg-slate-900/90 border border-slate-700 px-2.5 py-1 text-[10px] font-semibold text-slate-300">
-          {{ 'signed-out': '● sem login', syncing: '● sincronizando', online: '● online', offline: '● offline (fila local)', error: '● erro de sync', local: '' }[cloud.state]}
-        </div>
-      )}
       {/* Hidden File Input for Excel Upload */}
       <input
         ref={fileInputRef}
@@ -1196,6 +1190,28 @@ export default function App() {
       {/* Top Sticky App Bar */}
       <header className="sticky top-0 z-30 bg-[#0B0F19]/92 backdrop-blur-xl border-b border-slate-800/90 pt-safe px-3 sm:px-6 pb-2.5">
         <div className="max-w-6xl mx-auto">
+          {cloud.state !== 'local' && (
+            <div
+              role="status"
+              className={`mb-1.5 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                cloud.state === 'online'
+                  ? 'border-emerald-500/40 bg-emerald-950/40 text-emerald-300'
+                  : cloud.state === 'syncing'
+                  ? 'border-sky-500/40 bg-sky-950/40 text-sky-300'
+                  : 'border-amber-500/50 bg-amber-950/50 text-amber-200'
+              }`}
+            >
+              <span aria-hidden="true">●</span>
+              {{
+                online: 'Salvo na nuvem',
+                syncing: 'Enviando…',
+                offline: 'Sem sinal — vai enviar quando voltar',
+                error: 'Sem sinal — vai enviar quando voltar',
+                'signed-out': 'Sem login',
+                local: '',
+              }[cloud.state]}
+            </div>
+          )}
           <div className="flex items-center justify-between gap-2">
             {/* Left Zone: 3-Dots Menu + Brand + View Indicator */}
             <div className="flex items-center gap-2 min-w-0">
@@ -1566,7 +1582,7 @@ export default function App() {
               }}
               className="w-full min-h-[40px] px-3 py-2 rounded-xl text-left text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-between transition-colors"
             >
-              <span>Baixar Arquivo Único HTML</span>
+              <span>Versão demonstração offline (HTML)</span>
               <span className="font-mono-tabular text-slate-500">HoraExtra.html</span>
             </button>
 
@@ -1636,10 +1652,24 @@ export default function App() {
               </button>
             ) : (
               <div className="p-2.5 rounded-xl bg-red-950/70 border border-red-500/60 mt-1">
-                <p className="text-xs font-bold text-red-100 mb-1">Apagar os {records.length} registros de todos os dias?</p>
-                <p className="text-[11px] text-red-200/90 mb-2">
+                <p className="text-xs font-bold text-red-100 mb-1">
+                  Vão ser apagados {records.length} registros de {new Set(records.map((r) => r.data)).size} dia(s)
+                </p>
+                <p className="text-xs text-red-200/90 mb-2">
                   Apaga no app e no banco, para todos os aparelhos. Não dá para desfazer. Se precisar, baixe um backup antes.
                 </p>
+                <label className="block text-xs text-red-100 mb-1" htmlFor="wipe-confirm">
+                  Para confirmar, digite <strong>APAGAR</strong>:
+                </label>
+                <input
+                  id="wipe-confirm"
+                  type="text"
+                  value={wipeText}
+                  onChange={(e) => setWipeText(e.target.value)}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  className="w-full min-h-[40px] mb-2 rounded-lg bg-slate-950 border border-red-500/50 px-3 text-sm text-white"
+                />
                 <button
                   type="button"
                   disabled={records.length === 0}
@@ -1651,7 +1681,7 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    disabled={wiping}
+                    disabled={wiping || wipeText.trim().toUpperCase() !== 'APAGAR'}
                     onClick={handleWipeAll}
                     className="flex-1 min-h-[40px] rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold disabled:opacity-60"
                   >
@@ -1660,7 +1690,7 @@ export default function App() {
                   <button
                     type="button"
                     disabled={wiping}
-                    onClick={() => setConfirmingWipe(false)}
+                    onClick={() => { setConfirmingWipe(false); setWipeText(''); }}
                     className="flex-1 min-h-[40px] rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-xs font-semibold"
                   >
                     Cancelar
@@ -1674,6 +1704,18 @@ export default function App() {
 
       {/* Main Content Container */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 pt-3 pb-safe">
+        {presenceUndo && (
+          <div className="fixed bottom-4 left-3 right-3 sm:left-auto sm:right-6 sm:w-96 z-[70] flex items-center justify-between gap-3 rounded-2xl border border-slate-600 bg-slate-800 px-4 py-2 shadow-2xl">
+            <span className="text-sm text-slate-100 truncate">Presença de {presenceUndo.nome} alterada</span>
+            <button
+              type="button"
+              onClick={handleUndoPresence}
+              className="min-h-[44px] px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-sm font-bold shrink-0"
+            >
+              Desfazer
+            </button>
+          </div>
+        )}
         {/* Feedback Banner */}
         {feedback && (
           <div
@@ -2221,7 +2263,7 @@ export default function App() {
                                     prev === emp.id ? null : emp.id
                                   );
                                 }}
-                                className={`ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-bold transition-colors ${
+                                className={`ml-auto inline-flex items-center gap-1 min-h-[40px] px-3 py-1 rounded-md border text-xs font-bold transition-colors ${
                                   isDetailsExpanded
                                     ? 'bg-cyan-500 text-slate-950 border-cyan-400'
                                     : 'bg-slate-950 border-slate-700 text-cyan-300 hover:bg-slate-800'
@@ -2590,7 +2632,7 @@ export default function App() {
               <section className="bg-rose-950/35 rounded-2xl border border-rose-500/35 p-4 space-y-4">
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-rose-200">
-                    1. Por que o colaborador faltou ao turno? *
+                    1. Por que o colaborador faltou ao turno?
                   </label>
                   <input
                     ref={absenceInputRef}
@@ -2846,10 +2888,7 @@ export default function App() {
       {/* Onboarding & Help Guide Modal ("Primeiros Passos" + "? Como usar") */}
       <LeaderGuideModal
         isOpen={isGuideOpen}
-        hideOnStartup={hideGuideOnStartup}
-        onToggleHideOnStartup={handleToggleHideGuideOnStartup}
         onClose={() => setIsGuideOpen(false)}
-        onTryAirtonExample={handleTryAirtonExample}
       />
 
       {/* Collaborator-by-Leader General Database Modal */}

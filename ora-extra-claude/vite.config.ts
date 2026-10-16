@@ -13,6 +13,17 @@ export default defineConfig(() => {
     },
     build: {
       chunkSizeWarningLimit: 1600,
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return undefined;
+            if (/node_modules\/(recharts|d3-[^/]+|victory-vendor)\//.test(id)) return 'vendor-recharts';
+            if (/node_modules\/exceljs\//.test(id)) return 'vendor-exceljs';
+            if (/node_modules\/xlsx\//.test(id)) return 'vendor-xlsx';
+            return undefined;
+          },
+        },
+      },
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

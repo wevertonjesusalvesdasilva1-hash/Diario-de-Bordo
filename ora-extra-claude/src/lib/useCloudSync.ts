@@ -4,12 +4,27 @@ import type { Session } from '@supabase/supabase-js';
 const OPEN_SESSION = {} as Session;
 import { OvertimeRecord } from '../types';
 import { cloudEnabled, supabase } from './supabase';
-import { dedupeRecords, fromRows, toRows } from './mapper';
+import { dedupeRecords, fromRows, hasValidDate, toRows } from './mapper';
 
 const SNAP_KEY = 'horaextra_sync_snapshot_v1';
 const hash = (t: string) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return String(h); };
 const readSnap = (): Map<string, string> | null => { try { const v = localStorage.getItem(SNAP_KEY); return v ? new Map(Object.entries(JSON.parse(v))) : null; } catch { return null; } };
 const writeSnap = (m: Map<string, string>) => { try { localStorage.setItem(SNAP_KEY, JSON.stringify(Object.fromEntries(m))); } catch { /* ignore */ } };
+
+const PAGE = 1000;
+/** Lê a tabela inteira em páginas de 1000 (limite do PostgREST). */
+async function fetchAll(table: string, cols: string, order: string) {
+  if (!supabase) return { data: [] as any[], error: null as unknown };
+  const out: any[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase.from(table).select(cols).order(order).range(from, from + PAGE - 1);
+    if (error) return { data: [] as any[], error };
+    out.push(...((data ?? []) as any[]));
+    if (!data || data.length < PAGE) break;
+  }
+  return { data: out, error: null as unknown };
+}
+const isPendingLeader = (l?: string) => !l || l === 'Não identificado' || l.includes('/');
 
 export type SyncState = 'local' | 'signed-out' | 'syncing' | 'online' | 'offline' | 'error';
 
@@ -24,6 +39,16 @@ export function useCloudSync(
   const snapshot = useRef<Map<string, string>>(new Map());
   const snapSeeded = useRef(false);
   const loaded = useRef(false);
+  const stateRef = useRef<SyncState>(state);
+  stateRef.current = state;
+  // eventos da linha do tempo que ESTE aparelho já viu na nuvem: só esses podem ser apagados no push
+  const knownEvents = useRef<Map<string, Set<string>>>(new Map());
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const serial = <T,>(fn: () => Promise<T>): Promise<T> => {
+    const p = queue.current.then(fn, fn);
+    queue.current = p.catch(() => undefined);
+    return p;
+  };
   const recordsRef = useRef(records);
   recordsRef.current = records;
 
@@ -33,9 +58,10 @@ export function useCloudSync(
   const removeStale = async () => {
     if (!supabase || !replaceRef.current) return;
     replaceRef.current = false;
-    const { data } = await supabase.from('he_assignments').select('id');
+    const { data, error } = await fetchAll('he_assignments', 'id', 'id');
+    if (error) { replaceRef.current = true; return; }
     const keep = new Set(recordsRef.current.map((r) => r.id));
-    const extra = (data ?? []).map((x) => x.id as string).filter((id) => !keep.has(id));
+    const extra = data.map((x) => x.id as string).filter((id) => !keep.has(id));
     for (let i = 0; i < extra.length; i += 100) await supabase.from('he_assignments').delete().in('id', extra.slice(i, i + 100));
   };
 
@@ -54,16 +80,31 @@ export function useCloudSync(
     return true;
   }, []);
 
-  const pull = useCallback(async () => {
+  const fetchAllEvents = async (assignmentIds: string[]) => {
+    const out: { id: string; assignment_id: string }[] = [];
+    for (let i = 0; i < assignmentIds.length; i += 100) {
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase!.from('he_timeline_events').select('id,assignment_id').in('assignment_id', assignmentIds.slice(i, i + 100)).order('id').range(from, from + PAGE - 1);
+        if (error) return { data: out, error };
+        out.push(...((data ?? []) as { id: string; assignment_id: string }[]));
+        if (!data || data.length < PAGE) break;
+      }
+    }
+    return { data: out, error: null as unknown };
+  };
+
+  const pullImpl = useCallback(async () => {
     if (!supabase) return;
     setState('syncing');
-    const [a, e] = await Promise.all([
-      supabase.from('he_assignments').select('*'),
-      supabase.from('he_timeline_events').select('*'),
-    ]);
+    const [a, e] = await Promise.all([fetchAll('he_assignments', '*', 'id'), fetchAll('he_timeline_events', '*', 'id')]);
     if (a.error || e.error) return setState('error');
+    const evByAsg = new Map<string, Set<string>>();
+    e.data.forEach((ev) => { const s = evByAsg.get(ev.assignment_id) ?? new Set<string>(); s.add(ev.id as string); evByAsg.set(ev.assignment_id, s); });
+    evByAsg.forEach((ids, k) => { const cur = knownEvents.current.get(k) ?? new Set<string>(); ids.forEach((i) => cur.add(i)); knownEvents.current.set(k, cur); });
     // A nuvem é a fonte da verdade: se estiver vazia (ex.: depois de "Apagar todos os dados"), este aparelho também esvazia.
-    const { keep: recs, dropIds } = dedupeRecords((a.data ?? []).map((row) => ({ rec: fromRows(row, e.data ?? []), at: row.updated_at as string })));
+    const localIds = new Set(recordsRef.current.map((r) => r.id));
+    const rows = replaceRef.current ? a.data.filter((row) => localIds.has(row.id as string)) : a.data; // importação em andamento: não traz de volta a planilha antiga
+    const { keep: recs, dropIds } = dedupeRecords(rows.map((row) => ({ rec: fromRows(row, e.data), at: row.updated_at as string })));
     // duplicatas antigas no banco (mesma pessoa/dia/peça com outro código): limpa
     for (let i = 0; i < dropIds.length; i += 100) {
       await supabase.from('he_assignments').delete().in('id', dropIds.slice(i, i + 100)); // precisa de await: a chamada só executa quando aguardada
@@ -72,13 +113,19 @@ export function useCloudSync(
     if (!snapSeeded.current) {
       snapSeeded.current = true;
       const saved = readSnap();
-      snapshot.current = saved ?? new Map(recordsRef.current.map((r) => [r.id, hash(JSON.stringify(r))])); // 1ª vez com esta versão: a nuvem manda
+      // 1ª vez com esta versão: a nuvem manda; mas se ela está vazia, o que existe aqui ainda não foi enviado e sobe
+      snapshot.current = saved ?? (recs.length === 0 ? new Map() : new Map(recordsRef.current.map((r) => [r.id, hash(JSON.stringify(r))])));
     }
     const local = new Map(recordsRef.current.map((r) => [r.id, r]));
     const isDirty = (r: OvertimeRecord) => snapshot.current.get(r.id) !== hash(JSON.stringify(r)); // editado/criado aqui e ainda não enviado
     const cloudIds = new Set(recs.map((r) => r.id));
     const keepLocal = (r: OvertimeRecord) => local.has(r.id) && isDirty(local.get(r.id) as OvertimeRecord);
-    const merged = [...recs.map((r) => (keepLocal(r) ? (local.get(r.id) as OvertimeRecord) : r)), ...recordsRef.current.filter((r) => !cloudIds.has(r.id) && isDirty(r))];
+    const mergeLocal = (r: OvertimeRecord) => {
+      const mine = local.get(r.id) as OvertimeRecord;
+      // líder já definido na nuvem não é desfeito por uma cópia local velha que ainda o tem pendente
+      return isPendingLeader(mine.lider) && !isPendingLeader(r.lider) ? { ...mine, lider: r.lider } : mine;
+    };
+    const merged = [...recs.map((r) => (keepLocal(r) ? mergeLocal(r) : r)), ...recordsRef.current.filter((r) => !cloudIds.has(r.id) && isDirty(r))];
     const prev = snapshot.current;
     snapshot.current = new Map(recs.map((r) => [r.id, keepLocal(r) ? (prev.get(r.id) as string) : hash(JSON.stringify(r))]));
     recordsRef.current = merged; // o push que roda logo depois NÃO pode ler a lista antiga
@@ -88,9 +135,9 @@ export function useCloudSync(
     setState('online');
   }, [setRecords]);
 
-  const push = useCallback(async () => {
+  const pushImpl = useCallback(async () => {
     if (!supabase || !loaded.current) return;
-    const changed = recordsRef.current.filter((r) => snapshot.current.get(r.id) !== hash(JSON.stringify(r)));
+    const changed = recordsRef.current.filter((r) => hasValidDate(r) && snapshot.current.get(r.id) !== hash(JSON.stringify(r)));
     const replacing = replaceRef.current;
     if (changed.length === 0 && !replacing) return;
     setState('syncing');
@@ -107,6 +154,17 @@ export function useCloudSync(
     for (const s of steps) if ((await s).error) return setState('error');
     const asg = await supabase.from('he_assignments').upsert(rows.map((r) => r.assignment));
     if (asg.error) return setState('error');
+    // evento apagado localmente (lixeira / reiniciar turno) também sai da nuvem; só os que este aparelho já tinha visto
+    const ids = changed.map((r) => r.id);
+    const remote = await fetchAllEvents(ids);
+    if (remote.error) return setState('error');
+    const localEv = new Set(rows.flatMap((r) => r.events.map((x) => x.id)));
+    const gone = remote.data.filter((x) => !localEv.has(x.id) && knownEvents.current.get(x.assignment_id)?.has(x.id)).map((x) => x.id);
+    for (let i = 0; i < gone.length; i += 100) {
+      const d = await supabase.from('he_timeline_events').delete().in('id', gone.slice(i, i + 100));
+      if (d.error) return setState('error');
+    }
+    changed.forEach((r) => knownEvents.current.set(r.id, new Set((r.timeline || []).map((x) => x.id))));
     const ev = rows.flatMap((r) => r.events);
     if (ev.length) {
       const r = await supabase.from('he_timeline_events').upsert(ev, { ignoreDuplicates: true });
@@ -118,12 +176,17 @@ export function useCloudSync(
     setState('online');
   }, []);
 
+  const pull = useCallback(() => serial(async () => { try { await pullImpl(); } catch { setState(navigator.onLine ? 'error' : 'offline'); } }), [pullImpl]);
+  const push = useCallback(() => serial(async () => { try { await pushImpl(); } catch { setState(navigator.onLine ? 'error' : 'offline'); } }), [pushImpl]);
+  /** Se a carga inicial ainda não aconteceu, puxa primeiro; depois sempre envia o que está pendente. */
+  const resync = useCallback(async () => { await pull(); await push(); }, [pull, push]);
+
   // carga inicial após login; se a nuvem estiver vazia, o 1º push sobe os dados locais
   useEffect(() => {
     if (!session) return;
     loaded.current = false;
-    pull().then(() => push());
-  }, [session, pull, push]);
+    resync();
+  }, [session, resync]);
 
   // push com debounce a cada mudança
   useEffect(() => {
@@ -153,17 +216,25 @@ export function useCloudSync(
     };
   }, [session, pull]);
 
-  // offline-first: reenvia ao voltar o sinal
+  // offline-first: ao voltar o sinal / reabrir a aba / a cada 30s com erro, puxa e reenvia sem precisar recarregar
   useEffect(() => {
-    const on = () => session && push();
-    const off = () => session && setState('offline');
+    if (!session) return;
+    const on = () => { resync(); };
+    const off = () => setState('offline');
+    const vis = () => { if (document.visibilityState === 'visible') resync(); };
+    const timer = setInterval(() => {
+      if (!loaded.current || stateRef.current === 'error' || stateRef.current === 'offline') resync();
+    }, 30000);
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
+    document.addEventListener('visibilitychange', vis);
     return () => {
+      clearInterval(timer);
       window.removeEventListener('online', on);
       window.removeEventListener('offline', off);
+      document.removeEventListener('visibilitychange', vis);
     };
-  }, [session, push]);
+  }, [session, resync]);
 
   return { session: null as Session | null, ready: true, state, needsLogin: false, markReplace, clearAll };
 }

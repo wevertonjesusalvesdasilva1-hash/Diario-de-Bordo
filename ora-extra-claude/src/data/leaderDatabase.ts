@@ -14,6 +14,7 @@ export const OFFICIAL_LEADERS = [
   'Luiz',
   'Odonei',
   'Ronaldo',
+  'Rogério',
 ] as const;
 
 export type OfficialLeaderName = (typeof OFFICIAL_LEADERS)[number];

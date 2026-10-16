@@ -2,7 +2,14 @@ import { OvertimeRecord, TimelineEvent } from '../types';
 import { normalizeOvertimeRecord } from '../data/realSampleData';
 import { refreshCompositeLeader } from '../data/leaderDatabase';
 
-const toIso = (r: OvertimeRecord) => (r.dataSortKey && /^\d{4}-\d{2}-\d{2}$/.test(r.dataSortKey) ? r.dataSortKey : null);
+const toIso = (r: OvertimeRecord) => {
+  const k = r.dataSortKey;
+  if (!k || !/^\d{4}-\d{2}-\d{2}$/.test(k)) return null;
+  const d = new Date(`${k}T00:00:00Z`);
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === k ? k : null;
+};
+/** Registro com data real; sem ela o banco recusa o lote inteiro. */
+export const hasValidDate = (r: OvertimeRecord) => toIso(r) !== null;
 
 export function shiftId(r: OvertimeRecord) {
   return `${r.dataSortKey}|${r.local || '-'}`;
@@ -47,7 +54,7 @@ export function fromRows(a: any, events: any[]): OvertimeRecord {
 }
 
 const nk = (v: string) => (v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
-export const semanticKey = (r: OvertimeRecord) => `${r.dataSortKey}|${String(r.chapa).trim()}|${nk(r.motivoHe)}`;
+export const semanticKey = (r: OvertimeRecord) => `${r.dataSortKey}|${String(r.chapa).trim() || nk(r.funcionario)}|${nk(r.motivoHe)}|${r.de}|${r.ate}`;
 
 /** Mesma pessoa + dia + peça com ids diferentes = duplicata. Mantém a mais "trabalhada" (marcações/linha do tempo). */
 export function dedupeRecords(items: { rec: OvertimeRecord; at?: string }[]) {

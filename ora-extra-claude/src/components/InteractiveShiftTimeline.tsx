@@ -58,6 +58,17 @@ function parseHHMMToMinutes(hhmm: string): number {
   return h * 60 + m;
 }
 
+function shiftOrderedMinutes(time: string, startHHMM: string): number {
+  const start = parseHHMMToMinutes(startHHMM || '06:00');
+  const m = parseHHMMToMinutes(time);
+  return m < start - 60 ? m + 1440 : m;
+}
+
+export function byShiftTime(startHHMM: string) {
+  return (a: { time: string }, b: { time: string }) =>
+    shiftOrderedMinutes(a.time, startHHMM) - shiftOrderedMinutes(b.time, startHHMM);
+}
+
 function formatMinutesToHHMM(totalMinutes: number): string {
   const normalized = ((totalMinutes % 1440) + 1440) % 1440;
   const hh = String(Math.floor(normalized / 60)).padStart(2, '0');
@@ -179,7 +190,7 @@ export const InteractiveShiftTimeline: React.FC<InteractiveShiftTimelineProps> =
             description: `Parou: ${reason}`,
             type: 'stop' as const,
           },
-        ].sort((a, b) => a.time.localeCompare(b.time));
+        ].sort(byShiftTime(shiftStart));
 
         return {
           ...prev,
@@ -208,7 +219,7 @@ export const InteractiveShiftTimeline: React.FC<InteractiveShiftTimelineProps> =
             description: `Retomou produção${diffMins > 0 ? ` (ficou parado ${diffMins} min)` : ''}`,
             type: 'resume' as const,
           },
-        ].sort((a, b) => a.time.localeCompare(b.time));
+        ].sort(byShiftTime(shiftStart));
 
         return {
           ...prev,
@@ -243,7 +254,7 @@ export const InteractiveShiftTimeline: React.FC<InteractiveShiftTimelineProps> =
             description: `Foi embora mais cedo (trabalhou das ${entryTime} às ${timeToSave}) — Motivo: ${reason}`,
             type: 'early_exit' as const,
           },
-        ].sort((a, b) => a.time.localeCompare(b.time));
+        ].sort(byShiftTime(shiftStart));
 
         return {
           ...prev,
@@ -270,7 +281,7 @@ export const InteractiveShiftTimeline: React.FC<InteractiveShiftTimelineProps> =
             description: `Peça finalizada (${prev.motivoHe})`,
             type: 'finish' as const,
           },
-        ].sort((a, b) => a.time.localeCompare(b.time));
+        ].sort(byShiftTime(shiftStart));
 
         return {
           ...prev,
@@ -448,9 +459,9 @@ export const InteractiveShiftTimeline: React.FC<InteractiveShiftTimelineProps> =
                                   type="button"
                                   onClick={(e) => handleDeleteEvent(e, ev.id)}
                                   title="Remover apontamento"
-                                  className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/50 shrink-0"
+                                  className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/50 shrink-0"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-5 h-5" />
                                 </button>
                               </div>
                             ))}
@@ -557,7 +568,7 @@ export const InteractiveShiftTimeline: React.FC<InteractiveShiftTimelineProps> =
                                   key={r}
                                   type="button"
                                   onClick={() => setStopReason(r)}
-                                  className={`px-2.5 py-1 rounded-lg border text-xs transition-colors ${
+                                  className={`min-h-[40px] px-3 py-1.5 rounded-lg border text-xs transition-colors ${
                                     stopReason === r
                                       ? 'bg-amber-500 border-amber-400 text-slate-950 font-bold'
                                       : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800'
@@ -601,7 +612,7 @@ export const InteractiveShiftTimeline: React.FC<InteractiveShiftTimelineProps> =
                                   key={r}
                                   type="button"
                                   onClick={() => setEarlyExitReason(r)}
-                                  className={`px-2.5 py-1 rounded-lg border text-xs transition-colors ${
+                                  className={`min-h-[40px] px-3 py-1.5 rounded-lg border text-xs transition-colors ${
                                     earlyExitReason === r
                                       ? 'bg-orange-500 border-orange-400 text-slate-950 font-bold'
                                       : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800'
