@@ -64,6 +64,16 @@ function LeaderConflicts({ records, onSetLeader, blocking }: { records: Overtime
       </div>
       <div className="border-t border-white/10 px-3 pb-2">
         <p className="py-2 text-[11px] opacity-80">Clique no líder de cada pessoa. A escolha fica guardada no banco e vale para os próximos Excel e para qualquer aparelho.</p>
+        {list.length - multi > 1 && (
+          <div className="mb-1 flex flex-wrap items-center gap-1.5 rounded-lg bg-black/20 px-2 py-1.5">
+            <span className="mr-1 text-[11px] font-bold text-slate-100">Todos os {list.length - multi} sem líder → </span>
+            {allLeaders.map((c) => (
+              <button key={c} type="button" onClick={() => list.filter((r) => !(r.lider || '').includes('/')).forEach((r) => onSetLeader(r.chapa, r.funcionario, c))} className="rounded-lg bg-slate-700 px-3 py-1 text-xs font-bold text-slate-100 hover:bg-emerald-600">
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
         {list.map((r) => {
           const cands = (r.lider || '').includes('/') ? r.lider.split('/').map((x) => x.trim()) : [];
           return (
