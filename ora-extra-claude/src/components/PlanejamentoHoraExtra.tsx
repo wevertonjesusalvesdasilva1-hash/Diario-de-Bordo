@@ -520,13 +520,13 @@ export default function PlanejamentoHoraExtra({
                   <button type="button" aria-label="Excluir nível" onClick={() => setLevels(arr.filter((_, k) => k !== i))} className="rounded-md bg-slate-800 px-2 py-1 text-xs hover:bg-red-900">✕</button>
                 </div>
               ))}
-              <div className="flex justify-between pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 pt-1">
                 <button type="button" className="text-xs text-amber-300 underline" onClick={() => {
                   const used = new Set(levels.map((l) => l.col));
                   const nextCol = (Object.keys(COL_LABELS) as ColKey[]).find((k) => k !== 'resp' && !used.has(k)) ?? 'nome';
                   setLevels([...levels.filter((l) => l.col !== 'resp'), { col: nextCol, dir: 'asc' }]);
                 }}>+ Adicionar nível</button>
-                <span className="flex gap-3">
+                <span className="flex gap-5">
                   <button type="button" className="text-xs text-red-300 underline" onClick={() => setLevels([])}>Excluir todas</button>
                   <button type="button" className="text-xs text-slate-300 underline" onClick={() => setLevels(DEFAULT_LEVELS())}>Restaurar padrão</button>
                   <button type="button" className="text-xs font-bold text-emerald-300" onClick={() => setSortOpen(false)}>Fechar</button>

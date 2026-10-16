@@ -1341,7 +1341,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setActiveView('LEADER')}
-              className={`min-h-[36px] px-2 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              className={`min-h-[44px] px-2 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                 activeView === 'LEADER'
                   ? 'bg-emerald-500 text-slate-950'
                   : 'text-slate-300 hover:text-white'
@@ -1352,7 +1352,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setActiveView('MANAGER')}
-              className={`min-h-[36px] px-2 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              className={`min-h-[44px] px-2 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                 activeView === 'MANAGER'
                   ? 'bg-emerald-500 text-slate-950'
                   : 'text-slate-300 hover:text-white'
@@ -1363,7 +1363,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setActiveView('REPORTS')}
-              className={`min-h-[36px] px-2 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all whitespace-nowrap ${
+              className={`min-h-[44px] px-2 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all whitespace-nowrap ${
                 activeView === 'REPORTS'
                   ? 'bg-amber-500 text-slate-950'
                   : 'text-amber-300 hover:text-amber-200'
@@ -1510,7 +1510,7 @@ export default function App() {
                 <HelpCircle className="w-4 h-4 text-amber-400 shrink-0" />
                 <span>Guia Rápido: Como Usar (?)</span>
               </span>
-              <span className="text-[11px] font-semibold text-amber-400">Exemplos</span>
+              
             </button>
 
             <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
@@ -1933,7 +1933,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setStatusFilter('ALL')}
-                className={`min-h-[36px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all ${
+                className={`min-h-[44px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all ${
                   statusFilter === 'ALL'
                     ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xs'
                     : 'bg-[#111726] border-slate-800/90 text-slate-300 hover:border-slate-700'
@@ -1960,7 +1960,7 @@ export default function App() {
                       : AttendanceStatus.Presente
                   )
                 }
-                className={`min-h-[36px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all ${
+                className={`min-h-[44px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all ${
                   statusFilter === AttendanceStatus.Presente
                     ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-xs'
                     : 'bg-[#111726] border-slate-800/90 text-emerald-400 hover:border-emerald-500/40'
@@ -1986,7 +1986,7 @@ export default function App() {
                     statusFilter === AttendanceStatus.Ausente ? 'ALL' : AttendanceStatus.Ausente
                   )
                 }
-                className={`min-h-[36px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all ${
+                className={`min-h-[44px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all ${
                   statusFilter === AttendanceStatus.Ausente
                     ? 'bg-rose-500 text-white border-rose-400 shadow-xs'
                     : 'bg-[#111726] border-slate-800/90 text-rose-400 hover:border-rose-500/40'
@@ -2015,7 +2015,7 @@ export default function App() {
                         : AttendanceStatus.Pendente
                     )
                   }
-                  className={`min-h-[36px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all ${
+                  className={`min-h-[44px] px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all ${
                     statusFilter === AttendanceStatus.Pendente
                       ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-xs'
                       : 'bg-[#111726] border-slate-800/90 text-amber-400 hover:border-amber-500/40'

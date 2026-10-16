@@ -224,7 +224,7 @@ export async function parseOvertimeExcel(file: File): Promise<OvertimeRecord[]> 
     const motivoTxt = String(row[idxMotivo] ?? '').trim() || 'Peça não informada';
     const deTxt = formatExcelTime(row[idxDe]);
     const ateTxt = formatExcelTime(row[idxAte]);
-    const rowKey = `${dataSortKey}|${rawChapa}|${slug(motivoTxt)}|${deTxt}|${ateTxt}`;
+    const rowKey = `${dataSortKey}|${rawChapa || slug(rawFuncionario)}|${slug(motivoTxt)}|${deTxt}|${ateTxt}`;
     if (seenRows.has(rowKey)) continue;
     seenRows.add(rowKey);
     // id estável: NÃO depende do número da linha, então reimportar o mesmo dado não duplica
