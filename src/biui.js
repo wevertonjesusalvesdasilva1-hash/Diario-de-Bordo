@@ -46,11 +46,14 @@ const blank = (v) => (v === '' || v == null ? '(vazio)' : v);
 const GROUPS = { raw: { name: 'RAW (robôs)', unit: 'Robô', units: 'Robôs' }, usi: { name: 'Usinagem', unit: 'Máquina', units: 'Máquinas' } };
 const PAGES = { raw: [['geral', 'Visão geral'], ['paradas', 'Paradas'], ['entrega', 'Entrega (horas padrão)'], ['pessoas', 'Peças e operadores']], usi: [['geral', 'Visão geral'], ['paradas', 'Paradas'], ['entrega', 'Entrega (horas padrão)'], ['pessoas', 'Peças e operadores']] };
 
-const ui = { t24: { open: false, key: null, only: false }, g: 'raw', page: 'geral', filt: {}, vf: {}, lead: {}, uteis: {}, multi: false, sel: null, cubes: {} };
+const ui = { t24: { open: false, key: null, only: false }, g: 'raw', page: 'geral', filt: {}, vf: {}, lead: {}, uteis: {}, multi: false, sel: null, stack: [], cubes: {} };
+// click filters pile up like in Power BI: robot 10 → "falta de peça" → the chart of that motive: each one narrows the others (ui.sel = the last, ui.stack = the ones before)
+const selFilter = () => [...ui.stack, ui.sel].filter(Boolean).reduce((a, sl) => mergeF(a, sl.f()), { p: {}, s: {} });
+let lastPick = { vid: '', key: '', t: 0 };
 try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui.g = s; } catch { /* no storage */ }
 
 export { openRecords, table as biTable, fileSafe, vis as biVis, card as biStat };
-export const setBiGroup = (g) => { if (GROUPS[g]) { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; } };
+export const setBiGroup = (g) => { if (GROUPS[g]) { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; ui.stack = []; } };
 const cubeFor = (g, base) => {
   const key = `${base.rev}|${Object.keys(getOperators()).length}|${matrixRev()}`;
   if (ui.cubes[g]?.key !== key) ui.cubes[g] = { key, cube: buildCube(base, (c) => operatorName(c) || '') };
@@ -307,7 +310,7 @@ function pageGeral(x) {
     const uniq = (k) => [...new Set(pickRows.flatMap((r) => r[k]))];
     const byTime = (a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.m < b.m ? -1 : a.m > b.m ? 1 : String(a.i1 ?? a.i).localeCompare(String(b.i1 ?? b.i)));
     const sel = ui.t24.key ? el('span', {}, 'Destacado: ', el('b', {}, ui.t24.key.split(SEP).reverse().join(' · ').replace(/(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1')), ' ',
-      el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.t24.only = !ui.t24.only; v24.rebuild(); } }, ui.t24.only ? 'Mostrar todas as linhas' : 'Mostrar só desta barra'), ' ', el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.t24.key = null; if (ui.sel?.vid === 'v8') { ui.sel = null; x.drawMain(); } else v24.rebuild(); } }, 'Limpar'))
+      el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.t24.only = !ui.t24.only; v24.rebuild(); } }, ui.t24.only ? 'Mostrar todas as linhas' : 'Mostrar só desta barra'), ' ', el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.t24.key = null; if (ui.sel?.vid === 'v8') { ui.sel = null; ui.stack = []; x.drawMain(); } else v24.rebuild(); } }, 'Limpar'))
       : el('span', {}, 'Clique numa barra do gráfico para destacar aqui os registros dela.');
     const common = { g: x.g, toast: x.toast, onSaved: () => x.refresh() };
     wrapBox.append(el('p', { class: 'bi-note dbe-note-hit' }, 'Edite a célula e clique em Salvar: a base de dados é atualizada e todos os gráficos recalculam. ', sel),
@@ -460,7 +463,7 @@ function quickBar(cube, side, apply) {
   const last = dates.at(-1), f = pageFilter(), box = el('div', { class: 'bi-quick', role: 'group', 'aria-label': 'Período' });
   const pk = ui.g, wk = (d) => { const w = new Date(`${d}T12:00:00Z`).getUTCDay(); return w >= 1 && w <= 5; };
   const U = (ui.uteis[pk] ??= { on: false, prev: null });
-  const set = (arr) => { if (U.on) arr = (arr ?? dates).filter(wk); if (arr && arr.length === dates.length && !U.on) arr = null; if (arr) f[side].data = new Set(arr); else delete f[side].data; ui.sel = null; apply(); slicerFills.forEach((fn) => fn()); mark(); };
+  const set = (arr) => { if (U.on) arr = (arr ?? dates).filter(wk); if (arr && arr.length === dates.length && !U.on) arr = null; if (arr) f[side].data = new Set(arr); else delete f[side].data; ui.sel = null; ui.stack = []; apply(); slicerFills.forEach((fn) => fn()); mark(); };
   const range = (a, b) => dates.filter((d) => d >= a && d <= b);
   const from = el('input', { type: 'date', min: dates[0], max: last, 'aria-label': 'De (data)', onchange: () => custom() }), to = el('input', { type: 'date', min: dates[0], max: last, 'aria-label': 'Até (data)', onchange: () => custom() });
   const custom = () => set(range(from.value || dates[0], to.value || last));
@@ -490,8 +493,8 @@ const mergeF = (a, b) => {
 
 export async function renderBiUI(root, ctx) {
   const wrap = el('div', { class: 'bi pn' }), bar = el('div', { class: 'bi-bar' }), title = el('h2', { class: 'bi-h2' }, 'Indicadores'), main = el('div'), side = el('aside', { class: 'bi-side' });
-  const seg = el('div', { class: 'bi-seg', role: 'group', 'aria-label': 'Grupo' }, Object.entries(GROUPS).map(([g, v]) => el('button', { type: 'button', 'aria-pressed': String(ui.g === g), onclick: () => { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; try { localStorage.setItem('bi.g', g); } catch { /* ignore */ } ctx.onGroup?.(g); renderBiUI(root, ctx); } }, v.name)));
-  const tabs = el('div', { class: 'bi-pages', role: 'group', 'aria-label': 'Página' }, PAGES[ui.g].map(([id, label]) => el('button', { type: 'button', 'aria-pressed': String(ui.page === id), onclick: () => { ui.page = id; ui.sel = null; renderBiUI(root, ctx); } }, label)));
+  const seg = el('div', { class: 'bi-seg', role: 'group', 'aria-label': 'Grupo' }, Object.entries(GROUPS).map(([g, v]) => el('button', { type: 'button', 'aria-pressed': String(ui.g === g), onclick: () => { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; ui.stack = []; try { localStorage.setItem('bi.g', g); } catch { /* ignore */ } ctx.onGroup?.(g); renderBiUI(root, ctx); } }, v.name)));
+  const tabs = el('div', { class: 'bi-pages', role: 'group', 'aria-label': 'Página' }, PAGES[ui.g].map(([id, label]) => el('button', { type: 'button', 'aria-pressed': String(ui.page === id), onclick: () => { ui.page = id; ui.sel = null; ui.stack = []; renderBiUI(root, ctx); } }, label)));
   bar.append(seg, tabs);
   wrap.append(title, bar, main);
   root.replaceChildren(wrap);
@@ -507,28 +510,35 @@ export async function renderBiUI(root, ctx) {
   const x = { cube, g: ui.g, base, toast: ctx.toast ?? ((m) => window.alert(m)),
     // after an edit in a table: read the base again and redraw every visual in place
     refresh: async () => { x.base = await loadBase(ui.g, { force: true }); cube = cubeFor(ui.g, x.base); curCube = cube; x.cube = cube; slicerFills.forEach((fn) => fn()); REG.forEach((r) => r.rebuild()); },
-    F: (vid) => mergeF(mergeF(pageFilter(), ui.sel && ui.sel.vid !== vid && !ui.noSel ? ui.sel.f() : null), visFilterOf(vid)),
-    selOf: (vid) => (ui.sel?.vid === vid ? ui.sel.keys : null),
+    F: (vid) => mergeF(mergeF(pageFilter(), ui.noSel ? null : [...ui.stack, ui.sel].filter((q) => q && q.vid !== vid).reduce((a, q) => mergeF(a, q.f()), { p: {}, s: {} })), visFilterOf(vid)),
+    selOf: (vid) => [ui.sel, ...ui.stack].find((q) => q?.vid === vid)?.keys ?? null,
     // like Power BI: a click selects only that bar (again = clear); Ctrl/⌘ + click (or "Seleção múltipla") adds or removes bars
     pick: (vid, sd, cols) => (key, ev) => {
       const add = !!(ev?.ctrlKey || ev?.metaKey || ui.multi);
+      const now = Date.now(), twice = lastPick.vid === vid && lastPick.key === key && now - lastPick.t < 500 && !add;
+      lastPick = { vid, key, t: now };
+      if (twice && ui.sel?.vid === vid) { openSelRecords(); return; }   // two clicks on the same bar: the records behind it, in a window
+      const mine = ui.stack.findIndex((q) => q.vid === vid);            // a click on a chart that already filters: it becomes the last one
+      if (mine >= 0) { const own = ui.stack.splice(mine, 1)[0]; if (ui.sel) ui.stack.push(ui.sel); ui.sel = own; }
       if (ui.sel?.vid === vid) {
         if (add) { if (ui.sel.keys.has(key)) ui.sel.keys.delete(key); else ui.sel.keys.add(key); }
         else if (ui.sel.keys.size === 1 && ui.sel.keys.has(key)) ui.sel.keys.clear();
         else ui.sel.keys = new Set([key]);
-        if (!ui.sel.keys.size) ui.sel = null;
+        if (!ui.sel.keys.size) ui.sel = ui.stack.pop() ?? null;
       }
-      else ui.sel = { vid, side: sd, keys: new Set([key]), f() { const o = { p: {}, s: {} }; cols.forEach((c, i) => { o[sd][c] = new Set([...this.keys].map((k) => k.split(SEP)[i])); }); return o; } };
+      else { if (ui.sel) ui.stack.push(ui.sel); ui.sel = { vid, side: sd, keys: new Set([key]), f() { const o = { p: {}, s: {} }; cols.forEach((c, i) => { o[sd][c] = new Set([...this.keys].map((k) => k.split(SEP)[i])); }); return o; } }; }
       drawMain();
+      lastPick.t = Date.now();                                          // counted after the redraw (it can take a while on big pages)
     } };
   x.drawMain = () => drawMain();
+  function openSelRecords() { const c = slice(cube, mergeF(pageFilter(), selFilter())); if (ui.sel.side === 's') openRecords(`Paradas (${c.S.length})`, STOP_HEAD, c.S.map(stopRow)); else openRecords(`Produções (${c.P.length})`, PROD_HEAD, c.P.map(prodRow)); }
   slicerFills = [];
   const prune = () => { const f = pageFilter(); for (let k = 0; k < 2; k++) for (const [, sd, col] of SLICERS[ui.page] ?? []) { const set = f[sd][col]; if (!set) continue; const ok = new Set(optionsFor(cube, sd, col, f)); const keep = [...set].filter((v) => ok.has(v)); if (keep.length === set.size) continue; if (keep.length) f[sd][col] = new Set(keep); else delete f[sd][col]; } };
-  const slicers = (SLICERS[ui.page] ?? []).map(([t, sd, col]) => slicerBox(t === '@unit' ? GROUPS[ui.g].unit : t, sd, col, cube, () => { mirror(); prune(); mirror(); slicerFills.forEach((fn) => fn()); ui.sel = null; drawMain(); }));
+  const slicers = (SLICERS[ui.page] ?? []).map(([t, sd, col]) => slicerBox(t === '@unit' ? GROUPS[ui.g].unit : t, sd, col, cube, () => { mirror(); prune(); mirror(); slicerFills.forEach((fn) => fn()); ui.sel = null; ui.stack = []; drawMain(); }));
   side.replaceChildren(...slicers);
   const toggle = el('button', { type: 'button', class: 'ghost bi-filters-toggle', onclick: () => side.classList.toggle('open') }, '☰ Filtros');
   const noteHost = el('div', { class: 'bi-notehost' });
-  const noteFn = () => noteHost.replaceChildren(...(ui.sel ? [el('p', { class: 'bi-note' }, 'Filtro por clique ativo nos outros gráficos. ', el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.sel = null; drawMain(); } }, 'Limpar clique'), ' ', el('button', { type: 'button', class: 'bi-more', onclick: () => { const c = slice(cube, mergeF(pageFilter(), ui.sel.f())); if (ui.sel.side === 's') openRecords(`Paradas (${c.S.length})`, STOP_HEAD, c.S.map(stopRow)); else openRecords(`Produções (${c.P.length})`, PROD_HEAD, c.P.map(prodRow)); } }, 'Ver registros'))] : []));
+  const noteFn = () => noteHost.replaceChildren(...(ui.sel ? [el('p', { class: 'bi-note' }, `${ui.stack.length ? `${ui.stack.length + 1} filtros por clique ativos (um dentro do outro). ` : 'Filtro por clique ativo nos outros gráficos. '}Dois cliques na mesma barra abrem os registros. `, el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.sel = null; ui.stack = []; drawMain(); } }, 'Limpar clique'), ' ', el('button', { type: 'button', class: 'bi-more', onclick: openSelRecords }, 'Ver registros'))] : []));
   let built = false;
   function drawMain() {
     if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { mirror(); prune(); mirror(); drawMain(); }), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }

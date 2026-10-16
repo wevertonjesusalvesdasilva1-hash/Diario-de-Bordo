@@ -108,37 +108,42 @@ export async function openSubmit(ctx, force = false) {
 
 // ---------------------------------------------------------------- import the Excel history
 export function openImport(ctx) {
-  const list = h('div', { class: 'bd-files' }), status = h('p', { class: 'note' }, 'Escolha a planilha de controle de RAW e/ou a de usinagem (.xlsx). Dá para escolher as duas juntas.');
-  const picker = h('input', { type: 'file', accept: '.xlsx,.xls', multiple: true, hidden: true });
+  const status = h('p', { class: 'note' }, 'Escolha a planilha de cada grupo, no quadro dele. Cada quadro só aceita a planilha do seu grupo.');
   const items = [];
   const go = h('button', { type: 'button', class: 'primary', disabled: true }, 'Subir para a base');
   const modeAdd = h('input', { type: 'radio', name: 'bd-mode', checked: true }), modeRep = h('input', { type: 'radio', name: 'bd-mode' });
   const sure = h('input', { type: 'checkbox' });
   const refresh = () => { go.disabled = !items.length || (modeRep.checked && !sure.checked); };
   [modeAdd, modeRep, sure].forEach((x) => x.addEventListener('change', refresh));
-  picker.addEventListener('change', async () => {
-    list.replaceChildren(); items.length = 0; status.textContent = 'Lendo as planilhas…';
-    try {
-      const XLSX = await import('xlsx');
-      for (const f of picker.files) {
+  // one box per group: a RAW sheet can only go into the RAW box and a machining one into the machining box (never mixed)
+  const slots = ['raw', 'usi'].map((g) => {
+    const list = h('div', { class: 'bd-files' }), picker = h('input', { type: 'file', accept: '.xlsx,.xls', hidden: true }), st = { g, item: null };
+    picker.addEventListener('change', async () => {
+      list.replaceChildren(); st.item = null;
+      const f = picker.files[0]; picker.value = '';
+      if (f) {
+        status.textContent = 'Lendo a planilha…';
         try {
-          const r = parseHistoryWorkbook(XLSX, await f.arrayBuffer());
-          const days = [...new Set(r.prod.map((x) => x.d))].sort(), machines = [...new Set(r.prod.map((x) => x.m))].sort();
-          items.push({ f, r });
-          list.append(h('div', { class: 'bd-file' }, h('b', {}, `${f.name} → ${GNAME[r.group]}`),
-            h('span', {}, `${nf(r.prod.length)} produções · ${nf(r.stops.length)} paradas · ${days.length} dias (${dmy(days[0])} a ${dmy(days.at(-1))}) · ${machines.join(', ')}`), ...r.warnings.map((w) => h('small', { class: 'bd-warn' }, w))));
+          const r = parseHistoryWorkbook(await import('xlsx'), await f.arrayBuffer());
+          if (r.group !== g) list.append(h('div', { class: 'bd-file bad' }, h('b', {}, f.name), h('span', {}, `Esta planilha é de ${GNAME[r.group]}, não de ${GNAME[g]}. Coloque-a no quadro de ${GNAME[r.group]}.`)));
+          else {
+            const days = [...new Set(r.prod.map((x) => x.d))].sort(), machines = [...new Set(r.prod.map((x) => x.m))].sort();
+            st.item = { f, r };
+            list.append(h('div', { class: 'bd-file' }, h('b', {}, f.name), h('span', {}, `${nf(r.prod.length)} produções · ${nf(r.stops.length)} paradas · ${days.length} dias (${dmy(days[0])} a ${dmy(days.at(-1))}) · ${machines.join(', ')}`), ...r.warnings.map((w) => h('small', { class: 'bd-warn' }, w))));
+          }
         } catch (e) { list.append(h('div', { class: 'bd-file bad' }, h('b', {}, f.name), h('span', {}, e.message))); }
       }
-      const groups = items.map((i) => i.r.group);
-      if (new Set(groups).size < groups.length) { status.textContent = 'Há duas planilhas do mesmo grupo. Escolha uma de cada.'; items.length = 0; }
-      else status.textContent = items.length ? 'Confira os números acima. Eles saem da planilha, linha a linha.' : 'Nenhuma planilha válida.';
-    } catch (e) { status.textContent = `Não consegui ler: ${e.message}`; }
-    refresh();
+      items.length = 0; slots.forEach((q) => { if (q.item) items.push(q.item); });
+      status.textContent = items.length ? 'Confira os números acima. Eles saem da planilha, linha a linha.' : 'Nenhuma planilha válida escolhida.';
+      refresh();
+    });
+    st.box = h('div', { class: 'bd-slot' }, h('h4', {}, GNAME[g]), h('button', { type: 'button', class: 'ghost', onclick: () => picker.click() }, `📂 Escolher planilha de ${GNAME[g]}`), picker, list);
+    return st;
   });
   const bar = h('div', { class: 'bd-progress', hidden: true }, h('i', {}));
   const { close } = modal('Importar o histórico (Excel)', h('div', { class: 'bd-body' },
     h('p', {}, 'Traz para a base de dados as produções e as paradas que já estão nas planilhas de controle (abas PRODUÇÃO e PARADAS).'),
-    h('div', { class: 'bd-btns left' }, h('button', { type: 'button', class: 'ghost', onclick: () => picker.click() }, '📂 Escolher planilha(s)'), picker), list, status,
+    h('div', { class: 'bd-slots' }, ...slots.map((q) => q.box)), status,
     h('div', { class: 'bd-mode' },
       h('label', {}, modeAdd, h('span', {}, h('b', {}, ' Adicionar à base'), h('small', {}, ' (recomendado): só entra o que ainda não está; nada se repete.'))),
       h('label', {}, modeRep, h('span', {}, h('b', {}, ' Substituir tudo'), h('small', {}, ' o que está na base daquele grupo é trocado pela planilha (fica uma cópia para restaurar).'))),

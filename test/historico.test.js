@@ -201,3 +201,11 @@ test('editar uma peça com trechos extras na base não perde os trechos', async 
   const after = (await call({ query: { g: 'raw' } })).body.prod[0];
   assert.equal(after.ob, 'conferida'); assert.equal(after.xs, prod[0].xs); assert.equal(after.h, 7.5);
 });
+
+test('RAW e usinagem nunca se misturam: máquina de um grupo enviada ao outro é recusada', async () => {
+  process.env.ACCESS_CODE = 'abc'; useStore(mem());
+  const r = await call({ method: 'POST', body: { g: 'raw', op: 'append', batch: 'x1', prod: [P(), P({ m: 'UMC 01' }), P({ m: 'HMC-16' })], stops: [S(), S({ m: 'NCBZ' })] } });
+  assert.deepEqual(r.body.added, { prod: 1, stops: 1 }); assert.equal(r.body.invalid, 3);
+  const u = await call({ method: 'POST', body: { g: 'usi', op: 'append', batch: 'x2', prod: [P(), P({ m: 'UMC 01' })], stops: [] } });
+  assert.deepEqual(u.body.added, { prod: 1, stops: 0 }); assert.equal(u.body.invalid, 1);
+});
