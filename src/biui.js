@@ -324,14 +324,15 @@ function pageGeral(x) {
       { h: 'Disponib.', v: (r) => fpct(M.pct(r.c)), key: (r) => M.pct(r.c), n: true, bg: (r) => corPctS(M.pct(r.c)) }, { h: 'Desvio', v: (r) => variacaoTexto(M.pct(r.c)), key: (r) => M.pct(r.c), n: true, bg: (r) => corVariacaoS(M.pct(r.c)) },
       { h: 'Paradas (h)', v: (r) => f2(M.horasParadas(r.c)), key: (r) => M.horasParadas(r.c), n: true }], rows, { order: 4, desc: false,
       totals: ['Total', fint(M.qtdPecas(tot)), f2(M.horasProd(tot)), f2(M.target(tot)), fpct(M.pct(tot)), variacaoTexto(M.pct(tot)), f2(M.horasParadas(tot))] }); };
-  return [alertsStrip(x), cardsRow(x, 'resumo', 'p', true),
+  return [alertsStrip(x),
     el('div', { class: 'bi-grid' },
+      v24,
       vis(`PRODUTIVIDADE POR ${u.toUpperCase()} · por dia`, () => chartBox(prodDia), { vid: 'v1', wide: true }),
       vis('DISPONIBILIDADE', () => chartBox(disp), { vid: 'v3' }), vis('HORAS PRODUZIDAS X PARADAS', () => chartBox(prodPar), { vid: 'v4' }),
-      v24,
       vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6' }),
       vis('POR MÊS', () => chartBox(mes), { vid: 'v7' }),
-      vis(`RESUMO POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, tbl, { vid: 't1', wide: true }))];
+      vis(`RESUMO POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, tbl, { vid: 't1', wide: true })),
+    cardsRow(x, 'resumo', 'p', true)];
 }
 
 function pageParadas(x) {
@@ -474,7 +475,7 @@ function quickBar(cube, side, apply) {
   function mark() { const n = f[side].data?.size ?? 0; btns.forEach((b, i) => b.setAttribute('aria-pressed', String(i === 0 ? n === 0 : i === active && n > 0))); }
   // three tidy groups: the period buttons (one joined control), the free interval, and the two switches
   const grp = (label, ...kids) => el('div', { class: 'qb-g' }, el('span', { class: 'lbl' }, label), ...kids);
-  box.append(grp('Período', el('div', { class: 'qb-seg', role: 'group' }, ...btns)), grp('Intervalo', el('div', { class: 'qb-range' }, el('label', { class: 'vf-d' }, 'De', from), el('span', { class: 'qb-dash' }, '→'), el('label', { class: 'vf-d' }, 'Até', to))), grp('Opções', el('div', { class: 'qb-opts' }, uteisBtn)));
+  box.append(grp('Período', el('div', { class: 'qb-seg', role: 'group' }, ...btns)), grp('Opções', el('div', { class: 'qb-opts' }, uteisBtn)));
   mark();
   return box;
 }

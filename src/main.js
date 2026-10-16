@@ -575,7 +575,7 @@ function setView(v) {
   resetPanelSelection();
   for (const p of state.pages) renderPage(p);
   updateSummary();
-  if (state.tab === 'analysis') { renderAnalysis(); renderPanel(); }
+  if (state.tab === 'analysis') { renderAnalysis(); }
   if (state.tab === 'panel') renderPanelTab();
   if (state.tab === 'plan') renderPlan();
   if (state.tab === 'db') renderDb();
@@ -870,7 +870,7 @@ function showTab(name) {
   $('sec-folhas').hidden = !folhas;
   $('view-read').hidden = name !== 'read';
   $('view-analysis').hidden = name !== 'analysis';
-  $('view-panel').hidden = $('panel-now-title').hidden = name !== 'analysis';   // today's sheets live with the analysis of the day
+  $('view-panel').hidden = $('panel-now-title').hidden = true;   // the "Painel do dia" was removed from the analysis
   $('view-bi').hidden = name !== 'panel';
   $('view-plan').hidden = name !== 'plan';
   $('view-db').hidden = name !== 'db';
@@ -884,7 +884,7 @@ function showTab(name) {
   }
   document.body.classList.toggle('pbi', !folhas);   // the BI, the plan and the base use the full width of the screen
   document.body.classList.toggle('has-actionbar', name === 'read' && okPages().length > 0);
-  if (name === 'analysis') { renderAnalysis(); renderPanel(); loadGaps(); }
+  if (name === 'analysis') { renderAnalysis(); loadGaps(); }
   if (name === 'panel') renderPanelTab();
   if (name === 'plan') renderPlan();
   if (name === 'db') renderDb();
