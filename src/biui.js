@@ -1,7 +1,7 @@
 // "4 · BI": the Power BI reports (RAW and usinagem) rebuilt on the history. Numbers come from core/bi.js (the report's own measures).
 import './bi.css';
 import { buildCube, slice, M, corEfic, options, optionsFor, auditoria24, dayRows, cardsBI, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
-import { dmy, dayLoads, historyStandardOf, spanHours } from './core/history.js';
+import { dmy, dayLoads, historyStandardOf, spanHours, pairsOf } from './core/history.js';
 import { loadBase, matrixRev } from './historico.js';
 import { recordsEditor } from './dbeditor.js';
 import { getOperators, operatorName } from './core/operators.js';
@@ -210,7 +210,7 @@ function openRecords(title, head, rows, note) {
   box.addEventListener('click', (e) => { if (e.target === box) close(); });
   document.body.append(box); document.addEventListener('keydown', onKey);
 }
-const times = (r) => [[r.i1, r.f1], [r.i2, r.f2], [r.i3, r.f3]].filter(([a, b]) => a || b).map(([a, b]) => `${a}–${b}`).join(' · ');
+const times = (r) => pairsOf(r).filter(([a, b]) => a || b).map(([a, b]) => `${a}–${b}`).join(' · ');
 const turnTot = (a, b) => { const h = spanHours(a, b); return h == null ? '00:00' : hhmm(h); };
 const prodRow = (r) => [dmy(r.d), r.m, r.pm, r.cf, r.t, times(r.src), turnTot(r.src.i1, r.src.f1), turnTot(r.src.i2, r.src.f2), turnTot(r.src.i3, r.src.f3), +r.h.toFixed(2), +r.tp.toFixed(2)];
 const PROD_HEAD = ['Data', 'Máquina', 'Peça e modelo', 'Chapa', 'Turno', 'Horários', '1º turno', '2º turno', '3º turno', 'Horas', 'Padrão (h)'];

@@ -250,6 +250,14 @@ Cada coisa fica onde as pessoas costumam procurar em qualquer site ou aplicativo
 - Os filtros de cada gráfico (máquina e data) ficam atrás do botão "⚙ Filtros" (o botão mostra ● quando há filtro ativo). "Listas de conferência" abre pelo menu ⋮ (Configurações) ou pelo link Configurações do rodapé.
 - **Produção + paradas por dia (limite de 24 h)** na Visão geral: colunas empilhadas (produção + paradas) de cada máquina e dia, de meia-noite a meia-noite, com uma linha tracejada em 24 h. Coluna acima da linha tem ⚠ e o total em vermelho. Escolha no alto do gráfico: pior máquina de cada dia (padrão), só os dias acima de 24 h, ou uma máquina específica. Passar o mouse mostra a máquina, o dia e quantas horas estão no mesmo horário.
 
+## Excel de controle novo (folha "uma linha = uma peça")
+O app lê os dois formatos de Excel de controle, sem o usuário escolher: o antigo (3 blocos de turno por linha) e o novo.
+- **Novo:** aba PRODUÇÃO com `CHAPA 1 / INÍCIO 1 / FIM 1` até o **trecho 8**, `Nº PEÇA` e `TURNO QUE FINALIZOU`; aba PARADAS com `CÓD`, `MOTIVO DA PARADA` (a planilha calcula o nome pelo código; se estiver vazio o app usa a tabela de códigos) e `Nº DA PEÇA`. O arquivo é gerado por `scripts/folha/gerar_controle.py` (RAW e usinagem).
+- **Horas:** a soma de todos os trechos (igual ao TEMPO/DEC da planilha). Os trechos 4 a 8 ficam guardados junto da produção (campo `xs`) e entram nas horas, no gráfico de 24 h, na auditoria e na exportação; na Base de dados aparecem na coluna "Trechos 4+" (só leitura; são mantidos ao salvar a linha).
+- **Chapa final** (usada para ligar a parada à produção): a do último trecho quando há mais de três; senão a do turno que finalizou, como sempre.
+- **Códigos de parada:** 1 Mecânica, 2 Elétrica, 3 Preventiva, 4 Troca de peça, 5 Falta de peça, 6 **Refeição** (motivo novo), 7 Tyorei, 8 Outros; na usinagem também 9 Set-up e 10 Consumíveis (a "Ferramenta" do papel).
+- Linhas preparadas e sem horário na planilha são ignoradas. Reenviar o mesmo Excel não duplica.
+
 ## Filtros interligados no Painel BI
 
 - Há um único conjunto de filtros por grupo (RAW / usinagem): data, mês, robô e turno valem para **todas** as páginas e gráficos (inclusive "Só dias úteis"). Quem escolhe na tela de Produção vale também para Paradas.

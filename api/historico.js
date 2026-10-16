@@ -17,7 +17,7 @@ const MAX_PER_CALL = 3000;
 const MACHINES = { raw: /^RAW\d{2}$/, usi: /^(UMC 0[12]|HMC-\d{2}|NCBZ)$/ };
 
 // same keys as src/core/history.js (functions do not import from src/)
-const prodKey = (r) => ['P', r.m, r.d, r.p, r.o, r.c1, r.i1, r.f1, r.c2, r.i2, r.f2, r.c3, r.i3, r.f3].join('|');
+const prodKey = (r) => ['P', r.m, r.d, r.p, r.o, r.c1, r.i1, r.f1, r.c2, r.i2, r.f2, r.c3, r.i3, r.f3, ...(r.xs ? [r.xs] : [])].join('|');
 const stopKey = (r) => ['S', r.m, r.d, r.c, r.i, r.f, r.t ?? '', r.mo].join('|');
 
 // the base used to call it "HMC 16"; the control spreadsheet and the Power BI say "HMC-16"
@@ -29,7 +29,11 @@ function cleanProd(g, r) {
   r = fixM(r);
   if (!r || typeof r !== 'object' || !MACHINES[g].test(r.m) || !/^\d{4}-\d{2}-\d{2}$/.test(r.d)) return null;
   const t = r.t === 1 || r.t === 2 || r.t === 3 ? r.t : null;
-  return { m: r.m, d: r.d, p: str(r.p), o: str(r.o), c1: str(r.c1, 12), i1: hm(r.i1), f1: hm(r.f1), c2: str(r.c2, 12), i2: hm(r.i2), f2: hm(r.f2), c3: str(r.c3, 12), i3: hm(r.i3), f3: hm(r.f3), t, ob: str(r.ob, 300), h: num(r.h), tp: num(r.tp) };
+  const out = { m: r.m, d: r.d, p: str(r.p), o: str(r.o), c1: str(r.c1, 12), i1: hm(r.i1), f1: hm(r.f1), c2: str(r.c2, 12), i2: hm(r.i2), f2: hm(r.f2), c3: str(r.c3, 12), i3: hm(r.i3), f3: hm(r.f3), t, ob: str(r.ob, 300), h: num(r.h), tp: num(r.tp) };
+  // 4th to 8th stretches of the new sheet: 'chapa|início|fim;…' (see src/core/history.js, extrasOf)
+  const xs = typeof r.xs === 'string' ? r.xs.split(';').slice(0, 8).map((s) => { const [c, i, f] = s.split('|'); return [str(c ?? '', 12).replace(/[|;]/g, ''), hm(i ?? ''), hm(f ?? '')]; }).filter(([c, i, f]) => c || i || f).map((e) => e.join('|')).join(';') : '';
+  if (xs) out.xs = xs;
+  return out;
 }
 function cleanStop(g, r) {
   r = fixM(r);

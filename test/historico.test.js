@@ -120,3 +120,84 @@ test('comparar um mês com o Excel: iguais, editadas, só no app e só no Excel'
   assert.equal(r.onlyBase.length, 1); assert.equal(r.onlyExcel.length, 0);                     // outro mês não entra
   assert.equal(compareMonth('prod', b, x, '2026-09').edited.length, 1);
 });
+
+// ---- Excel de controle novo ("uma linha = uma peça": até 8 trechos por peça, código do motivo na parada)
+const novoXlsx = (maq = 'ROBÔ', extra = {}) => {
+  const head = ['COD', maq, 'DATA', 'Nº PEÇA', 'PEÇA', 'MODELO'];
+  for (let k = 1; k <= 8; k++) head.push(`CHAPA ${k}`, `INÍCIO ${k}`, `FIM ${k}`);
+  head.push('CONTINUA A PEÇA Nº', 'TURNO QUE FINALIZOU', 'OBSERVAÇÕES');
+  for (let k = 1; k <= 8; k++) head.push(`TEMPO T${k}`);
+  head.push('TEMPO/DEC', 'TEMPO PADRÃO BAAN');
+  const row = (o) => head.map((h) => (h in o ? o[h] : null));
+  const h = (hh, mm = 0) => (hh + mm / 60) / 24;
+  const prodRows = [[], head,
+    // 7 trechos: 08:00-09:00, 10:00-11:00, 12:00-13:00, 14:00-15:00, 16:00-17:00, 18:00-19:00, 20:00-21:30 → 7,5 h
+    row({ [maq]: extra.m ?? 'RAW09', DATA: 46296, 'Nº PEÇA': 1, 'PEÇA': '1° OP LANÇA', MODELO: 'PC360LC-8M2', 'CHAPA 1': 1001, 'INÍCIO 1': h(8), 'FIM 1': h(9), 'CHAPA 2': 1001, 'INÍCIO 2': h(10), 'FIM 2': h(11), 'CHAPA 3': 1002, 'INÍCIO 3': h(12), 'FIM 3': h(13),
+      'CHAPA 4': 1002, 'INÍCIO 4': h(14), 'FIM 4': h(15), 'CHAPA 5': 1003, 'INÍCIO 5': h(16), 'FIM 5': h(17), 'CHAPA 6': 1003, 'INÍCIO 6': h(18), 'FIM 6': h(19), 'CHAPA 7': 1004, 'INÍCIO 7': h(20), 'FIM 7': h(21, 30), 'TURNO QUE FINALIZOU': 2, 'TEMPO/DEC': 7.5 }),
+    row({ [maq]: extra.m ?? 'RAW09', DATA: 46296, 'Nº PEÇA': 2, 'PEÇA': 'LANÇA', MODELO: 'PC210F-10M0', 'CHAPA 1': 1001, 'INÍCIO 1': h(22), 'FIM 1': h(2), 'TURNO QUE FINALIZOU': 1 }),   // passa da meia-noite: 4 h
+    row({ [maq]: extra.m ?? 'RAW09', DATA: 46296, 'Nº PEÇA': 3, 'PEÇA': 'LANÇA' }),                                                                             // linha preparada, sem horário
+    row({})];                                                                                                                                                   // linha preparada, vazia
+  const stopHead = [maq, 'Nº DA PEÇA', 'TURNO', 'DATA', 'CHAPA', 'INICIO', 'FINAL', 'CÓD', 'MOTIVO DA PARADA', 'DESCRIÇÃO DA PARADA', 'TTL', 'TEMPO/DEC', 'PEÇA'];
+  const stopRows = [stopHead,
+    [extra.m ?? 'RAW09', 1, 1, 46296, 1001, h(9), h(10), 5, null, 'sem peça', null, null, null],               // motivo só pelo código (planilha nunca aberta no Excel)
+    [extra.m ?? 'RAW09', 1, 1, 46296, 1001, h(11), h(12), 4, 'TROCA DE PEÇA', '', null, null, null],         // nome já calculado
+    [extra.m ?? 'RAW09', '—', 1, 46296, 1001, h(7), h(7, 20), 6, null, 'almoço', null, null, null],
+    [null, null, null, null, null, null, null, null, null, null, null, null, null]];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prodRows), 'PRODUÇÃO'); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(stopRows), 'PARADAS');
+  return XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+};
+
+test('Excel novo: peça com 7 trechos numa linha só, horas somadas, código vira motivo e linhas preparadas ficam de fora', () => {
+  const r = parseHistoryWorkbook(XLSX, novoXlsx());
+  assert.equal(r.group, 'raw'); assert.equal(r.prod.length, 2); assert.equal(r.stops.length, 3);
+  const [a, b] = r.prod;
+  assert.equal(a.p, '1° OP LANÇA'); assert.equal(a.i1, '08:00'); assert.equal(a.f3, '13:00'); assert.equal(a.c3, '1002');
+  assert.equal(a.xs, '1002|14:00|15:00;1003|16:00|17:00;1003|18:00|19:00;1004|20:00|21:30');
+  assert.equal(prodHours(a), 7.5); assert.equal(a.h, 7.5); assert.equal(a.t, 2);
+  assert.equal(b.h, 4); assert.equal(b.xs, undefined);                                    // meia-noite; sem trechos extras: registro igual ao de antes
+  assert.deepEqual(r.stops.map((s) => s.mo), ['FALTA DE PEÇA', 'TROCA DE PEÇA', 'REFEIÇÃO']);
+  assert.deepEqual(r.stops.map((s) => s.h), [1, 1, 1 / 3]);
+  assert.equal(r.warnings.length, 0);
+});
+
+test('Excel novo da usinagem: coluna MAQUINA e códigos 9 (set-up) e 10 (ferramenta)', () => {
+  const wb = XLSX.read(novoXlsx('MAQUINA', { m: 'UMC 01' }), { type: 'array' });
+  const S = XLSX.utils.sheet_to_json(wb.Sheets.PARADAS, { header: 1 }); S[1][7] = 9; S[2][7] = 10; S[2][8] = null;
+  wb.Sheets.PARADAS = XLSX.utils.aoa_to_sheet(S);
+  const r = parseHistoryWorkbook(XLSX, XLSX.write(wb, { type: 'array', bookType: 'xlsx' }));
+  assert.equal(r.group, 'usi'); assert.equal(r.prod[0].m, 'UMC 01');
+  assert.deepEqual(r.stops.map((s) => s.mo), ['SET-UP', 'CONSUMIVEIS', 'REFEIÇÃO']);
+});
+
+test('trechos extras: a base guarda, não duplica no reenvio, a chapa final é a do último trecho e a auditoria enxerga todos', async () => {
+  const { prod } = parseHistoryWorkbook(XLSX, novoXlsx());
+  const { finalChapa, pairsOf, chapasOf } = await import('../src/core/history.js');
+  assert.equal(finalChapa(prod[0]), '1004'); assert.equal(finalChapa(prod[1]), '1001');   // 1 trecho, turno 1 → chapa 1
+  assert.equal(pairsOf(prod[0]).filter(([i]) => i).length, 7); assert.deepEqual(chapasOf(prod[0]).filter(Boolean), ['1001', '1001', '1002', '1002', '1003', '1003', '1004']);
+  assert.notEqual(prodKey(prod[0]), prodKey({ ...prod[0], xs: '1002|14:00|15:00' }));
+  assert.equal(prodKey(prod[1]), prodKey({ ...prod[1] }));
+  process.env.ACCESS_CODE = 'abc'; const st = mem(); useStore(st);
+  let r = await call({ method: 'POST', body: { g: 'raw', op: 'append', batch: 'n1', prod: prod.map((x) => ({ ...x, t: x.t })), stops: [] } });
+  assert.deepEqual(r.body.added, { prod: 2, stops: 0 });
+  const got = (await call({ query: { g: 'raw' } })).body.prod.find((x) => x.p === '1° OP LANÇA');
+  assert.equal(got.xs, prod[0].xs);
+  r = await call({ method: 'POST', body: { g: 'raw', op: 'append', batch: 'n2', prod, stops: [] } });
+  assert.deepEqual(r.body.added, { prod: 0, stops: 0 });                                  // reenviar não duplica
+  const bad = await call({ method: 'POST', body: { g: 'raw', op: 'append', batch: 'n3', prod: [{ ...prod[1], d: '2026-10-05', xs: 'AB|ff:99|;|1;2;3;4;5;6;7;8;9;10' }], stops: [] } });
+  const kept = (await call({ query: { g: 'raw' } })).body.prod.find((x) => x.d === '2026-10-05');
+  assert.ok(!kept.xs || kept.xs.split(';').length <= 8); assert.ok(!/ff:99/.test(kept.xs ?? ''));   // horário inválido é descartado
+  void bad;
+});
+
+test('editar uma peça com trechos extras na base não perde os trechos', async () => {
+  process.env.ACCESS_CODE = 'abc'; useStore(mem());
+  const { prod } = parseHistoryWorkbook(XLSX, novoXlsx());
+  await call({ method: 'POST', body: { g: 'raw', op: 'append', batch: 'e1', prod: [prod[0]], stops: [] } });
+  const old = (await call({ query: { g: 'raw' } })).body.prod[0];
+  const novo = prodRecord({ ...old, ob: 'conferida', h: undefined, tp: undefined });
+  const r = await call({ method: 'POST', body: { g: 'raw', op: 'edit', changes: [{ kind: 'prod', old, new: novo }] } });
+  assert.equal(r.code, 200); assert.equal(r.body.miss ?? 0, 0);
+  const after = (await call({ query: { g: 'raw' } })).body.prod[0];
+  assert.equal(after.ob, 'conferida'); assert.equal(after.xs, prod[0].xs); assert.equal(after.h, 7.5);
+});

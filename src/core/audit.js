@@ -1,6 +1,6 @@
 // Audit of the history (production + stops): every check returns { id, area, level, title, why, count, hours?, head, rows }.
 // Pure functions. Nothing here changes the data: it only finds what a person should look at.
-import { toMin, spanHours, dmy, standardByPieceModel, standardHours, auditDays } from './history.js';
+import { toMin, spanHours, dmy, standardByPieceModel, standardHours, auditDays, pairsOf, chapasOf, finalChapa, extrasOf } from './history.js';
 import { aliasKey } from './lists.js';
 
 const f1 = (v) => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -8,7 +8,7 @@ const segsOf = (i, f) => { const a = toMin(i), b = toMin(f); if (a == null || b 
 // absolute minutes (day index × 1440 + clock): a piece that crosses midnight ends on the next day instead of wrapping onto the same one
 const dayIdx = (d) => Math.floor(Date.parse(`${d}T00:00:00Z`) / 86400000);
 const absSegs = (d, pairs) => pairs.flatMap(([i, f]) => { const a = toMin(i), b = toMin(f); if (a == null || b == null || (a === 0 && b === 0 && !i)) return []; const base = dayIdx(d) * 1440; return [[base + a, base + (b >= a ? b : b + 1440)]]; });
-const prodSegs = (r) => absSegs(r.d, [[r.i1, r.f1], [r.i2, r.f2], [r.i3, r.f3]]);
+const prodSegs = (r) => absSegs(r.d, pairsOf(r));
 const stopSegs = (s) => absSegs(s.d, [[s.i, s.f]]);
 // pairs of records of the same machine whose clock times overlap by more than `min` minutes
 function overlaps(list, segFn, min = 5) {
@@ -23,9 +23,9 @@ function overlaps(list, segFn, min = 5) {
 }
 const overlapMin = (A, B) => { let t = 0; for (const [a1, a2] of A) for (const [b1, b2] of B) t += Math.max(0, Math.min(a2, b2) - Math.max(a1, b1)); return t; };
 const level = { erro: 0, atenção: 1, info: 2 };
-const keyP = (r) => ['P', r.m, r.d, r.p, r.o, r.c1, r.i1, r.f1, r.c2, r.i2, r.f2, r.c3, r.i3, r.f3].join('|');
+const keyP = (r) => ['P', r.m, r.d, r.p, r.o, r.c1, r.i1, r.f1, r.c2, r.i2, r.f2, r.c3, r.i3, r.f3, ...(r.xs ? [r.xs] : [])].join('|');
 const keyS = (r) => ['S', r.m, r.d, r.c, r.i, r.f, r.t ?? '', r.mo].join('|');
-const times = (r) => [[r.i1, r.f1], [r.i2, r.f2], [r.i3, r.f3]].filter(([a, b]) => a || b).map(([a, b]) => `${a || '?'}–${b || '?'}`).join(' · ');
+const times = (r) => pairsOf(r).filter(([a, b]) => a || b).map(([a, b]) => `${a || '?'}–${b || '?'}`).join(' · ');
 const prodCols = ['Dia', 'Máquina', 'Peça e modelo', 'Horários', 'Horas', 'Detalhe'];
 const stopCols = ['Dia', 'Máquina', 'Chapa', 'Horário', 'Motivo', 'Horas', 'Detalhe'];
 const pRow = (r, why = '') => [dmy(r.d), r.m, `${r.p}-${r.o}`, times(r), +(+r.h).toFixed(2), why];
@@ -51,11 +51,12 @@ export function auditData({ prod, stops, known = null, today = new Date().toISOS
   { // times missing / invalid
     const rows = [];
     for (const r of prod) {
-      for (const [i, f, n] of [[r.i1, r.f1, 1], [r.i2, r.f2, 2], [r.i3, r.f3, 3]]) {
-        const c = [r.c1, r.c2, r.c3][n - 1];
-        if ((i && !f) || (!i && f)) rows.push(pRow(r, `turno ${n}: só um dos horários (início ou fim) preenchido`));
-        else if (c && !i && !f && Number(r.t) === n) rows.push(pRow(r, `turno ${n}: chapa ${c} sem horário`));
-      }
+      const ts = [[r.i1, r.f1, r.c1], [r.i2, r.f2, r.c2], [r.i3, r.f3, r.c3], ...extrasOf(r).map((e) => [e.i, e.f, e.c])];
+      ts.forEach(([i, f, c], k) => {
+        const n = k + 1, lab = n <= 3 ? `turno ${n}` : `trecho ${n}`;
+        if ((i && !f) || (!i && f)) rows.push(pRow(r, `${lab}: só um dos horários (início ou fim) preenchido`));
+        else if (c && !i && !f && n <= 3 && Number(r.t) === n) rows.push(pRow(r, `${lab}: chapa ${c} sem horário`));
+      });
     }
     add({ id: 'p-time', area: 'Produção', level: 'erro', title: 'Horário faltando na produção', why: 'Sem início ou fim a hora da peça não é calculada (ou fica errada).', head: prodCols, rows });
   }
@@ -65,11 +66,11 @@ export function auditData({ prod, stops, known = null, today = new Date().toISOS
     add({ id: 'p-tiny', area: 'Produção', level: 'info', title: 'Peça com tempo curto demais', why: 'Menos de 3 minutos: confira se o horário está certo.', head: prodCols, rows: tiny });
   }
   { // cached TEMPO/DEC differs from the times
-    const rows = prod.filter((r) => { const calc = [[r.i1, r.f1], [r.i2, r.f2], [r.i3, r.f3]].reduce((s, [a, b]) => s + (spanHours(a, b) ?? 0), 0); return !closeEnough(calc, r.h); }).map((r) => { const calc = [[r.i1, r.f1], [r.i2, r.f2], [r.i3, r.f3]].reduce((s, [a, b]) => s + (spanHours(a, b) ?? 0), 0); return pRow(r, `Excel diz ${f1(r.h)} h, os horários dão ${f1(calc)} h`); });
+    const rows = prod.filter((r) => { const calc = pairsOf(r).reduce((s, [a, b]) => s + (spanHours(a, b) ?? 0), 0); return !closeEnough(calc, r.h); }).map((r) => { const calc = pairsOf(r).reduce((s, [a, b]) => s + (spanHours(a, b) ?? 0), 0); return pRow(r, `Excel diz ${f1(r.h)} h, os horários dão ${f1(calc)} h`); });
     add({ id: 'p-dec', area: 'Produção', level: 'atenção', title: 'Horas diferentes da soma dos horários', why: 'O valor guardado (TEMPO/DEC) não bate com início e fim. Os gráficos usam o valor guardado.', head: prodCols, rows });
   }
   { // final plate blank (breaks the operator and the link with the stops)
-    const rows = prod.filter((r) => { const t = Number(r.t); return !(t === 1 || t === 2 || t === 3) ? true : !(t === 3 ? r.c3 : t === 2 ? r.c2 : r.c1); }).map((r) => pRow(r, Number(r.t) >= 1 && Number(r.t) <= 3 ? `turno que finalizou ${r.t}, mas sem chapa nesse turno` : 'turno que finalizou em branco'));
+    const rows = prod.filter((r) => { const t = Number(r.t); return !(t === 1 || t === 2 || t === 3) ? true : !finalChapa(r); }).map((r) => pRow(r, Number(r.t) >= 1 && Number(r.t) <= 3 ? `turno que finalizou ${r.t}, mas sem chapa nesse turno` : 'turno que finalizou em branco'));
     add({ id: 'p-chapa', area: 'Produção', level: 'erro', title: 'Chapa final em branco', why: 'Sem chapa final a peça fica sem operador e não liga com as paradas da mesma chapa.', head: prodCols, rows });
   }
   { // two pieces at the same time on one machine
@@ -90,13 +91,13 @@ export function auditData({ prod, stops, known = null, today = new Date().toISOS
   { // unknown plates (when the operators list is available)
     if (known && known.size) {
       const rows = [], seen = new Set();
-      for (const r of prod) for (const c of [r.c1, r.c2, r.c3]) if (c && !known.has(String(c)) && !seen.has(c)) { seen.add(c); rows.push(pRow(r, `chapa ${c} não está na lista de operadores`)); }
+      for (const r of prod) for (const c of chapasOf(r)) if (c && !known.has(String(c)) && !seen.has(c)) { seen.add(c); rows.push(pRow(r, `chapa ${c} não está na lista de operadores`)); }
       add({ id: 'p-known', area: 'Produção', level: 'atenção', title: 'Chapa fora da lista de operadores', why: 'A chapa pode estar digitada errada ou faltar na lista (o nome não aparece).', head: prodCols, rows });
     }
   }
   { // plates that do not look like a plate (3 to 6 digits)
     const rows = [];
-    for (const r of prod) for (const c of [r.c1, r.c2, r.c3]) if (c && !/^\d{3,6}$/.test(String(c))) rows.push(pRow(r, `chapa "${c}" não parece uma chapa (3 a 6 números)`));
+    for (const r of prod) for (const c of chapasOf(r)) if (c && !/^\d{3,6}$/.test(String(c))) rows.push(pRow(r, `chapa "${c}" não parece uma chapa (3 a 6 números)`));
     for (const x of stops) if (x.c && !/^\d{3,6}$/.test(String(x.c))) rows.push(sRow(x, `chapa "${x.c}" não parece uma chapa`));
     add({ id: 'p-fmt', area: 'Produção', level: 'atenção', title: 'Chapa com formato estranho', why: 'Chapa com letras ou poucos números costuma ser erro de digitação.', head: prodCols, rows });
   }
@@ -143,7 +144,7 @@ export function auditData({ prod, stops, known = null, today = new Date().toISOS
     add({ id: 's-prod', area: 'Cruzamentos', level: 'atenção', title: 'Parada dentro do horário de produção', why: 'A mesma hora aparece como produzida e parada, o que passa as 24 h do dia. Pode ser parada curta dentro da peça (normal) ou erro.', head: stopCols, rows, hours: h });
   }
   { // stop whose plate has no production that day on that machine
-    const have = new Set(prod.flatMap((r) => { const t = Number(r.t); const c = t === 3 ? r.c3 : t === 2 ? r.c2 : t === 1 ? r.c1 : ''; return c ? [`${r.d}|${r.m}|${c}`] : []; }));
+    const have = new Set(prod.flatMap((r) => { const c = finalChapa({ ...r, t: Number(r.t) }); return c ? [`${r.d}|${r.m}|${c}`] : []; }));
     const rows = stops.filter((s) => s.c && !have.has(`${s.d}|${s.m}|${s.c}`)).map((s) => sRow(s, 'a chapa não tem produção nesse dia e máquina'));
     add({ id: 's-nolink', area: 'Cruzamentos', level: 'atenção', title: 'Parada sem produção da mesma chapa', why: 'Nas telas "das chapas filtradas" essa parada não entra. Pode ser chapa digitada errada na parada ou na produção.', head: stopCols, rows, hours: rows.reduce((a, r) => a + r[5], 0) });
   }

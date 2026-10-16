@@ -4,9 +4,11 @@ import './db.css';
 import { el } from './bicharts.js';
 import { editRecords, saveMatriz } from './historico.js';
 import { PADRAO } from './data/padrao.js';
-import { prodRecord, stopRecord, dmy, spanHours, fmtHM } from './core/history.js';
+import { prodRecord, stopRecord, dmy, spanHours, fmtHM, extrasOf } from './core/history.js';
 // hh:mm of a time span (the spreadsheet's "1ºTURNO / 2ºTURNO / 3ºTURNO" total columns and the stop's TTL)
 const span = (a, b) => { const h = spanHours(a, b); return h == null ? '' : fmtHM(Math.round(h * 60)); };
+// 4th to 8th stretch of a piece (new sheet): shown, not edited here; they are kept when the row is saved
+const extraText = (d) => extrasOf(d).map((e) => `${e.c ? e.c + ' ' : ''}${e.i}–${e.f}`).join(' · ');
 const turnTimes = (d) => [span(d.i1, d.f1) || '00:00', span(d.i2, d.f2) || '00:00', span(d.i3, d.f3) || '00:00'];
 
 const PROD_COLS = [['d', 'Data', 'date'], ['m', 'Máquina', 'm'], ['p', 'Peça', 'w'], ['o', 'Modelo', 'w'], ['c1', 'Chapa 1', 's'], ['i1', 'Início 1', 't'], ['f1', 'Fim 1', 't'], ['c2', 'Chapa 2', 's'], ['i2', 'Início 2', 't'], ['f2', 'Fim 2', 't'],
@@ -66,7 +68,7 @@ export function recordsEditor({ g, kind, records, focus = null, spill = null, on
       fillSpans();
       hc = el('td', { class: 'ro n' }, f2(hoursOf(r)[0])); tc = kind === 'prod' ? el('td', { class: 'ro n' }, f2(hoursOf(r)[1])) : '';
       sv = el('button', { type: 'button', class: 'dbe-s', disabled: dirty(r) ? null : true, onclick: () => save([r]) }, 'Salvar');
-      tr = el('tr', { class: `${focus?.has(r) ? (spill?.has(r) ? 'spill' : 'hit') : ''}${dirty(r) ? ' dirty' : ''}` }, cols.map(inp), ...spanCells, hc, tc, el('td', { class: 'act' }, sv, el('button', { type: 'button', class: 'dbe-x', 'aria-label': 'Excluir linha', title: 'Excluir', onclick: () => del(r) }, '🗑')));
+      tr = el('tr', { class: `${focus?.has(r) ? (spill?.has(r) ? 'spill' : 'hit') : ''}${dirty(r) ? ' dirty' : ''}` }, cols.map(inp), ...spanCells, hc, tc, kind === 'prod' ? el('td', { class: 'ro', title: 'Do 4º ao 8º trecho da peça (planilha nova)' }, extraText(r)) : '', el('td', { class: 'act' }, sv, el('button', { type: 'button', class: 'dbe-x', 'aria-label': 'Excluir linha', title: 'Excluir', onclick: () => del(r) }, '🗑')));
       return tr;
     };
     const bar = {
@@ -76,7 +78,7 @@ export function recordsEditor({ g, kind, records, focus = null, spill = null, on
     const pager = pages > 1 ? el('span', { class: 'dbe-pg' }, el('button', { type: 'button', class: 'ghost', disabled: page === 0 ? true : null, onclick: () => { page--; draw(); } }, '‹'), ` página ${page + 1} de ${pages} `, el('button', { type: 'button', class: 'ghost', disabled: page >= pages - 1 ? true : null, onclick: () => { page++; draw(); } }, '›')) : '';
     const undo = last ? el('button', { type: 'button', class: 'ghost', onclick: async () => { const l = last; const rev = l.undo ?? l.ch.map((c) => ({ kind: c.kind, old: c.new, new: c.old })); try { await editRecords(l.g, rev); last = null; toast('Alteração desfeita.'); await onSaved?.(null); } catch (e) { toast(e.message); } } }, '↶ Desfazer a última alteração') : '';
     const newBtn = el('button', { type: 'button', class: 'ghost', onclick: () => { const d = kind === 'prod' ? { m: records[0]?.m ?? '', d: records[0]?.d ?? '' } : { m: records[0]?.m ?? '', d: records[0]?.d ?? '' }; adding = { ...d }; draw(); } }, '＋ Nova linha');
-    const head = el('tr', {}, cols.map((c) => el('th', {}, c[1])), ...(kind === 'prod' ? ['1º turno', '2º turno', '3º turno'] : ['Tempo total']).map((t) => el('th', { class: 'n' }, t)), el('th', { class: 'n' }, 'Horas'), kind === 'prod' ? el('th', { class: 'n' }, 'Padrão (h)') : '', el('th', {}, ''));
+    const head = el('tr', {}, cols.map((c) => el('th', {}, c[1])), ...(kind === 'prod' ? ['1º turno', '2º turno', '3º turno'] : ['Tempo total']).map((t) => el('th', { class: 'n' }, t)), el('th', { class: 'n' }, 'Horas'), kind === 'prod' ? el('th', { class: 'n' }, 'Padrão (h)') : '', kind === 'prod' ? el('th', {}, 'Trechos 4+') : '', el('th', {}, ''));
     const body = el('tbody', {}, shown.map(row));
     const addBox = adding ? addRow() : '';
     host.replaceChildren(

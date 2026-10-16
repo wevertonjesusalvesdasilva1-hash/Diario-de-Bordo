@@ -1,7 +1,7 @@
 // Plano de ação: reads the history and writes the actions that should be taken, in order of impact.
 // Days are CLOCK days (midnight to midnight). The hourly cost of a robot (R$/h) turns stopped hours into money.
 // Pure functions (no DOM). It only suggests: it never changes the data.
-import { dmy, clockParts, standardByPieceModel } from './history.js';
+import { dmy, clockParts, standardByPieceModel, pairsOf } from './history.js';
 import { auditData } from './audit.js';
 import { aliasKey } from './lists.js';
 import { META, HORAS_DIA } from './bi.js';
@@ -84,7 +84,7 @@ export function buildPlan({ prod, stops, valorHora = 0, dates = null, known = nu
   // ---- 4. time nobody wrote down (midnight to midnight)
   { const perMD = new Map();
     const add = (r, pairs) => { const parts = clockParts(r.d, pairs); if (!parts) return; for (const p of parts) { const k = `${p.day}|${r.m}`; (perMD.get(k) ?? perMD.set(k, []).get(k)).push([p.a, p.b]); } };
-    for (const r of P) add(r, [[r.i1, r.f1], [r.i2, r.f2], [r.i3, r.f3]]);
+    for (const r of P) add(r, pairsOf(r));
     for (const s of S) add(s, [[s.i, s.f]]);
     const covered = (segs) => { const a = segs.map((x) => [...x]).sort((x, y) => x[0] - y[0]); let t = 0, cur = null; for (const sg of a) { if (cur && sg[0] <= cur[1]) cur[1] = Math.max(cur[1], sg[1]); else { if (cur) t += cur[1] - cur[0]; cur = [...sg]; } } return t + (cur ? cur[1] - cur[0] : 0); };
     const perMachine = new Map(); let total = 0, mdN = 0;

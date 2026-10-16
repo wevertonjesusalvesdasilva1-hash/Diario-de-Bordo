@@ -3,7 +3,7 @@ import './bi.css';
 import { el } from './bicharts.js';
 import { loadBase, loadMatriz, editRecords } from './historico.js';
 import { recordsEditor, matrixEditor } from './dbeditor.js';
-import { spanHours, fmtHM, groupOfMachine, dmy, historyStandards, historyStandardOf, standardHours, parseHistoryWorkbook, compareMonth, monthsOf } from './core/history.js';
+import { spanHours, fmtHM, pairsOf, extrasOf, groupOfMachine, dmy, historyStandards, historyStandardOf, standardHours, parseHistoryWorkbook, compareMonth, monthsOf } from './core/history.js';
 
 const sp = (a, b) => { const h = spanHours(a, b); return h == null ? '00:00' : fmtHM(Math.round(h * 60)); };
 const GROUPS = { raw: 'RAW (robôs)', usi: 'Usinagem' };
@@ -44,8 +44,8 @@ export async function renderDbUI(root, ctx) {
   const q = el('input', { type: 'search', placeholder: kind === 'prod' ? 'Buscar peça, modelo ou chapa' : 'Buscar motivo, descrição ou chapa', value: st.q, onkeydown: (e) => { if (e.key === 'Enter') { st.q = e.target.value.toLowerCase(); apply(); } }, onchange: (e) => { st.q = e.target.value.toLowerCase(); apply(); } });
   const xl = el('button', { type: 'button', class: 'ghost', onclick: async () => {
     const X = await import('xlsx'), wb = X.utils.book_new();
-    const head = kind === 'prod' ? ['Data', 'Máquina', 'Peça', 'Modelo', 'Chapa 1', 'Início 1', 'Fim 1', 'Chapa 2', 'Início 2', 'Fim 2', 'Chapa 3', 'Início 3', 'Fim 3', 'Turno', 'Observação', '1º turno', '2º turno', '3º turno', 'Horas', 'Padrão (h)'] : ['Data', 'Máquina', 'Chapa', 'Início', 'Fim', 'Turno', 'Motivo', 'Descrição', 'Tempo total', 'Horas'];
-    const rows = list.map((r) => (kind === 'prod' ? [dmy(r.d), r.m, r.p, r.o, r.c1, r.i1, r.f1, r.c2, r.i2, r.f2, r.c3, r.i3, r.f3, r.t, r.ob, sp(r.i1, r.f1), sp(r.i2, r.f2), sp(r.i3, r.f3), r.h, r.tp] : [dmy(r.d), r.m, r.c, r.i, r.f, r.t, r.mo, r.ds, sp(r.i, r.f), r.h]));
+    const head = kind === 'prod' ? ['Data', 'Máquina', 'Peça', 'Modelo', 'Chapa 1', 'Início 1', 'Fim 1', 'Chapa 2', 'Início 2', 'Fim 2', 'Chapa 3', 'Início 3', 'Fim 3', 'Turno', 'Observação', '1º turno', '2º turno', '3º turno', 'Horas', 'Padrão (h)', 'Trechos 4 em diante'] : ['Data', 'Máquina', 'Chapa', 'Início', 'Fim', 'Turno', 'Motivo', 'Descrição', 'Tempo total', 'Horas'];
+    const rows = list.map((r) => (kind === 'prod' ? [dmy(r.d), r.m, r.p, r.o, r.c1, r.i1, r.f1, r.c2, r.i2, r.f2, r.c3, r.i3, r.f3, r.t, r.ob, sp(r.i1, r.f1), sp(r.i2, r.f2), sp(r.i3, r.f3), r.h, r.tp, extrasOf(r).map((e) => `${e.c} ${e.i}–${e.f}`).join(' · ')] : [dmy(r.d), r.m, r.c, r.i, r.f, r.t, r.mo, r.ds, sp(r.i, r.f), r.h]));
     X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([head, ...rows]), kind === 'prod' ? 'PRODUÇÃO' : 'PARADAS'); X.writeFile(wb, `base-${st.g}-${kind === 'prod' ? 'producao' : 'paradas'}.xlsx`); } }, '⬇ Excel');
   const slot = el('div');
   body.replaceChildren(el('p', { class: 'bi-note' }, `${GROUPS[st.g]} · ${all.length.toLocaleString('pt-BR')} registros na base. Edite direto nas células e clique em Salvar: a base é atualizada para todos e os gráficos do Painel BI e do Plano de ação usam os dados novos.`),
@@ -58,7 +58,7 @@ export async function renderDbUI(root, ctx) {
 // ---- "Comparar com o Excel": shows what differs from the control spreadsheet in a month and puts it back ----------------------
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const monthName = (ym) => `${MESES[+ym.slice(5, 7) - 1]} de ${ym.slice(0, 4)}`;
-const descP = (r) => `${r.p} · ${r.o} · chapa ${r.c1 || r.c2 || r.c3 || '—'} · ${[[r.i1, r.f1], [r.i2, r.f2], [r.i3, r.f3]].filter(([a, b]) => a || b).map(([a, b]) => `${a}–${b}`).join(' · ')} · turno ${r.t ?? '—'} · ${(+r.h).toFixed(2)} h`;
+const descP = (r) => `${r.p} · ${r.o} · chapa ${r.c1 || r.c2 || r.c3 || '—'} · ${pairsOf(r).filter(([a, b]) => a || b).map(([a, b]) => `${a}–${b}`).join(' · ')} · turno ${r.t ?? '—'} · ${(+r.h).toFixed(2)} h`;
 const descS = (r) => `${r.mo || '(sem motivo)'} · chapa ${r.c || '—'} · ${r.i}–${r.f} · turno ${r.t ?? '—'} · ${(+r.h).toFixed(2)} h`;
 export function openCompare({ g, base, toast, onDone }) {
   document.getElementById('bd-modal')?.remove();

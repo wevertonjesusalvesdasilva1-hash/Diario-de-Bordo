@@ -3,7 +3,7 @@
 //   01_Produção  one row per production record      02_Paradas  one row per stop      02_Paradas_resumo  stop hours per (date + machine)
 //   Produção ↔ Paradas_resumo : Chave (date + machine)                      — filters both ways
 //   Produção ↔ Paradas        : Chave parada (date + machine + chapa final)  — many-to-many, filters both ways
-import { spanHours, fmtHM, auditDays, standardByPieceModel, standardHours, matrixIsCustom, historyStandards, historyStandardOf, dayLoads, overWhy } from './history.js';
+import { spanHours, fmtHM, finalChapa, auditDays, standardByPieceModel, standardHours, matrixIsCustom, historyStandards, historyStandardOf, dayLoads, overWhy } from './history.js';
 
 export const META = 0.88;            // availability goal
 export const HORAS_DIA = 18.58;      // productive hours expected per machine per day
@@ -19,7 +19,7 @@ export function buildCube(base, nameOf = () => '') {
   const prod = base.prod.map((r) => {
     const t = r.t;
     // "Chapa final": the plate of the turn that finished the piece
-    const cf = t === 3 && r.c3 ? r.c3 : t === 2 && r.c2 ? r.c2 : t === 1 && r.c1 ? r.c1 : '';
+    const cf = finalChapa(r);
     const key = r.d + '|' + r.m;
     const o = { m: r.m, d: r.d, mes: monthOf(r.d), p: r.p, o: r.o, pm: `${r.p}-${r.o}`, t: t == null ? '' : String(t), cf, nome: cf ? nameOf(cf) || '' : '',
       h: Number(r.h) || 0, tp: Number(r.tp) || 0, key, keyP: key + '|' + cf, src: r,
