@@ -20,23 +20,21 @@ const disp = (x: string) => DISPLAY[x] ?? cap(x);
 
 export interface LeaderCard { key: string; nome: string; turno: string; dia: string; total: number; byCc: [string, number][]; others?: boolean }
 const dayKey = (d: string) => d.split('/').reverse().join();
-/** Um cartão por (líder, turno[, dia]): equipe do líder naquele turno, por CC. Quem não é de nenhuma equipe de contramestre vai para "Outros / sem líder". */
+/** Um cartão por (dia, turno, líder DA PESSOA): toda a equipe aparece no cartão do seu contramestre, esteja ele na lista ou não. */
 export function buildLeaderCards(recs: OvertimeRecord[]): LeaderCard[] {
-  const cards = new Map<string, LeaderCard>();
-  const inTeam = new Set<string>();
-  recs.filter((r) => isLeaderName(r.funcionario)).forEach((l) => {
-    const [a, b] = leaderKey(l.funcionario)!;
-    const k = `${l.data}|${turno(l)}|${a}`;
-    if (cards.has(k)) return;
-    const team = recs.filter((r) => r.data === l.data && turno(r) === turno(l) && norm(r.lider).split(/[\s/]+/).includes(a));
-    team.forEach((r) => inTeam.add(r.id));
-    cards.set(k, { key: k, nome: `${disp(a)} ${disp(b)}`, turno: turno(l), dia: l.data, total: team.length, byCc: countBy(team, (r) => r.cc || 'Sem CC') });
+  const groups = new Map<string, { nome: string; rs: OvertimeRecord[] }>();
+  recs.forEach((r) => {
+    const first = norm(r.lider).split(/[\s/]+/)[0];
+    const key = LEADER_KEYS.find(([a]) => a === first);
+    const nome = key ? `${disp(key[0])} ${disp(key[1])}` : (r.lider || 'Sem líder').split('/')[0].trim();
+    const k = `${r.data}|${turno(r)}|${nome}`;
+    const g = groups.get(k) ?? { nome, rs: [] };
+    g.rs.push(r);
+    groups.set(k, g);
   });
-  const rest = recs.filter((r) => !inTeam.has(r.id));
-  const groups = new Map<string, OvertimeRecord[]>();
-  rest.forEach((r) => { const k = `${r.data}|${turno(r)}`; groups.set(k, [...(groups.get(k) ?? []), r]); });
-  groups.forEach((g, k) => cards.set(`o|${k}`, { key: `o|${k}`, nome: 'Outros / sem líder', turno: turno(g[0]), dia: g[0].data, total: g.length, byCc: countBy(g, (r) => r.cc || 'Sem CC'), others: true }));
-  return [...cards.values()].sort((x, y) => dayKey(x.dia).localeCompare(dayKey(y.dia)) || x.turno.localeCompare(y.turno) || Number(!!x.others) - Number(!!y.others) || x.nome.localeCompare(y.nome, 'pt-BR'));
+  return [...groups.entries()]
+    .map(([key, g]) => ({ key, nome: g.nome, turno: turno(g.rs[0]), dia: g.rs[0].data, total: g.rs.length, byCc: countBy(g.rs, (r) => r.cc || 'Sem CC') }))
+    .sort((x, y) => dayKey(x.dia).localeCompare(dayKey(y.dia)) || x.turno.localeCompare(y.turno) || x.nome.localeCompare(y.nome, 'pt-BR'));
 }
 export const isLeaderRow = (r: OvertimeRecord) => norm(r.motivoHe) === 'responsavel' || isLeaderName(r.funcionario);
 export const needsTransport = (r: OvertimeRecord) => {

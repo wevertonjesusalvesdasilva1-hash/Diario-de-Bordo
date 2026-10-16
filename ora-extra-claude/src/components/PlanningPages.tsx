@@ -138,6 +138,7 @@ export function PagedSheet({
     if (small.length) out.push([`Outras rotas (${small.length})`, small.reduce((a, [, v]) => a + v, 0)]);
     return out;
   }, [s]);
+  const nLeaders = useMemo(() => new Set(s.leaderCards.map((c) => c.nome)).size, [s]);
   const routeMax = Math.max(1, ...routes.map(([, v]) => v));
   const issued = useMemo(() => new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }), [recs]);
   const rows = useMemo(() => buildRows(recs, levels, group), [recs, levels, group]);
@@ -249,7 +250,7 @@ export function PagedSheet({
                 <span key={t} className="tabular-nums whitespace-nowrap">{t.replace(' – ', ' ~ ')}{s.byTurno.length > 1 ? ` (${n})` : ''}</span>
               ))}
               <span className="whitespace-nowrap">· {s.total} pessoas</span>
-              <span className="whitespace-nowrap">· {s.leaderCards.filter((c) => !c.others).length} {s.leaderCards.filter((c) => !c.others).length === 1 ? 'líder' : 'líderes'}</span>
+              <span className="whitespace-nowrap">· {nLeaders} {nLeaders === 1 ? 'líder' : 'líderes'}</span>
             </div>
 
             <div className="grid gap-3 items-stretch" style={{ gridTemplateColumns: `repeat(5, 1fr)` }}>
@@ -268,7 +269,7 @@ export function PagedSheet({
             </div>
 
             <div className="grid gap-3 items-stretch" style={{ gridTemplateColumns: '2.2fr 1fr', flex: 1, minHeight: 0 }}>
-              <Box title={`Equipes por líder (${s.leaderCards.filter((c) => !c.others).length} líderes)`}>
+              <Box title={`Equipes por líder (${nLeaders} líderes)`}>
                 {s.leaderCards.length === 0 ? (
                   <p className="text-[11px]">Nenhum líder na lista.</p>
                 ) : (
