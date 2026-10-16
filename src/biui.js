@@ -5,7 +5,7 @@ import { dmy, dayLoads, historyStandardOf, spanHours, pairsOf } from './core/his
 import { loadBase, matrixRev } from './historico.js';
 import { recordsEditor } from './dbeditor.js';
 import { getOperators, operatorName } from './core/operators.js';
-import { el, chartBox as rawChartBox, PALETTE, RED } from './bicharts.js';
+import { el, chartBox as rawChartBox, PALETTE, RED, GREEN } from './bicharts.js';
 import { auditData } from './core/audit.js';
 import { getValor } from './valorhora.js';
 import { brl } from './core/plan.js';
@@ -193,7 +193,7 @@ const legendNote = () => {
   const chip = (c, round) => el('i', { class: `ex-chip${round ? ' round' : ''}`, style: `background:${c}` });
   const item = (c, name, text, round) => el('li', {}, chip(c, round), el('b', {}, name), ' — ', text);
   return el('div', { class: 'bi-explain-box' }, el('p', {}, 'Para as mesmas peças de cada máquina:'),
-    el('ul', {}, item(PALETTE[0], 'Tempo real gasto (h)', 'quanto tempo a máquina realmente levou, pelos horários da folha.'),
+    el('ul', {}, item(GREEN, 'Tempo real gasto (h)', 'quanto tempo a máquina realmente levou, pelos horários da folha.'),
       item(PALETTE[3], 'Tempo que o padrão previa (h)', 'quanto tempo essas peças deveriam levar, segundo a matriz de tempos.'),
       item('#94a3b8', 'Tempo real sem padrão (h) ⚠', 'peças que a matriz ainda não tem: foram produzidas e contam em horas e peças, mas ficam fora da eficiência. Complete a matriz na aba Base de dados.'),
       item('#fb7185', 'Eficiência (previsto ÷ real)', 'acima de 100%: a máquina foi mais rápida que o padrão (barra verde maior que a azul). Abaixo de 100%: demorou mais que o padrão.', true)));
@@ -274,8 +274,8 @@ function pageGeral(x) {
   const prodDia = () => { const gr = groupP(x.cube, x.F('v1'), ['data', 'm']); const days = [...new Set(gr.map((g) => g.vals[0]))], ms = [...new Set(gr.map((g) => g.vals[1]))].sort();
     const at = new Map(gr.map((g) => [g.vals[0] + SEP + g.vals[1], M.horasProd(g.c)]));
     return { kind: 'area', cats: days.map((d) => ({ key: d, label: ddmm(d) })), series: ms.map((m, k) => ({ name: m, color: PALETTE[k % PALETTE.length], vals: days.map((d) => at.get(d + SEP + m) ?? 0) })), height: 260, fmt: f1, onPick: x.pick('v1', 'p', ['data']), selected: x.selOf('v1') }; };
-  const disp = () => { const gr = groupP(x.cube, x.F('v3'), ['m']).map((g) => ({ g, v: M.pct(g.c) })).sort((a, b) => b.v - a.v); return { cats: gr.map(({ g, v }) => ({ key: g.vals[0], label: g.vals[0], color: corPctS(v) })), series: [{ name: 'Disponibilidade', vals: gr.map((r) => r.v), color: PALETTE[0] }], fmt: fpct, onPick: x.pick('v3', 'p', ['m']), selected: x.selOf('v3') }; };
-  const prodPar = () => { const gr = groupP(x.cube, x.F('v4'), ['m']); return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: RED }], fmt: f1, onPick: x.pick('v4', 'p', ['m']), selected: x.selOf('v4') }; };
+  const disp = () => { const gr = groupP(x.cube, x.F('v3'), ['m']).map((g) => ({ g, v: M.pct(g.c) })).sort((a, b) => b.v - a.v); return { cats: gr.map(({ g, v }) => ({ key: g.vals[0], label: g.vals[0], color: corPctS(v) })), series: [{ name: 'Disponibilidade', vals: gr.map((r) => r.v), color: GREEN }], fmt: fpct, onPick: x.pick('v3', 'p', ['m']), selected: x.selOf('v3') }; };
+  const prodPar = () => { const gr = groupP(x.cube, x.F('v4'), ['m']); return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: GREEN }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: RED }], fmt: f1, onPick: x.pick('v4', 'p', ['m']), selected: x.selOf('v4') }; };
   const turnoMaq = () => { const gr = groupP(x.cube, x.F('v6'), ['m', 't']); const ms = [...new Set(gr.map((g) => g.vals[0]))], ts = [...new Set(gr.map((g) => g.vals[1]))].sort(); return { cats: ms.map((m) => ({ key: m, label: m })), series: ts.map((t, k) => ({ name: t ? `Turno ${t}` : 'Sem turno', color: PALETTE[k], vals: ms.map((m) => M.horasProd((gr.find((g) => g.vals[0] === m && g.vals[1] === t) ?? { c: { P: [] } }).c)) })), stacked: true, fmt: f1, onPick: x.pick('v6', 'p', ['m']), selected: x.selOf('v6') }; };
   // production + stops of each machine and day (midnight to midnight) against the 24 h line: a bar above the line is an error to fix
   let load24 = 'todos';
@@ -286,7 +286,7 @@ function pageGeral(x) {
     else if (load24 === 'pior') { const by = new Map(); for (const r of L) { const o = by.get(r.d); if (!o || r.tot > o.tot) by.set(r.d, r); } rows = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1)); }
     else rows = L.filter((r) => r.m === load24).sort((a, b) => (a.d < b.d ? -1 : 1));
     return { cats: rows.map((r) => ({ key: r.d + SEP + r.m, label: load24 === 'todos' ? r.m.replace(/^RAW/, '') : load24 === 'acima' ? `${ddmm(r.d)} ${r.m}` : ddmm(r.d), ...(load24 === 'todos' ? { group: ddmm(r.d) } : {}), alert: r.tot > 24.0001 })), stacked: true, totalsOnlyAlerts: false, height: 300, refLine: { value: 24, label: 'limite: 24 h', color: '#fbbf24' }, fmt: f1,
-      series: [{ name: 'Produção (h)', vals: rows.map((r) => r.ph), color: PALETTE[0] }, { name: 'Paradas (h)', vals: rows.map((r) => r.sh), color: RED }],
+      series: [{ name: 'Produção (h)', vals: rows.map((r) => r.ph), color: GREEN }, { name: 'Paradas (h)', vals: rows.map((r) => r.sh), color: RED }],
       onPick: (key, ev) => {   // like every other chart: the click lights up this bar's robot and day in all the other charts, and the table follows
         x.pick('v8', 'p', ['data', 'm'])(key, ev);
         ui.t24.key = ui.sel?.vid === 'v8' ? [...ui.sel.keys].at(-1) : null; v24.rebuild();
@@ -321,7 +321,7 @@ function pageGeral(x) {
   };
   const v24 = vis('PRODUÇÃO + PARADAS POR DIA (limite de 24 h)', build24, { vid: 'v8', wide: true, acts: [tblBtn, sel24] });
   const mes = () => { const gr = groupP(x.cube, x.F('v7'), ['mes']); const order = (m) => MESES.indexOf(m); gr.sort((a, b) => order(a.vals[0]) - order(b.vals[0]));
-    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: RED }], fmt: f1, onPick: x.pick('v7', 'p', ['mes']), selected: x.selOf('v7') }; };
+    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: GREEN }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: RED }], fmt: f1, onPick: x.pick('v7', 'p', ['mes']), selected: x.selOf('v7') }; };
   const tbl = () => { const rows = rowsOf(groupP(x.cube, x.F('t1'), ['m'])), tot = slice(x.cube, x.F('t1'));
     return table([{ h: u, v: (r) => r.vals[0] }, { h: 'Peças', v: (r) => fint(M.qtdPecas(r.c)), key: (r) => M.qtdPecas(r.c), n: true }, { h: 'Horas (h)', v: (r) => f2(M.horasProd(r.c)), key: (r) => M.horasProd(r.c), n: true }, { h: 'Meta (h)', v: (r) => f2(M.target(r.c)), key: (r) => M.target(r.c), n: true },
       { h: 'Disponib.', v: (r) => fpct(M.pct(r.c)), key: (r) => M.pct(r.c), n: true, bg: (r) => corPctS(M.pct(r.c)) }, { h: 'Desvio', v: (r) => variacaoTexto(M.pct(r.c)), key: (r) => M.pct(r.c), n: true, bg: (r) => corVariacaoS(M.pct(r.c)) },
@@ -343,7 +343,7 @@ function pageParadas(x) {
   const porDia = () => { const gr = groupS(x.cube, x.F('v1'), ['m', 'data']); return { cats: gr.map((g) => ({ key: g.vals.join(SEP), label: ddmm(g.vals[1]), group: g.vals[0], color: corTempoS(M.horasParadas(g.c)) })), series: [{ name: 'Horas paradas', vals: gr.map((g) => M.horasParadas(g.c)), color: '#22d3ee' }], fmt: f1, onPick: x.pick('v1', 's', ['m', 'data']), selected: x.selOf('v1') }; };
   const porTurno = () => { const gr = groupS(x.cube, x.F('v2'), ['t']); return { orient: 'h', cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] ? `Turno ${g.vals[0]}` : '(sem turno)' })), series: [{ name: 'Horas paradas', vals: gr.map((g) => M.horasParadas(g.c)), color: RED }], fmt: f1, onPick: x.pick('v2', 's', ['t']), selected: x.selOf('v2') }; };
   const par = () => { const r = pareto(x.cube, x.F('v3')); return { cats: r.map((p) => ({ key: p.mo, label: blank(p.mo) })), series: [{ name: 'Horas paradas', vals: r.map((p) => p.h), color: RED }], lineAbove: true, line: { name: '% Acumulado', vals: r.map((p) => p.pctAcc), fmt: fpct0, color: '#fb7185', ref: 0.8, refLabel: '80%' }, fmt: f1, onPick: x.pick('v3', 's', ['mo']), selected: x.selOf('v3') }; };
-  const porMaq = () => { const gr = groupS(x.cube, x.F('v4'), ['m']).map((g) => ({ g, v: M.horasParadas(g.c) })).sort((a, b) => a.v - b.v); return { orient: 'h', cats: gr.map(({ g }) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas', vals: gr.map((r) => r.v), color: PALETTE[0] }], fmt: f1, onPick: x.pick('v4', 's', ['m']), selected: x.selOf('v4') }; };
+  const porMaq = () => { const gr = groupS(x.cube, x.F('v4'), ['m']).map((g) => ({ g, v: M.horasParadas(g.c) })).sort((a, b) => a.v - b.v); return { orient: 'h', cats: gr.map(({ g }) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas', vals: gr.map((r) => r.v), color: RED }], fmt: f1, onPick: x.pick('v4', 's', ['m']), selected: x.selOf('v4') }; };
   const tbl = () => { const S = slice(x.cube, x.F('v1')).S; return table([
     { h: 'Data', v: (s) => dmy(s.d), key: (s) => s.d }, { h: 'Motivo', v: (s) => s.mo }, { h: 'Chapa', v: (s) => s.c }, { h: 'Descrição', v: (s) => s.ds }, { h: u, v: (s) => s.m }, { h: 'Turno', v: (s) => s.t },
     { h: 'TTL', v: (s) => hhmm(s.h), key: (s) => s.h, n: true }, { h: 'Início', v: (s) => s.i }, { h: 'Final', v: (s) => s.f }], S, { order: 6, totals: ['Total', '', '', '', '', '', hhmm(S.reduce((a, s) => a + s.h, 0)), '', ''] }); };
@@ -361,7 +361,7 @@ const tpTotals = (c, lead) => [...lead, fint(M.pecasDistintas(c)), f2(M.horasPro
 const avgOrder = (cols, rows) => rows.sort((a, b) => (M.mediaHoras(b.c) ?? 0) - (M.mediaHoras(a.c) ?? 0));
 
 function tempoPecas(x, vid) {
-  return () => { const gr = groupP(x.cube, x.F(vid), ['pm']).map((g) => ({ g, v: M.horasProd(g.c) })).sort((a, b) => b.v - a.v); return { orient: 'h', cats: gr.map(({ g }) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas', vals: gr.map((r) => r.v), color: PALETTE[0] }], fmt: f1, tip: (i) => `${fint(M.qtdPecas(gr[i].g.c))} peças`, onPick: x.pick(vid, 'p', ['pm']), selected: x.selOf(vid) }; };
+  return () => { const gr = groupP(x.cube, x.F(vid), ['pm']).map((g) => ({ g, v: M.horasProd(g.c) })).sort((a, b) => b.v - a.v); return { orient: 'h', cats: gr.map(({ g }) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas', vals: gr.map((r) => r.v), color: GREEN }], fmt: f1, tip: (i) => `${fint(M.qtdPecas(gr[i].g.c))} peças`, onPick: x.pick(vid, 'p', ['pm']), selected: x.selOf(vid) }; };
 }
 
 function pagePessoas(x) {
@@ -373,7 +373,7 @@ function pagePessoas(x) {
       { h: 'Tempo (h)', v: (r) => f2(M.horasProd(r.c)), key: (r) => M.horasProd(r.c), n: true }, { h: 'TP Padrão', v: (r) => f2(M.tp(r.c)), key: (r) => M.tp(r.c), n: true },
       { h: '%', v: (r) => ganhoTexto(M.ganho(r.c)), key: (r) => M.ganho(r.c) ?? -9, n: true, bg: (r) => corGanhoS(M.ganho(r.c)) }, { h: '1ºTURNO', v: (r) => r.vals[3] }, { h: '2ºTURNO', v: (r) => r.vals[4] }, { h: '3ºTURNO', v: (r) => r.vals[5] }], rows); };
   const combo = () => { const gr = groupP(x.cube, x.F('v3'), ['cf']).map((g) => ({ g, v: M.horasProd(g.c) })).sort((a, b) => b.v - a.v);
-    return { cats: gr.map(({ g }) => ({ key: g.vals[0], label: blank(g.vals[0]) })), series: [{ name: 'Tempo (h)', vals: gr.map((r) => r.v), color: PALETTE[0] }, { name: 'TP Padrão (h)', vals: gr.map((r) => M.tp(r.g.c)), color: PALETTE[1] }],
+    return { cats: gr.map(({ g }) => ({ key: g.vals[0], label: blank(g.vals[0]) })), series: [{ name: 'Tempo (h)', vals: gr.map((r) => r.v), color: GREEN }, { name: 'TP Padrão (h)', vals: gr.map((r) => M.tp(r.g.c)), color: PALETTE[1] }],
       line: { name: '% Ganho', vals: gr.map((r) => M.ganho(r.g.c)), fmt: fpct0, color: '#fb7185', min: Math.min(0, ...gr.map((r) => M.ganho(r.g.c) ?? 0)), max: Math.max(0.5, ...gr.map((r) => M.ganho(r.g.c) ?? 0)) }, fmt: f1, onPick: x.pick('v3', 'p', ['cf']), selected: x.selOf('v3') }; };
   const semNomes = !Object.keys(getOperators()).length;
   return [semNomes ? el('p', { class: 'bi-note' }, 'Os nomes vêm da lista de operadores do servidor. Se não aparecerem, recarregue a página; se continuar, a lista ainda não foi configurada e só as chapas aparecem.') : '',
@@ -392,9 +392,9 @@ function pageEntrega(x) {
       card('PEÇAS', fint(M.qtdPecas(c)), null, `${fint(sem)} sem tempo padrão (${f1(M.horasSemPadrao(c))} h reais, fora da conta)${est ? ` · ${fint(est)} com padrão de outra máquina` : ''}${hist ? ` · ${fint(hist)} com padrão provisório (média do histórico)` : ''}`)];
   });
   const porDia = () => { const gr = groupP(x.cube, x.F('v1'), ['data']);
-    return { kind: 'area', cats: gr.map((g) => ({ key: g.vals[0], label: ddmm(g.vals[0]) })), series: [{ name: 'Tempo que o padrão previa (h)', vals: gr.map((g) => M.entrega(g.c)), color: PALETTE[3] }, { name: 'Tempo real gasto (h)', vals: gr.map((g) => M.realComPadrao(g.c)), color: PALETTE[0] }], height: 280, fmt: f1, onPick: x.pick('v1', 'p', ['data']), selected: x.selOf('v1') }; };
+    return { kind: 'area', cats: gr.map((g) => ({ key: g.vals[0], label: ddmm(g.vals[0]) })), series: [{ name: 'Tempo que o padrão previa (h)', vals: gr.map((g) => M.entrega(g.c)), color: PALETTE[3] }, { name: 'Tempo real gasto (h)', vals: gr.map((g) => M.realComPadrao(g.c)), color: GREEN }], height: 280, fmt: f1, onPick: x.pick('v1', 'p', ['data']), selected: x.selOf('v1') }; };
   const porMaq = () => { const gr = groupP(x.cube, x.F('v2'), ['m']);
-    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Tempo real gasto (h)', vals: gr.map((g) => M.realComPadrao(g.c)), color: PALETTE[0] }, { name: 'Tempo que o padrão previa (h)', vals: gr.map((g) => M.entrega(g.c)), color: PALETTE[3] }, { name: 'Tempo real sem padrão (h) ⚠', vals: gr.map((g) => M.horasSemPadrao(g.c)), color: '#94a3b8' }],
+    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Tempo real gasto (h)', vals: gr.map((g) => M.realComPadrao(g.c)), color: GREEN }, { name: 'Tempo que o padrão previa (h)', vals: gr.map((g) => M.entrega(g.c)), color: PALETTE[3] }, { name: 'Tempo real sem padrão (h) ⚠', vals: gr.map((g) => M.horasSemPadrao(g.c)), color: '#94a3b8' }],
       lineAbove: true, line: { name: 'Eficiência (previsto ÷ real)', vals: gr.map((g) => M.efic(g.c)), fmt: fpct0, color: '#fb7185', ref: 1, refLabel: '100%' }, fmt: f1, onPick: x.pick('v2', 'p', ['m']), selected: x.selOf('v2') }; };
   const porPeca = () => { const gr = groupP(x.cube, x.F('v3'), ['pm']).filter((g) => M.entrega(g.c) > 0).map((g) => ({ g, v: M.entrega(g.c), e: M.efic(g.c) })).sort((a, b) => b.v - a.v);
     return { orient: 'h', cats: gr.map(({ g, e }) => ({ key: g.vals[0], label: g.vals[0], color: corEficS(e) })), series: [{ name: 'Tempo que o padrão previa (h)', vals: gr.map((r) => r.v), color: PALETTE[3] }], fmt: f1, tip: (i) => `real ${f1(M.realComPadrao(gr[i].g.c))} h · ${fpct0(gr[i].e)} · ${fint(M.qtdPecas(gr[i].g.c))} peças`, onPick: x.pick('v3', 'p', ['pm']), selected: x.selOf('v3') }; };

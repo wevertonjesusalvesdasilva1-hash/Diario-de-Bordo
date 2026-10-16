@@ -2,7 +2,8 @@
 const SVG = 'http://www.w3.org/2000/svg';
 // clean, solid and a bit "engineering": steel blue for production, red ALWAYS for stops and lost production
 export const RED = '#ef4444';
-export const PALETTE = ['#3b82f6', '#14b8a6', '#6366f1', '#94a3b8', '#f59e0b', '#0ea5e9'];
+export const GREEN = '#16a34a';
+export const PALETTE = ['#16a34a', '#3b82f6', '#6366f1', '#94a3b8', '#f59e0b', '#0ea5e9'];
 
 export function el(tag, attrs = {}, ...kids) {
   const ns = attrs.svg === true;
