@@ -2,6 +2,8 @@
 
 Uso:  python3 scripts/folha/gerar_controle.py raw  <controle-antigo.xlsx> <saida.xlsx>
       python3 scripts/folha/gerar_controle.py usi  <controle-antigo.xlsx> <saida.xlsx>
+      ... acrescentar `historico` no fim para copiar também as linhas de PRODUÇÃO e PARADAS do controle antigo (cada linha antiga vira
+          uma linha nova com até 3 trechos; Nº da peça fica em branco; o motivo da parada vai como nome, sem código).
 
 O controle antigo só serve para copiar a aba MATRIZ TEMPO (tempos padrão). Nada dele fica no repositório.
 As fórmulas seguem as do controle antigo (COD, tempo de cada trecho, TEMPO/DEC, TEMPO PADRÃO BAAN, TTL, TEMPO/DEC da parada),
@@ -16,6 +18,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.formatting.rule import FormulaRule
 
 kind, src_path, out_path = sys.argv[1:4]
+WITH_HIST = len(sys.argv) > 4 and sys.argv[4] == 'historico'
 USI = kind == 'usi'
 MACH = 'MAQUINA' if USI else 'ROBÔ'
 MACHINES = ['UMC 01', 'UMC 02', 'HMC 16', 'NCBZ'] if USI else ['RAW05', 'RAW06', 'RAW09', 'RAW10', 'RAW11', 'RAW12']
@@ -26,7 +29,7 @@ CODES = [(1, 'MECÂNICA', 'Máquina ou ferramenta quebrada, trocador, vazamento'
 if USI:
     CODES += [(9, 'SET-UP', 'Mudou de modelo (dispositivo, programa)'), (10, 'CONSUMIVEIS', 'Inserto, fresa, broca')]
 NT = 8                                   # trechos por peça
-ROWS_P, ROWS_S = 1500, 3000              # linhas já preparadas com fórmula
+ROWS_P, ROWS_S = 1500, 3000              # linhas já preparadas com fórmula (além do histórico, quando houver)
 
 ARIAL = 'Arial'
 YEL, BLUE, RED = PatternFill('solid', fgColor='FFFF00'), PatternFill('solid', fgColor='00B0F0'), PatternFill('solid', fgColor='FF0000')
@@ -45,6 +48,20 @@ def head(ws, row, col, text, fill=None, font=F9B, h=None):
     return c
 
 
+HP, HS = [], []                          # histórico copiado do controle antigo
+if WITH_HIST:
+    old = openpyxl.load_workbook(src_path)
+    ow = old['PRODUÇÃO']                       # controle antigo: B máquina, C data, D peça, E modelo, F-H / I-K / L-N os 3 blocos, O turno, P observações
+    for r in range(3, ow.max_row + 1):
+        g = lambda c: ow.cell(r, c).value
+        if not g(2) or not g(3): continue
+        HP.append({'m': g(2), 'd': g(3), 'p': g(4), 'o': g(5), 'tr': [(g(6), g(7), g(8)), (g(9), g(10), g(11)), (g(12), g(13), g(14))], 't': g(15), 'ob': g(16)})
+    ow2 = old['PARADAS']
+    for r in range(2, ow2.max_row + 1):
+        mach = ow2.cell(r, 2).value
+        if not mach or str(mach).strip().upper() == 'TOTAL' or not ow2.cell(r, 3).value: continue
+        HS.append([ow2.cell(r, c).value for c in range(2, 10)])           # robô, data, chapa, início, fim, turno, motivo, descrição
+    ROWS_P, ROWS_S = len(HP) + ROWS_P, len(HS) + ROWS_S
 wb = openpyxl.Workbook()
 
 # ------------------------------------------------------------------ PRODUÇÃO
@@ -95,6 +112,12 @@ for r in range(R0, R1 + 1):
     f['AVISO'] = (f'=IF({col("COD")}{r}="","",IF(COUNT({a})<>COUNT({b}),"trecho sem início ou sem fim",'
                   f'IF(COUNT({a})=0,"sem horário",IF({col("TEMPO PADRÃO BAAN")}{r}=0,"sem tempo padrão",""))))')
     f['CHAVE'] = f'=IF(OR({col(MACH)}{r}="",{col("Nº PEÇA")}{r}="",{col("DATA")}{r}=""),"",{col(MACH)}{r}&"|"&{col("DATA")}{r}&"|"&{col("Nº PEÇA")}{r})'
+    h = HP[r - R0] if r - R0 < len(HP) else None
+    if h:
+        f[MACH], f['DATA'], f['PEÇA'], f['MODELO'] = h['m'], h['d'], h['p'], h['o']
+        for k, (c_, i_, f_) in enumerate(h['tr'], start=1):
+            f[f'CHAPA {k}'], f[f'INÍCIO {k}'], f[f'FIM {k}'] = c_, i_, f_
+        f['TURNO QUE FINALIZOU'], f['OBSERVAÇÕES'] = h['t'], h['ob']
     for n, c in C.items():
         cell = ws.cell(r, c)
         if n in f: cell.value = f[n]
@@ -138,6 +161,10 @@ for r in range(2, SR1 + 1):
         'PEÇA': (f'=IF({NP}{r}="","",IF(OR({NP}{r}="—",{NP}{r}="-"),"(sem peça)",IFERROR(INDEX(PRODUÇÃO!${col("PEÇA")}:${col("PEÇA")},'
                  f'MATCH({M}{r}&"|"&{DA}{r}&"|"&{NP}{r},PRODUÇÃO!${col("CHAVE")}:${col("CHAVE")},0)),"?")))'),
     }
+    if r - 2 < len(HS):
+        m_, d_, c_, i_, f_, t_, mo_, ds_ = HS[r - 2]
+        f[S[0]], f['DATA'], f['CHAPA'], f['INICIO'], f['FINAL'], f['TURNO'], f['DESCRIÇÃO DA PARADA'] = m_, d_, c_, i_, f_, t_, ds_
+        f['MOTIVO DA PARADA'] = str(mo_).strip() if mo_ else None            # histórico: o nome do motivo, sem código
     for n, c in SC.items():
         cell = sp.cell(r, c)
         if n in f: cell.value = f[n]
@@ -227,5 +254,6 @@ for w in wb.worksheets:
 ws.page_setup.orientation = 'landscape'
 ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
 ws.sheet_properties.pageSetUpPr = openpyxl.worksheet.properties.PageSetupProperties(fitToPage=True)
+wb.calculation.fullCalcOnLoad = True
 wb.save(out_path)
-print('ok', out_path, 'matriz', n, 'colunas produção', last)
+print('ok', out_path, 'matriz', n, 'colunas produção', last, 'histórico:', len(HP), 'produções', len(HS), 'paradas')
