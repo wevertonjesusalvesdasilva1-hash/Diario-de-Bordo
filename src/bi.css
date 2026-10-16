@@ -208,6 +208,10 @@ body.pbi main { overflow-x: clip; }
 /* seleção cruzada (como no Power BI): a página não pula e as linhas de tabela também respondem ao clique */
 .bi-layout, .bi-main { overflow-anchor: none; }
 .bi-tbl tr.pick { cursor: pointer; transition: opacity .2s; }
-.bi-tbl tr.pick:hover td { background: rgb(139 92 246 / .12); }
+.bi-tbl tr.pick:hover td { background: rgb(59 130 246 / .12); }
 .bi-tbl tr.pick.dim { opacity: .38; }
-.bi-tbl tr.pick.sel td { background: rgb(139 92 246 / .22); font-weight: 600; }
+.bi-tbl tr.pick.sel td { background: rgb(59 130 246 / .22); font-weight: 600; }
+
+/* visual mais limpo e sólido (sem neon): sem brilho nas linhas, cartões e fundo mais firmes */
+.bi-ch .glow, .bi-ch .line { filter: none; }
+.bi .bi-vis, .bi .bi-card, .bi .bi-slicer { box-shadow: 0 1px 2px rgb(0 0 0 / .25), 0 8px 24px rgb(0 0 0 / .18); }

@@ -1,6 +1,8 @@
 // Small SVG charts for the BI pages (columns, bars, combo with a line on a second axis). No library.
 const SVG = 'http://www.w3.org/2000/svg';
-export const PALETTE = ['#22d3ee', '#a78bfa', '#f472b6', '#a3e635', '#fbbf24', '#60a5fa'];   // neon on dark: translucent fills with bright edges
+// clean, solid and a bit "engineering": steel blue for production, red ALWAYS for stops and lost production
+export const RED = '#ef4444';
+export const PALETTE = ['#3b82f6', '#14b8a6', '#6366f1', '#94a3b8', '#f59e0b', '#0ea5e9'];
 
 export function el(tag, attrs = {}, ...kids) {
   const ns = attrs.svg === true;
@@ -22,11 +24,11 @@ function paint(svg, color, dir = 'v') {
   if (cache.has(key)) return cache.get(key);
   let defs = svg.querySelector('defs'); if (!defs) { defs = S('defs'); svg.prepend(defs); }
   const id = `bg${Math.random().toString(36).slice(2, 8)}`;
-  const [a, b] = dir === 'h' ? [0.1, 0.6] : dir === 'area' ? [0.5, 0.02] : [0.6, 0.08];
+  const [a, b] = dir === 'h' ? [0.62, 0.9] : dir === 'area' ? [0.4, 0.03] : [0.9, 0.62];
   defs.append(S('linearGradient', { id, x1: 0, y1: 0, x2: dir === 'h' ? 1 : 0, y2: dir === 'h' ? 0 : 1 }, S('stop', { offset: '0%', 'stop-color': color, 'stop-opacity': a }), S('stop', { offset: '100%', 'stop-color': color, 'stop-opacity': b })));
   cache.set(key, `url(#${id})`); return `url(#${id})`;
 }
-const bar = (svg, color, dir, glow, attrs) => S('rect', { ...attrs, rx: 3, fill: paint(svg, color, dir), stroke: color, 'stroke-width': 1.4, class: glow ? 'bar glow' : 'bar', style: `--c:${color}` });
+const bar = (svg, color, dir, glow, attrs) => S('rect', { ...attrs, rx: 3, fill: paint(svg, color, dir), stroke: color, 'stroke-width': 1, class: 'bar', style: `--c:${color}` });
 // smooth curve through the points (Catmull-Rom → Bézier), kept inside [lo, hi] vertically so it never dips below the axis
 function smooth(pts, lo, hi) {
   if (pts.length < 2) return `M${pts[0][0]},${pts[0][1]}`;
@@ -201,7 +203,7 @@ function drawArea(box, spec, avail, legend, sel) {
   series.forEach((s) => {
     const pts = s.vals.map((v, i) => [x(i), y(v || 0)]), base = top + plotH;
     svg.append(S('path', { d: `${smooth(pts, top, base)} L${x(n - 1)},${base} L${x(0)},${base} Z`, fill: paint(svg, s.color, 'area'), stroke: 'none' }),
-      S('path', { d: smooth(pts, top, base), fill: 'none', stroke: s.color, 'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', class: 'glow', style: `--c:${s.color}` }));
+      S('path', { d: smooth(pts, top, base), fill: 'none', stroke: s.color, 'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', class: 'line', style: `--c:${s.color}` }));
   });
   const guide = S('line', { x1: 0, x2: 0, y1: top, y2: top + plotH, stroke: '#fff', 'stroke-dasharray': '4 4', opacity: 0, 'pointer-events': 'none' });
   const dots = [];   // no ring on the line: the dashed guide and the tooltip are enough

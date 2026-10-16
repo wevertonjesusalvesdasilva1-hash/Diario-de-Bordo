@@ -5,7 +5,7 @@ import { dmy, dayLoads, historyStandardOf, spanHours, pairsOf } from './core/his
 import { loadBase, matrixRev } from './historico.js';
 import { recordsEditor } from './dbeditor.js';
 import { getOperators, operatorName } from './core/operators.js';
-import { el, chartBox as rawChartBox, PALETTE } from './bicharts.js';
+import { el, chartBox as rawChartBox, PALETTE, RED } from './bicharts.js';
 import { auditData } from './core/audit.js';
 import { getValor } from './valorhora.js';
 import { brl } from './core/plan.js';
@@ -15,7 +15,7 @@ import * as BI from './core/bi.js';
 const SKIN = { '#81C784': '#a3e635', '#70AD47': '#a3e635', '#FFD966': '#fbbf24', '#E57373': '#fb7185', '#C00000': '#fb7185', '#E6A8A8': '#fb7185', '#4472C4': '#22d3ee' };
 const sk = (c) => SKIN[c] ?? c;
 const corEficS = (e) => sk(corEfic(e));
-const corPctS = (v) => sk(BI.corPct(v)), corGanhoS = (g) => sk(BI.corGanho(g)), corTempoS = (h) => sk(BI.corTempo(h)), corVariacaoS = (v) => sk(BI.corVariacao(v));
+const corPctS = (v) => sk(BI.corPct(v)), corGanhoS = (g) => sk(BI.corGanho(g)), corTempoS = (h) => (h > 2.23 ? '#b91c1c' : '#f87171')   /* stops: always red */, corVariacaoS = (v) => sk(BI.corVariacao(v));
 
 const SEP = '\u0001';
 // Cross-highlight like Power BI: when a bar of ANOTHER chart is clicked, a column/bar chart keeps all its bars dim and lights up the part that belongs to the click
@@ -275,7 +275,7 @@ function pageGeral(x) {
     const at = new Map(gr.map((g) => [g.vals[0] + SEP + g.vals[1], M.horasProd(g.c)]));
     return { kind: 'area', cats: days.map((d) => ({ key: d, label: ddmm(d) })), series: ms.map((m, k) => ({ name: m, color: PALETTE[k % PALETTE.length], vals: days.map((d) => at.get(d + SEP + m) ?? 0) })), height: 260, fmt: f1, onPick: x.pick('v1', 'p', ['data']), selected: x.selOf('v1') }; };
   const disp = () => { const gr = groupP(x.cube, x.F('v3'), ['m']).map((g) => ({ g, v: M.pct(g.c) })).sort((a, b) => b.v - a.v); return { cats: gr.map(({ g, v }) => ({ key: g.vals[0], label: g.vals[0], color: corPctS(v) })), series: [{ name: 'Disponibilidade', vals: gr.map((r) => r.v), color: PALETTE[0] }], fmt: fpct, onPick: x.pick('v3', 'p', ['m']), selected: x.selOf('v3') }; };
-  const prodPar = () => { const gr = groupP(x.cube, x.F('v4'), ['m']); return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: PALETTE[1] }], fmt: f1, onPick: x.pick('v4', 'p', ['m']), selected: x.selOf('v4') }; };
+  const prodPar = () => { const gr = groupP(x.cube, x.F('v4'), ['m']); return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: RED }], fmt: f1, onPick: x.pick('v4', 'p', ['m']), selected: x.selOf('v4') }; };
   const turnoMaq = () => { const gr = groupP(x.cube, x.F('v6'), ['m', 't']); const ms = [...new Set(gr.map((g) => g.vals[0]))], ts = [...new Set(gr.map((g) => g.vals[1]))].sort(); return { cats: ms.map((m) => ({ key: m, label: m })), series: ts.map((t, k) => ({ name: t ? `Turno ${t}` : 'Sem turno', color: PALETTE[k], vals: ms.map((m) => M.horasProd((gr.find((g) => g.vals[0] === m && g.vals[1] === t) ?? { c: { P: [] } }).c)) })), stacked: true, fmt: f1, onPick: x.pick('v6', 'p', ['m']), selected: x.selOf('v6') }; };
   // production + stops of each machine and day (midnight to midnight) against the 24 h line: a bar above the line is an error to fix
   let load24 = 'todos';
@@ -285,8 +285,8 @@ function pageGeral(x) {
     else if (load24 === 'acima') rows = L.filter((r) => r.tot > 24.0001).sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.m < b.m ? -1 : 1));
     else if (load24 === 'pior') { const by = new Map(); for (const r of L) { const o = by.get(r.d); if (!o || r.tot > o.tot) by.set(r.d, r); } rows = [...by.values()].sort((a, b) => (a.d < b.d ? -1 : 1)); }
     else rows = L.filter((r) => r.m === load24).sort((a, b) => (a.d < b.d ? -1 : 1));
-    return { cats: rows.map((r) => ({ key: r.d + SEP + r.m, label: load24 === 'todos' ? r.m.replace(/^RAW/, '') : load24 === 'acima' ? `${ddmm(r.d)} ${r.m}` : ddmm(r.d), ...(load24 === 'todos' ? { group: ddmm(r.d) } : {}), alert: r.tot > 24.0001 })), stacked: true, totalsOnlyAlerts: load24 === 'todos', height: 300, refLine: { value: 24, label: 'limite: 24 h', color: '#fbbf24' }, fmt: f1,
-      series: [{ name: 'Produção (h)', vals: rows.map((r) => r.ph), color: PALETTE[0] }, { name: 'Paradas (h)', vals: rows.map((r) => r.sh), color: PALETTE[1] }],
+    return { cats: rows.map((r) => ({ key: r.d + SEP + r.m, label: load24 === 'todos' ? r.m.replace(/^RAW/, '') : load24 === 'acima' ? `${ddmm(r.d)} ${r.m}` : ddmm(r.d), ...(load24 === 'todos' ? { group: ddmm(r.d) } : {}), alert: r.tot > 24.0001 })), stacked: true, totalsOnlyAlerts: false, height: 300, refLine: { value: 24, label: 'limite: 24 h', color: '#fbbf24' }, fmt: f1,
+      series: [{ name: 'Produção (h)', vals: rows.map((r) => r.ph), color: PALETTE[0] }, { name: 'Paradas (h)', vals: rows.map((r) => r.sh), color: RED }],
       onPick: (key, ev) => {   // like every other chart: the click lights up this bar's robot and day in all the other charts, and the table follows
         x.pick('v8', 'p', ['data', 'm'])(key, ev);
         ui.t24.key = ui.sel?.vid === 'v8' ? [...ui.sel.keys].at(-1) : null; v24.rebuild();
@@ -299,7 +299,7 @@ function pageGeral(x) {
   const build24 = () => {
     const spec = dias24(), chart = chartBox(() => spec);
     const wrapBox = el('div', {}); wrapBox.getTable = () => chart.getTable?.();
-    if (load24 === 'todos') wrapBox.append(el('p', { class: 'bi-note bi-explain' }, `Cada bloco é um dia; dentro dele há uma barra por ${u.toLowerCase()}${x.g === 'raw' ? ' (05 = RAW05, 06 = RAW06…)' : ''}. O número aparece só nas barras que passam de 24 h; passe o mouse para ver os valores.`));
+    if (load24 === 'todos') wrapBox.append(el('p', { class: 'bi-note bi-explain' }, `Cada bloco é um dia; dentro dele há uma barra por ${u.toLowerCase()}${x.g === 'raw' ? ' (05 = RAW05, 06 = RAW06…)' : ''}. O total de cada barra aparece em cima (⚠ marca as que passam de 24 h); passe o mouse para ver os valores.`));
     wrapBox.append(chart);
     tblBtn.textContent = ui.t24.open ? '▦ Fechar tabela' : '▦ Abrir tabela'; tblBtn.setAttribute('aria-expanded', String(ui.t24.open)); tblBtn.classList.toggle('on', ui.t24.open);
     if (!ui.t24.open) { if (ui.t24.key) wrapBox.append(el('p', { class: 'bi-note' }, 'Barra escolhida: ', el('b', {}, ui.t24.key.split(SEP).reverse().join(' · ').replace(/(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1')), '. Clique em "Abrir tabela" para ver e corrigir os registros dela.')); return wrapBox; }
@@ -321,7 +321,7 @@ function pageGeral(x) {
   };
   const v24 = vis('PRODUÇÃO + PARADAS POR DIA (limite de 24 h)', build24, { vid: 'v8', wide: true, acts: [tblBtn, sel24] });
   const mes = () => { const gr = groupP(x.cube, x.F('v7'), ['mes']); const order = (m) => MESES.indexOf(m); gr.sort((a, b) => order(a.vals[0]) - order(b.vals[0]));
-    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: PALETTE[1] }], fmt: f1, onPick: x.pick('v7', 'p', ['mes']), selected: x.selOf('v7') }; };
+    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: PALETTE[0] }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: RED }], fmt: f1, onPick: x.pick('v7', 'p', ['mes']), selected: x.selOf('v7') }; };
   const tbl = () => { const rows = rowsOf(groupP(x.cube, x.F('t1'), ['m'])), tot = slice(x.cube, x.F('t1'));
     return table([{ h: u, v: (r) => r.vals[0] }, { h: 'Peças', v: (r) => fint(M.qtdPecas(r.c)), key: (r) => M.qtdPecas(r.c), n: true }, { h: 'Horas (h)', v: (r) => f2(M.horasProd(r.c)), key: (r) => M.horasProd(r.c), n: true }, { h: 'Meta (h)', v: (r) => f2(M.target(r.c)), key: (r) => M.target(r.c), n: true },
       { h: 'Disponib.', v: (r) => fpct(M.pct(r.c)), key: (r) => M.pct(r.c), n: true, bg: (r) => corPctS(M.pct(r.c)) }, { h: 'Desvio', v: (r) => variacaoTexto(M.pct(r.c)), key: (r) => M.pct(r.c), n: true, bg: (r) => corVariacaoS(M.pct(r.c)) },
@@ -342,8 +342,8 @@ function pageParadas(x) {
   const u = GROUPS[x.g].unit;
   let showTable = false;
   const porDia = () => { const gr = groupS(x.cube, x.F('v1'), ['m', 'data']); return { cats: gr.map((g) => ({ key: g.vals.join(SEP), label: ddmm(g.vals[1]), group: g.vals[0], color: corTempoS(M.horasParadas(g.c)) })), series: [{ name: 'Horas paradas', vals: gr.map((g) => M.horasParadas(g.c)), color: '#22d3ee' }], fmt: f1, onPick: x.pick('v1', 's', ['m', 'data']), selected: x.selOf('v1') }; };
-  const porTurno = () => { const gr = groupS(x.cube, x.F('v2'), ['t']); return { orient: 'h', cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] ? `Turno ${g.vals[0]}` : '(sem turno)' })), series: [{ name: 'Horas paradas', vals: gr.map((g) => M.horasParadas(g.c)), color: PALETTE[0] }], fmt: f1, onPick: x.pick('v2', 's', ['t']), selected: x.selOf('v2') }; };
-  const par = () => { const r = pareto(x.cube, x.F('v3')); return { cats: r.map((p) => ({ key: p.mo, label: blank(p.mo) })), series: [{ name: 'Horas paradas', vals: r.map((p) => p.h), color: PALETTE[0] }], lineAbove: true, line: { name: '% Acumulado', vals: r.map((p) => p.pctAcc), fmt: fpct0, color: '#fb7185', ref: 0.8, refLabel: '80%' }, fmt: f1, onPick: x.pick('v3', 's', ['mo']), selected: x.selOf('v3') }; };
+  const porTurno = () => { const gr = groupS(x.cube, x.F('v2'), ['t']); return { orient: 'h', cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] ? `Turno ${g.vals[0]}` : '(sem turno)' })), series: [{ name: 'Horas paradas', vals: gr.map((g) => M.horasParadas(g.c)), color: RED }], fmt: f1, onPick: x.pick('v2', 's', ['t']), selected: x.selOf('v2') }; };
+  const par = () => { const r = pareto(x.cube, x.F('v3')); return { cats: r.map((p) => ({ key: p.mo, label: blank(p.mo) })), series: [{ name: 'Horas paradas', vals: r.map((p) => p.h), color: RED }], lineAbove: true, line: { name: '% Acumulado', vals: r.map((p) => p.pctAcc), fmt: fpct0, color: '#fb7185', ref: 0.8, refLabel: '80%' }, fmt: f1, onPick: x.pick('v3', 's', ['mo']), selected: x.selOf('v3') }; };
   const porMaq = () => { const gr = groupS(x.cube, x.F('v4'), ['m']).map((g) => ({ g, v: M.horasParadas(g.c) })).sort((a, b) => a.v - b.v); return { orient: 'h', cats: gr.map(({ g }) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas', vals: gr.map((r) => r.v), color: PALETTE[0] }], fmt: f1, onPick: x.pick('v4', 's', ['m']), selected: x.selOf('v4') }; };
   const tbl = () => { const S = slice(x.cube, x.F('v1')).S; return table([
     { h: 'Data', v: (s) => dmy(s.d), key: (s) => s.d }, { h: 'Motivo', v: (s) => s.mo }, { h: 'Chapa', v: (s) => s.c }, { h: 'Descrição', v: (s) => s.ds }, { h: u, v: (s) => s.m }, { h: 'Turno', v: (s) => s.t },

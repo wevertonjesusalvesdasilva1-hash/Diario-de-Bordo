@@ -1,8 +1,8 @@
 /* Painel (BI): cartões, gráficos em SVG, mapa de calor e tabela de detalhes */
-.pn { --pv: #8b5cf6; --pv2: #c4b5fd; --pg: rgb(139 92 246 / .35); --pbg: color-mix(in srgb, var(--ink) 6%, transparent); --gempty: color-mix(in srgb, var(--ink) 14%, transparent);
+.pn { --pv: #2563eb; --pv2: #93c5fd; --pg: rgb(37 99 235 / .35); --pbg: color-mix(in srgb, var(--ink) 6%, transparent); --gempty: color-mix(in srgb, var(--ink) 14%, transparent);
   --cardbg: linear-gradient(160deg, rgb(255 255 255 / .05), rgb(255 255 255 / .015)), var(--panel2); --cardsh: none; --bok: #7ee34f; --bwarn: #ff7a5c; --solid: var(--panel2); display: grid; gap: 16px; }
-:root[data-theme="light"] .pn { --pv: #6d28d9; --pv2: #8b5cf6; --pg: rgb(109 40 217 / .22); --cardbg: #fff; --solid: #fff; --cardsh: 0 8px 28px rgb(0 0 0 / .07); --bok: #2e7d1a; --bwarn: #c0392b; }
-@media (prefers-color-scheme: light) { :root:not([data-theme]) .pn { --pv: #6d28d9; --pv2: #8b5cf6; --pg: rgb(109 40 217 / .22); --cardbg: #fff; --solid: #fff; --cardsh: 0 8px 28px rgb(0 0 0 / .07); --bok: #2e7d1a; --bwarn: #c0392b; } }
+:root[data-theme="light"] .pn { --pv: #1d4ed8; --pv2: #3b82f6; --pg: rgb(29 78 216 / .22); --cardbg: #fff; --solid: #fff; --cardsh: 0 8px 28px rgb(0 0 0 / .07); --bok: #2e7d1a; --bwarn: #c0392b; }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) .pn { --pv: #1d4ed8; --pv2: #3b82f6; --pg: rgb(29 78 216 / .22); --cardbg: #fff; --solid: #fff; --cardsh: 0 8px 28px rgb(0 0 0 / .07); --bok: #2e7d1a; --bwarn: #c0392b; } }
 .pn-card { position: relative; padding: 18px 20px; border-radius: 20px; border: 1px solid var(--line2); background: var(--cardbg); box-shadow: var(--cardsh); animation: pnRise .65s var(--ease) both; animation-delay: calc(var(--i, 0) * 70ms); min-width: 0; }
 @keyframes pnRise { from { opacity: 0; transform: translateY(18px) scale(.985); } to { opacity: 1; transform: none; } }
 .pn h3 { margin: 0 0 12px; font: 600 1rem var(--f-head); }
@@ -226,4 +226,4 @@
 .pn-expb .light { background: #fff; color: #15141c; } .pn-expb .dark { background: #0b0b12; color: #f2f2f7; }
 .pn-head { z-index: 6; }
 
-.viewbar { --pv: #7c3aed; --pg: rgb(124 58 237 / .35); --pbg: color-mix(in srgb, var(--ink) 6%, transparent); }
+.viewbar { --pv: #2563eb; --pg: rgb(37 99 235 / .35); --pbg: color-mix(in srgb, var(--ink) 6%, transparent); }
