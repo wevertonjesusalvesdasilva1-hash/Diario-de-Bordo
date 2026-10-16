@@ -4,7 +4,10 @@
 //   then big times, then who fills the sheet badly, then the rest, and handwriting always last.
 // Cards the person marked as "annotated correctly" are left out (and counted).
 
+import { GAP_KIND, GAP_COLOR } from './gaps.js';
+
 export const KINDS = [
+  { id: GAP_KIND, color: GAP_COLOR, name: 'Turno sem anotação', hint: 'Dia útil em que um turno da máquina não tem produção ou paradas na base de dados: a folha desse turno pode não ter sido digitalizada.' },
   { id: 'em dúvida', color: '#cbd5e1', name: 'Ainda em dúvida (não analisado)', hint: 'Horário ainda marcado como dúvida na conferência. A análise só julga dado conferido.' },
   { id: 'produzindo parado', color: '#dc2626', name: 'Produção inclui parada', hint: 'O tempo de produção cobre uma parada anotada: a máquina parada não produz.' },
   { id: 'registros sobrepostos', color: '#facc15', name: 'Dois registros no mesmo horário', hint: 'Duas produções, ou duas paradas, ocupam o mesmo horário.' },

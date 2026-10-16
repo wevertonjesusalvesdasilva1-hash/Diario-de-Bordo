@@ -250,6 +250,15 @@ Cada coisa fica onde as pessoas costumam procurar em qualquer site ou aplicativo
 - Os filtros de cada gráfico (máquina e data) ficam atrás do botão "⚙ Filtros" (o botão mostra ● quando há filtro ativo). "Listas de conferência" abre pelo menu ⋮ (Configurações) ou pelo link Configurações do rodapé.
 - **Produção + paradas por dia (limite de 24 h)** na Visão geral: colunas empilhadas (produção + paradas) de cada máquina e dia, de meia-noite a meia-noite, com uma linha tracejada em 24 h. Coluna acima da linha tem ⚠ e o total em vermelho. Escolha no alto do gráfico: pior máquina de cada dia (padrão), só os dias acima de 24 h, ou uma máquina específica. Passar o mouse mostra a máquina, o dia e quantas horas estão no mesmo horário.
 
+## Card dourado: "Turno sem anotação" (Análise)
+Primeiro tipo de aviso da Análise, em **dourado com brilho**. Serve para não deixar uma folha esquecida: ele olha a **base de dados** (mais as folhas lidas agora) e mostra, por máquina e dia, qual turno está sem anotação.
+- **O que mostra:** "RAW09 · 08/10 (quinta-feira) · falta produção no turno da noite (20:40 às 05:30)". Se faltam produção **e** paradas, o card tem **duas faces** (produção de um lado, paradas do outro; botão "Ver paradas ↻"). Se falta só uma delas, mostra **só uma face**, sem virar.
+- **Quando aparece:** só em **dia útil** (segunda a sexta) dos **últimos 14 dias, até ontem**; só nos turnos que a máquina realmente trabalha (aprendido do histórico dela: movimento em pelo menos 40% dos dias úteis); e só se há histórico suficiente. Turno 1 = 07:30 às 17:30; turno 2 = 20:40 às 05:30 (depois da meia-noite conta para o turno da noite da mesma folha).
+- **Não é folha esquecida quando** a máquina ficou **parada mais da metade do turno** (as paradas anotadas explicam a falta de produção).
+- **Dia sem nada em nenhuma máquina** do grupo (feriado, ou o dia todo sem digitalizar) vira **um card só** ("Todos · RAW" / "Todas · usinagem").
+- **"Está correto: não havia anotação a fazer"** (feriado, máquina sem turno) tira o card e ele não volta. Dá para desfazer no topo da Análise, como nos outros avisos.
+- O card se atualiza ao dar o OK e depois de **subir para a base**. Sem base de dados (sem código ou sem armazenamento) ele simplesmente não aparece.
+
 ## Excel de controle novo (folha "uma linha = uma peça")
 O app lê os dois formatos de Excel de controle, sem o usuário escolher: o antigo (3 blocos de turno por linha) e o novo.
 - **Novo:** aba PRODUÇÃO com `CHAPA 1 / INÍCIO 1 / FIM 1` até o **trecho 8**, `Nº PEÇA` e `TURNO QUE FINALIZOU`; aba PARADAS com `CÓD`, `MOTIVO DA PARADA` (a planilha calcula o nome pelo código; se estiver vazio o app usa a tabela de códigos) e `Nº DA PEÇA`. O arquivo é gerado por `scripts/folha/gerar_controle.py` (RAW e usinagem).

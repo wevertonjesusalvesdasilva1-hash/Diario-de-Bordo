@@ -19,6 +19,9 @@ import { inferTurnos } from './core/turno.js';
 import { buildPage, reconcile, applyInkMotivo, alignRows, alignJson, collectAsk, applyThirdReading, normMachine } from './core/rows.js';
 import { decodeEntities } from './core/text.js';
 import { KINDS } from './core/report.js';
+import { buildGapCards, TURNOS } from './core/gaps.js';
+import { loadBase } from './historico.js';
+import { recordsFromPages } from './core/history.js';
 import { parseOperatorRows, getOperators, setOperators, clearOperators, operatorName } from './core/operators.js';
 import * as XLSX from 'xlsx';
 import { recordEdit, recordRemoval, describeEdit } from './core/edits.js';
@@ -40,7 +43,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
 
-const state = { dismissed: new Set(), checked: new Set(), pages: [], nextId: 1, batch: 0, busy: false, undo: null, reviewed: false, okAt: null, okSig: '', analysis: null, ai: null, tab: 'read' };
+const state = { gaps: [], gapsFor: '', dismissed: new Set(), checked: new Set(), pages: [], nextId: 1, batch: 0, busy: false, undo: null, reviewed: false, okAt: null, okSig: '', analysis: null, ai: null, tab: 'read' };
 const secrets = new Map(); // page id → { images } kept only in memory, for "tentar de novo"
 
 function h(tag, attrs = {}, ...kids) {
@@ -881,7 +884,7 @@ function showTab(name) {
   }
   document.body.classList.toggle('pbi', !folhas);   // the BI, the plan and the base use the full width of the screen
   document.body.classList.toggle('has-actionbar', name === 'read' && okPages().length > 0);
-  if (name === 'analysis') { renderAnalysis(); renderPanel(); }
+  if (name === 'analysis') { renderAnalysis(); renderPanel(); loadGaps(); }
   if (name === 'panel') renderPanelTab();
   if (name === 'plan') renderPlan();
   if (name === 'db') renderDb();
@@ -905,7 +908,7 @@ function giveOk() {
   }
   btn.dataset.sure = '';
   state.reviewed = true; state.okAt = new Date().toISOString(); state.okSig = sig();
-  state.analysis = analyseSheets(inc, { dismissed: state.dismissed }); state.ai = null;
+  state.analysis = analyseSheets(inc, { dismissed: state.dismissed }); state.ai = null; state.gapsFor = '';
   updateReviewUi(); goSection('analysis'); persist(0);
 }
 
@@ -987,18 +990,38 @@ const peopleEl = (c, big) => h('div', { class: `oper-id${big ? ' big' : ''}` }, 
     h('b', {}, o.nome || (o.chapa ? 'Nome não cadastrado' : 'Chapa em branco')), o.chapa ? h('small', {}, `chapa ${o.chapa}`) : null)));
 
 // compact tile in the grid: click to open the card full screen
+// all the cards of the analysis: the gold "turno sem anotação" ones (made from the base, see loadGaps) and the ones of the sheets read
+function reportList() { return [...state.gaps.filter((g) => !state.dismissed.has(g.key)), ...(state.analysis?.report ?? [])]; }
+// What the base and the sheets just read say about each shift of each working day: which ones have no production and/or no stops.
+let gapRun = 0;
+async function loadGaps() {
+  if (!state.analysis || state.gapsFor === state.okSig) return;
+  const run = ++gapRun, sig = state.okSig;
+  try {
+    const [raw, usi] = await Promise.all([loadBase('raw'), loadBase('usi')]);
+    if (run !== gapRun) return;
+    const mine = recordsFromPages(includedPages());
+    state.gaps = buildGapCards({ prod: [...raw.prod, ...usi.prod, ...mine.prod], stops: [...raw.stops, ...usi.stops, ...mine.stops], today: new Date() });
+  } catch { state.gaps = []; }                  // no base (offline, no code yet): the card simply does not appear
+  state.gapsFor = sig;
+  if (state.tab === 'analysis') renderAnalysis();
+}
+
 function tile(c) {
   const done = state.checked.has(c.key);
-  return h('article', { class: `acard${done ? ' done' : ''}`, style: `--kc:${c.color}`, dataset: { open: c.key }, tabindex: '0', role: 'button', 'aria-label': `${c.machine}: ${c.title}. Clique para abrir.` },
+  return h('article', { class: `acard${c.gap ? ' gold' : ''}${done ? ' done' : ''}`, style: `--kc:${c.color}`, dataset: { open: c.key }, tabindex: '0', role: 'button', 'aria-label': `${c.machine}: ${c.title}. Clique para abrir.` },
     h('div', { class: 'ftop' }, h('strong', { class: 'fmachine' }, c.machine), h('span', { class: 'kchip' }, h('i', {}), c.title)),
-    peopleEl(c, false),
+    c.gap ? null : peopleEl(c, false),
+    c.gap && c.faces.length > 1 ? h('div', { class: 'gapfaces' }, c.faces.map((f) => h('span', { class: 'gapf' }, f.what === 'produção' ? 'Produção' : 'Paradas')), h('small', {}, 'duas faces')) : null,
+    c.gap && c.faces.length === 1 ? h('div', { class: 'gapfaces' }, h('span', { class: 'gapf' }, c.faces[0].what === 'produção' ? 'Produção' : 'Paradas')) : null,
     c.big ? h('div', { class: 'fbig2' }, h('b', {}, c.big), h('small', {}, c.bigLabel)) : null,
     h('p', { class: 'tbrief' }, c.brief),
-    h('div', { class: 'ffoot' }, h('span', {}, c.day ? `Folha do dia ${c.day}` : c.label), h('span', { class: 'fhint' }, done ? '✓ Verificado' : 'Abrir ⤢')));
+    h('div', { class: 'ffoot' }, h('span', {}, c.gap ? `Dia ${c.day} · ${c.weekday}` : c.day ? `Folha do dia ${c.day}` : c.label), h('span', { class: 'fhint' }, done ? '✓ Verificado' : 'Abrir ⤢')));
 }
 
 // full-screen card: front = what was written, back = the sheet with the row outlined
 function flipCard(c) {
+  if (c.gap) return flipGap(c);
   const front = h('div', { class: 'face front' },
     h('div', { class: 'ftop' }, h('strong', { class: 'fmachine' }, c.machine), h('span', { class: 'kchip' }, h('i', {}), c.title)),
     peopleEl(c, true),
@@ -1012,6 +1035,23 @@ function flipCard(c) {
     sheetView(c),
     h('div', { class: 'fbtns' }, goBtn(c), pageOf(c.page)?.sheet ? downloadControl(c, pageOf(c.page), h) : null, h('button', { type: 'button', class: 'ghost ok', dataset: { dismiss: c.key }, title: 'A folha está certa: tira este aviso' }, 'Anotação correta ✓'), h('button', { type: 'button', class: 'ghost', dataset: { flip: '1' } }, 'Voltar ↻')));
   return h('article', { class: `flip ${c.sev}`, style: `--kc:${c.color}`, tabindex: '0', 'aria-pressed': 'false', 'aria-label': `${c.machine}: ${c.title}` }, h('div', { class: 'flip-in' }, front, back));
+}
+
+// Gold card with one face per thing that is missing: production and/or stops (only the faces that apply)
+function flipGap(c) {
+  const faces = c.faces.map((f, i) => h('div', { class: `face ${i ? 'back' : 'front'}` },
+    h('div', { class: 'ftop' }, h('strong', { class: 'fmachine' }, c.machine), h('span', { class: 'kchip' }, h('i', {}), f.title)),
+    h('div', { class: 'gapday' }, h('b', {}, c.day), h('small', {}, c.weekday)),
+    storyEl(f.text),
+    h('ul', { class: 'gapturnos' }, f.turnos.map((t) => h('li', {}, h('b', {}, TURNOS[t].name), ` · ${TURNOS[t].range}`))),
+    c.fix ? h('div', { class: 'ffix' }, c.fix) : null,
+    c.faces.length > 1 ? h('p', { class: 'gapof' }, `Face ${i + 1} de ${c.faces.length}: ${f.what}`) : null,
+    h('div', { class: 'ffoot' }, h('span', {}, `Dia ${c.day} · ${c.weekday}`),
+      c.faces.length > 1 ? h('button', { type: 'button', class: 'viewbtn', dataset: i ? { flip: '1' } : { flipto: '1' } }, i ? `↻ Ver ${c.faces[0].what}` : `Ver ${c.faces[1].what} ↻`) : null),
+    h('div', { class: 'fbtns' },
+      h('button', { type: 'button', class: `checkbtn${state.checked.has(c.key) ? ' on' : ''}`, dataset: { check: c.key } }, state.checked.has(c.key) ? '↩ Desmarcar verificado' : '✓ Marcar como verificado'),
+      h('button', { type: 'button', class: 'ghost ok', dataset: { dismiss: c.key }, title: 'Não havia turno ou foi feriado: tira este aviso' }, 'Está correto: não havia anotação a fazer'))));
+  return h('article', { class: 'flip alta gold', style: `--kc:${c.color}`, tabindex: '0', 'aria-pressed': 'false', 'aria-label': `${c.machine}: ${c.title}` }, h('div', { class: 'flip-in' }, ...faces));
 }
 
 function closeCardModal() { openCardKey = null; selectMark(null); const m = $('cardmodal'); if (m) { m.classList.add('out'); setTimeout(() => m.remove(), 180); } document.removeEventListener('keydown', onCardKey); }
@@ -1051,7 +1091,7 @@ document.addEventListener('keydown', (e) => {
 });
 document.addEventListener('dblclick', (e) => { const mk = e.target.closest?.('#cardmodal .sheetwrap .hl'); if (mk) resetMark(mk); });
 function openCardModal(key) {
-  const c = (state.analysis?.report ?? []).find((x) => x.key === key);
+  const c = reportList().find((x) => x.key === key);
   if (!c) return;
   $('cardmodal')?.remove(); openCardKey = key;
   const m = h('div', { id: 'cardmodal', role: 'dialog', 'aria-modal': 'true', 'aria-label': `${c.machine}: ${c.title}`, style: `--kc:${c.color}` },
@@ -1103,8 +1143,9 @@ function renderAnalysis() {
   const root = $('view-analysis');
   const a = state.analysis;
   if (!a) { root.replaceChildren(h('p', { class: 'note' }, 'Dê o OK na aba de conferência para gerar a análise.')); return; }
-  const hiddenN = a.report?.hidden ?? 0;
-  const report = (a.report ?? []).filter((c) => machineInView(c.machine));
+  const gapsAll = state.gaps.filter((g) => !state.dismissed.has(g.key));
+  const hiddenN = (a.report?.hidden ?? 0) + (state.gaps.length - gapsAll.length);
+  const report = [...gapsAll, ...(a.report ?? [])].filter((c) => (c.gap ? c.group === effView() || effView() === 'all' : machineInView(c.machine)));
   report.hidden = hiddenN;
   const machines = [...new Set(report.map((c) => c.machine))].sort((x, y) => String(x).localeCompare(String(y), 'pt-BR'));
   if (anaMachine !== 'all' && !machines.includes(anaMachine)) anaMachine = 'all';
@@ -1258,7 +1299,7 @@ $('settings').addEventListener('click', (e) => { if (e.target === $('settings'))
 function openSubmitBase() {
   openSubmit({
     pages: includedPages(), reviewed: state.reviewed, flagsOf: countFlags, toast, goRead: () => showTab('read'),
-    onDone: ({ g, batch, pages, result }) => { for (const p of pages) { p.submitted = { g, batch, at: new Date().toISOString(), prod: result.added.prod, stops: result.added.stops }; renderPage(p); } persist(0); if (state.tab === 'panel') renderBi(); },
+    onDone: ({ g, batch, pages, result }) => { state.gapsFor = ''; for (const p of pages) { p.submitted = { g, batch, at: new Date().toISOString(), prod: result.added.prod, stops: result.added.stops }; renderPage(p); } persist(0); if (state.tab === 'panel') renderBi(); },
   });
 }
 $('submitbase').addEventListener('click', openSubmitBase);
