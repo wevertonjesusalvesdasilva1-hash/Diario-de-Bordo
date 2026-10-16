@@ -204,7 +204,7 @@ function drawArea(box, spec, avail, legend, sel) {
       S('path', { d: smooth(pts, top, base), fill: 'none', stroke: s.color, 'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', class: 'glow', style: `--c:${s.color}` }));
   });
   const guide = S('line', { x1: 0, x2: 0, y1: top, y2: top + plotH, stroke: '#fff', 'stroke-dasharray': '4 4', opacity: 0, 'pointer-events': 'none' });
-  const dots = series.map((s) => S('circle', { r: 5, fill: '#fff', stroke: s.color, 'stroke-width': 3, opacity: 0, 'pointer-events': 'none' }));
+  const dots = [];   // no ring on the line: the dashed guide and the tooltip are enough
   svg.append(guide, ...dots);
   cats.forEach((c, i) => {
     const hit = S('rect', { x: x(i) - step / 2, y: top, width: step, height: plotH, fill: 'transparent', class: `pick${sel && !sel.has(c.key) ? ' dim' : ''}`, tabindex: 0,

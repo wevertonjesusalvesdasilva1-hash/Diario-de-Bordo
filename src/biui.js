@@ -74,13 +74,12 @@ function mirror() {
 }
 const optLabel = (col, v) => (v === '' ? '(vazio)' : col === 'data' ? dmy(v) : col === 't' ? `Turno ${v}` : v);
 
-// Like Power BI: a plain click selects only that item (click it again to clear); Ctrl/⌘ + click (or "Seleção múltipla", for touch screens) adds or removes items; "Selecionar tudo" marks every item of the list
+// Like Power BI: a plain click selects only that item (click it again to clear); Ctrl/⌘ + click adds or removes items
 function slicerBox(title, side, col, cube, onChange) {
   const f = pageFilter(), sets = () => f[side];
-  const list = el('ul'), search = el('input', { type: 'search', placeholder: 'Buscar', 'aria-label': `Buscar em ${title}` });
-  const all = el('button', { type: 'button', title: 'Marca todos os itens da lista (os que aparecem na busca)', onclick: () => { const q = search.value.trim().toLowerCase(); sets()[col] = new Set(optionsFor(cube, side, col, f).filter((v) => !q || optLabel(col, v).toLowerCase().includes(q))); fill(); onChange(); } }, '✓ Selecionar tudo');
+  const list = el('ul');
   const badge = el('em', { class: 'cnt' });
-  const box = el('section', { class: 'bi-slicer' }, el('header', {}, el('span', { class: 'tt' }, title, badge), el('span', { class: 'hd' }, all, el('button', { type: 'button', onclick: () => { delete sets()[col]; fill(); onChange(); } }, '✕ Limpar'))), search, list);
+  const box = el('section', { class: 'bi-slicer' }, el('header', {}, el('span', { class: 'tt' }, title, badge)), list);
   function pick(v, add) {
     const cur = sets()[col];
     if (add) { const s2 = (sets()[col] ??= new Set()); if (s2.has(v)) s2.delete(v); else s2.add(v); if (!s2.size) delete sets()[col]; }
@@ -89,11 +88,11 @@ function slicerBox(title, side, col, cube, onChange) {
     fill(); onChange();
   }
   function fill() {
-    const vals = optionsFor(cube, side, col, f), q = search.value.trim().toLowerCase(), cur = sets()[col];
+    const vals = optionsFor(cube, side, col, f), cur = sets()[col];
     badge.textContent = cur?.size ? String(cur.size) : '';
-    list.replaceChildren(...vals.filter((v) => !q || optLabel(col, v).toLowerCase().includes(q)).map((v) => el('li', {}, el('label', {}, el('input', { type: 'checkbox', checked: cur?.has(v) || null, onclick: (e) => { e.preventDefault(); pick(v, e.ctrlKey || e.metaKey || ui.multi); } }), optLabel(col, v)))));
+    list.replaceChildren(...vals.map((v) => el('li', {}, el('label', {}, el('input', { type: 'checkbox', checked: cur?.has(v) || null, onclick: (e) => { e.preventDefault(); pick(v, e.ctrlKey || e.metaKey || ui.multi); } }), optLabel(col, v)))));
   }
-  search.addEventListener('input', fill); fill();
+  fill();
   slicerFills.push(fill);
   return box;
 }
@@ -464,9 +463,8 @@ function quickBar(cube, side, apply) {
   const range = (a, b) => dates.filter((d) => d >= a && d <= b);
   const from = el('input', { type: 'date', min: dates[0], max: last, 'aria-label': 'De (data)', onchange: () => custom() }), to = el('input', { type: 'date', min: dates[0], max: last, 'aria-label': 'Até (data)', onchange: () => custom() });
   const custom = () => set(range(from.value || dates[0], to.value || last));
-  const btns = [['Tudo', () => set(null)], [`Último dia (${dmy(last).slice(0, 5)})`, () => set([last])], ['7 dias', () => set(range(addDays(last, -6), last))], ['30 dias', () => set(range(addDays(last, -29), last))], ['Mês do último dia', () => set(range(`${last.slice(0, 8)}01`, last))]]
+  const btns = [['Tudo', () => set(null)], [`Último dia (${dmy(last).slice(0, 5)})`, () => set([last])], ['7 dias', () => set(range(addDays(last, -6), last))], ['30 dias', () => set(range(addDays(last, -29), last))]]
     .map(([t, fn], i) => el('button', { type: 'button', onclick: () => { active = i; fn(); } }, t));
-  const multiBtn = el('button', { type: 'button', class: 'uteis', 'aria-pressed': String(ui.multi), title: 'Ligado: cada clique em barra ou item soma ou tira (o mesmo que Ctrl + clique). Útil no celular.', onclick: () => { ui.multi = !ui.multi; multiBtn.setAttribute('aria-pressed', String(ui.multi)); } }, 'Seleção múltipla');
   const uteisBtn = el('button', { type: 'button', class: 'uteis', 'aria-pressed': String(U.on), title: 'Tira sábados e domingos (feriados não são tirados)', onclick: () => {
     if (!U.on) { U.on = true; U.prev = f[side].data ? new Set(f[side].data) : null; set(f[side].data ? [...f[side].data] : null); }
     else { U.on = false; const back = U.prev; U.prev = null; set(back ? [...back] : null); }
@@ -476,7 +474,7 @@ function quickBar(cube, side, apply) {
   function mark() { const n = f[side].data?.size ?? 0; btns.forEach((b, i) => b.setAttribute('aria-pressed', String(i === 0 ? n === 0 : i === active && n > 0))); }
   // three tidy groups: the period buttons (one joined control), the free interval, and the two switches
   const grp = (label, ...kids) => el('div', { class: 'qb-g' }, el('span', { class: 'lbl' }, label), ...kids);
-  box.append(grp('Período', el('div', { class: 'qb-seg', role: 'group' }, ...btns)), grp('Intervalo', el('div', { class: 'qb-range' }, el('label', { class: 'vf-d' }, 'De', from), el('span', { class: 'qb-dash' }, '→'), el('label', { class: 'vf-d' }, 'Até', to))), grp('Opções', el('div', { class: 'qb-opts' }, uteisBtn, multiBtn)));
+  box.append(grp('Período', el('div', { class: 'qb-seg', role: 'group' }, ...btns)), grp('Intervalo', el('div', { class: 'qb-range' }, el('label', { class: 'vf-d' }, 'De', from), el('span', { class: 'qb-dash' }, '→'), el('label', { class: 'vf-d' }, 'Até', to))), grp('Opções', el('div', { class: 'qb-opts' }, uteisBtn)));
   mark();
   return box;
 }
