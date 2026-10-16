@@ -204,3 +204,10 @@ body.pbi main { overflow-x: clip; }
 
 .bi-grid.pl-two { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
 @media (max-width: 900px) { .bi-grid.pl-two { grid-template-columns: minmax(0, 1fr); } }
+
+/* seleção cruzada (como no Power BI): a página não pula e as linhas de tabela também respondem ao clique */
+.bi-layout, .bi-main { overflow-anchor: none; }
+.bi-tbl tr.pick { cursor: pointer; transition: opacity .2s; }
+.bi-tbl tr.pick:hover td { background: rgb(139 92 246 / .12); }
+.bi-tbl tr.pick.dim { opacity: .38; }
+.bi-tbl tr.pick.sel td { background: rgb(139 92 246 / .22); font-weight: 600; }

@@ -299,3 +299,4 @@ Clicar numa barra de um gráfico: nos outros gráficos de colunas e barras, tudo
 ## Ajustes de layout (out/2026)
 - **Visão geral do Painel BI:** o gráfico "Produção + paradas por dia (limite de 24 h)" é o primeiro; os cartões-resumo (disponibilidade, horas entregues, paradas, dados para conferir) ficam no **final** da página.
 - **Análise:** o "Painel do dia · folhas de hoje" foi removido (o Painel BI cobre isso).
+- **Painel BI como no Power BI:** clicar numa barra **ou numa linha de tabela** (resumo por robô, peça e modelo, operador) filtra e evidencia os outros gráficos da página (a linha clicada fica marcada, as outras apagam). A página **não rola** ao clicar: cada quadro mantém a altura enquanto redesenha e a posição da tela é devolvida.

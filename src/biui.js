@@ -166,7 +166,7 @@ function vis(title, build, { vid, side = 'p', wide = false, acts = [], filters =
   return box;
 }
 // sortable table. cols: [{ h, v(row) → shown, n: numeric, key(row) → sort value, bg(row) → cell color }]
-function table(cols, rows, { totals, order, desc = true, limit = 300 } = {}) {
+function table(cols, rows, { totals, order, desc = true, limit = 300, rowKey, onRow, selected } = {}) {
   let sortCol = order ?? null, dir = desc ? -1 : 1, shown = limit;
   const wrap = el('div'), box = el('div', { class: 'bi-tbl' }), more = el('button', { type: 'button', class: 'bi-more' }, 'Mostrar todas as linhas');
   more.addEventListener('click', () => { shown = Infinity; draw(); });
@@ -174,7 +174,7 @@ function table(cols, rows, { totals, order, desc = true, limit = 300 } = {}) {
     let list = rows;
     if (sortCol != null) { const c = cols[sortCol], k = c.key ?? c.v; list = [...rows].sort((a, b) => { const x = k(a), y = k(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; }); }
     const head = el('tr', {}, cols.map((c, i) => el('th', { class: c.n ? 'n' : '', ...(i === sortCol ? { 'aria-sort': dir > 0 ? 'ascending' : 'descending' } : {}), onclick: () => { if (sortCol === i) dir = -dir; else { sortCol = i; dir = c.n ? -1 : 1; } draw(); } }, c.h)));
-    const body = list.slice(0, shown).map((r) => el('tr', {}, cols.map((c) => { const bg = c.bg?.(r), shownV = c.v(r); return el('td', { class: c.n ? 'n' : '' }, bg && shownV !== '' ? el('span', { class: 'dot', style: `background:${bg}` }, c.v(r)) : c.v(r)); })));
+    const body = list.slice(0, shown).map((r) => el('tr', onRow ? (() => { const k = rowKey(r); return { class: `pick${selected && selected.has(k) ? ' sel' : selected ? ' dim' : ''}`, tabindex: 0, onclick: (e) => onRow(k, e) }; })() : {}, cols.map((c) => { const bg = c.bg?.(r), shownV = c.v(r); return el('td', { class: c.n ? 'n' : '' }, bg && shownV !== '' ? el('span', { class: 'dot', style: `background:${bg}` }, c.v(r)) : c.v(r)); })));
     box.replaceChildren(el('table', {}, el('thead', {}, head), el('tbody', {}, body), totals ? el('tfoot', {}, el('tr', {}, totals.map((t, i) => el('td', { class: cols[i].n ? 'n' : '' }, t ?? '')))) : ''));
     more.hidden = list.length <= shown;
     more.textContent = `Mostrar todas as ${fint(list.length)} linhas`;
@@ -322,7 +322,7 @@ function pageGeral(x) {
   const tbl = () => { const rows = rowsOf(groupP(x.cube, x.F('t1'), ['m'])), tot = slice(x.cube, x.F('t1'));
     return table([{ h: u, v: (r) => r.vals[0] }, { h: 'Peças', v: (r) => fint(M.qtdPecas(r.c)), key: (r) => M.qtdPecas(r.c), n: true }, { h: 'Horas (h)', v: (r) => f2(M.horasProd(r.c)), key: (r) => M.horasProd(r.c), n: true }, { h: 'Meta (h)', v: (r) => f2(M.target(r.c)), key: (r) => M.target(r.c), n: true },
       { h: 'Disponib.', v: (r) => fpct(M.pct(r.c)), key: (r) => M.pct(r.c), n: true, bg: (r) => corPctS(M.pct(r.c)) }, { h: 'Desvio', v: (r) => variacaoTexto(M.pct(r.c)), key: (r) => M.pct(r.c), n: true, bg: (r) => corVariacaoS(M.pct(r.c)) },
-      { h: 'Paradas (h)', v: (r) => f2(M.horasParadas(r.c)), key: (r) => M.horasParadas(r.c), n: true }], rows, { order: 4, desc: false,
+      { h: 'Paradas (h)', v: (r) => f2(M.horasParadas(r.c)), key: (r) => M.horasParadas(r.c), n: true }], rows, { order: 4, desc: false, rowKey: (r) => r.vals[0], onRow: x.pick('t1', 'p', ['m']), selected: x.selOf('t1'),
       totals: ['Total', fint(M.qtdPecas(tot)), f2(M.horasProd(tot)), f2(M.target(tot)), fpct(M.pct(tot)), variacaoTexto(M.pct(tot)), f2(M.horasParadas(tot))] }); };
   return [alertsStrip(x),
     el('div', { class: 'bi-grid' },
@@ -364,8 +364,8 @@ function tempoPecas(x, vid) {
 
 function pagePessoas(x) {
   const u = GROUPS[x.g].unit, pecasSel = pageFilterSet('pm'), nomeSel = pageFilterSet('nome');
-  const t1 = () => { const rows = avgOrder(0, rowsOf(groupP(x.cube, x.F('t1'), ['m', 'pm']))); return table(tpCols([{ h: u, v: (r) => r.vals[0] }, { h: 'Peça e Modelo', v: (r) => r.vals[1] }]), rows, { totals: tpTotals(slice(x.cube, x.F('t1')), ['Total', '']) }); };
-  const t2 = () => table(tpCols([{ h: 'Chapa', v: (r) => blank(r.vals[0]) }, { h: 'Nome', v: (r) => blank(r.vals[1]) }]), avgOrder(0, rowsOf(groupP(x.cube, x.F('t2'), ['cf', 'nome']))), { totals: tpTotals(slice(x.cube, x.F('t2')), ['Total', '']) });
+  const t1 = () => { const rows = avgOrder(0, rowsOf(groupP(x.cube, x.F('t1'), ['m', 'pm']))); return table(tpCols([{ h: u, v: (r) => r.vals[0] }, { h: 'Peça e Modelo', v: (r) => r.vals[1] }]), rows, { totals: tpTotals(slice(x.cube, x.F('t1')), ['Total', '']), rowKey: (r) => r.vals.join(SEP), onRow: x.pick('t1', 'p', ['m', 'pm']), selected: x.selOf('t1') }); };
+  const t2 = () => table(tpCols([{ h: 'Chapa', v: (r) => blank(r.vals[0]) }, { h: 'Nome', v: (r) => blank(r.vals[1]) }]), avgOrder(0, rowsOf(groupP(x.cube, x.F('t2'), ['cf', 'nome']))), { totals: tpTotals(slice(x.cube, x.F('t2')), ['Total', '']), rowKey: (r) => r.vals.join(SEP), onRow: x.pick('t2', 'p', ['cf', 'nome']), selected: x.selOf('t2') });
   const t3 = () => { const rows = avgOrder(0, rowsOf(groupP(x.cube, x.F('t3'), ['data', 'cf', 'pm', 't1', 't2', 't3'])));
     return table([{ h: 'Data', v: (r) => dmy(r.vals[0]), key: (r) => r.vals[0] }, { h: 'Turno', v: (r) => fint(r.c.P.reduce((s, p) => s + (+p.t || 0), 0)), n: true }, { h: 'Chapa', v: (r) => blank(r.vals[1]) }, { h: 'Peça e Modelo', v: (r) => r.vals[2] },
       { h: 'Tempo (h)', v: (r) => f2(M.horasProd(r.c)), key: (r) => M.horasProd(r.c), n: true }, { h: 'TP Padrão', v: (r) => f2(M.tp(r.c)), key: (r) => M.tp(r.c), n: true },
@@ -399,7 +399,7 @@ function pageEntrega(x) {
   const porOper = () => { const rows = rowsOf(groupP(x.cube, x.F('t1'), ['cf', 'nome'])).filter((r) => M.entrega(r.c) > 0);
     return table([{ h: 'Chapa', v: (r) => blank(r.vals[0]) }, { h: 'Nome', v: (r) => blank(r.vals[1]) }, { h: 'Peças', v: (r) => fint(M.qtdPecas(r.c)), key: (r) => M.qtdPecas(r.c), n: true },
       { h: 'Real (h)', v: (r) => f2(M.realComPadrao(r.c)), key: (r) => M.realComPadrao(r.c), n: true }, { h: 'Entregue (h)', v: (r) => f2(M.entrega(r.c)), key: (r) => M.entrega(r.c), n: true },
-      { h: 'Eficiência', v: (r) => fpct(M.efic(r.c)), key: (r) => M.efic(r.c) ?? -1, n: true, bg: (r) => corEficS(M.efic(r.c)) }], rows, { order: 4, totals: (() => { const c = slice(x.cube, x.F('t1')); return ['Total', '', fint(M.qtdPecas(c)), f2(M.realComPadrao(c)), f2(M.entrega(c)), fpct(M.efic(c))]; })() }); };
+      { h: 'Eficiência', v: (r) => fpct(M.efic(r.c)), key: (r) => M.efic(r.c) ?? -1, n: true, bg: (r) => corEficS(M.efic(r.c)) }], rows, { order: 4, rowKey: (r) => r.vals.join(SEP), onRow: x.pick('t1', 'p', ['cf', 'nome']), selected: x.selOf('t1'), totals: (() => { const c = slice(x.cube, x.F('t1')); return ['Total', '', fint(M.qtdPecas(c)), f2(M.realComPadrao(c)), f2(M.entrega(c)), fpct(M.efic(c))]; })() }); };
   const semPadrao = () => { const rows = rowsOf(groupP(x.cube, x.F('t2'), ['pm'])).filter((r) => M.pecasSemPadrao(r.c) > 0);
     return table([{ h: 'Peça e modelo', v: (r) => r.vals[0] }, { h: u + 's', v: (r) => [...new Set(r.c.P.filter((p) => !(p.tpx > 0)).map((p) => p.m))].sort().join(', ') }, { h: 'Peças sem padrão', v: (r) => fint(M.pecasSemPadrao(r.c)), key: (r) => M.pecasSemPadrao(r.c), n: true }, { h: 'Horas reais', v: (r) => f2(M.horasSemPadrao(r.c)), key: (r) => M.horasSemPadrao(r.c), n: true }], rows, { order: 2 }); };
   // pieces without a standard time are never hidden: they count everywhere except in the efficiency, and this strip says so
@@ -532,7 +532,12 @@ export async function renderBiUI(root, ctx) {
   let built = false;
   function drawMain() {
     if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { mirror(); prune(); mirror(); drawMain(); }), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }
-    else REG.forEach((r) => r.rebuild());          // like Power BI: the other visuals redraw, the page does not move
+    else {                                         // like Power BI: the other visuals redraw, the page does not move
+      const y = window.scrollY, vs = [...document.querySelectorAll('.bi-vis')], jump = () => window.scrollTo({ top: y, behavior: 'instant' });
+      vs.forEach((v) => { v.style.minHeight = `${v.offsetHeight}px`; });   // a box never shrinks while it redraws
+      REG.forEach((r) => r.rebuild()); jump();
+      requestAnimationFrame(() => { vs.forEach((v) => { v.style.minHeight = ''; }); jump(); });
+    }
     noteFn();
   }
   const layout = el('div', { class: 'bi-layout' });
