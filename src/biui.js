@@ -441,6 +441,10 @@ function pageGeral(x) {
       tip: (i) => { const c = gr[i].c, f = M.target(c) - M.horasProd(c); return `${gr[i].vals[0]} · meta ${f1(M.target(c))} h · entregou ${f1(M.horasProd(c))} h (${fpct(M.pct(c))}) · ${f >= 0 ? `faltaram ${f1(f)} h` : `passou ${f1(-f)} h da meta`}`; },
       onPick: x.pick('t1', 'p', ['m']), selected: x.selOf('t1') }; };
   // per robot: what the day shift and the night shift delivered, stacked (their sum on top), against the planned (meta) marked over the bar
+  // pieces made in each day, stacked by shift (the same numbers as the "produção" card above)
+  const pecasDia = () => { const gr = groupP(x.cube, x.F('v11'), ['data', 't']), days = [...new Set(gr.map((g) => g.vals[0]))].sort(), ts = [...new Set(gr.map((g) => g.vals[1]))].sort();
+    const at = new Map(gr.map((g) => [g.vals[0] + SEP + g.vals[1], M.qtdPecas(g.c)]));
+    return { cats: days.map((d) => ({ key: d, label: ddmm(d) })), stacked: true, height: 300, fmt: fint, series: ts.map((t, k) => ({ name: t ? `Turno ${t}` : 'Sem turno', color: PALETTE[k === 0 ? 0 : k === 1 ? 1 : 3], vals: days.map((d) => at.get(d + SEP + t) ?? 0) })), onPick: x.pick('v11', 'p', ['data']), selected: x.selOf('v11') }; };
   // pieces made in each shift (the same number as the "produção" card above)
   const pecasTurno = () => { const gr = groupP(x.cube, x.F('v9'), ['t']).sort((a, b) => String(a.vals[0]).localeCompare(String(b.vals[0])));
     return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] ? `Turno ${g.vals[0]}` : 'Sem turno' })), series: [{ name: 'Peças', vals: gr.map((g) => M.qtdPecas(g.c)), color: GREEN }], height: 300, fmt: fint, onPick: x.pick('v9', 'p', ['t']), selected: x.selOf('v9') }; };
@@ -464,6 +468,7 @@ function pageGeral(x) {
       v24,
       vis('DISPONIBILIDADE', () => chartBox(disp), { vid: 'v3', wide: true }), 
       vis('PEÇAS PRODUZIDAS POR TURNO', () => chartBox(pecasTurno), { vid: 'v9', wide: true }),
+      vis('PEÇAS PRODUZIDAS POR DIA', () => chartBox(pecasDia), { vid: 'v11', wide: true }),
       
       vis(`META X ENTREGUE · DIA + NOITE`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Cada barra soma o que foi entregue no turno do dia e no da noite (por dia ou por ${u.toLowerCase()}, na caixa ao lado); o total fica em cima, com a meta ao lado. A barra cinza ao lado é a meta: a diferença de altura entre a verde e a cinza é o que ficou para trás.`), chartBox(metaTurno)), { vid: 't1', wide: true, acts: [pctBtn, selBy] }),
       vis('TEMPO DAS PEÇAS PRODUZIDAS · peças e horas', () => el('div', { class: 'bi-scroll' }, chartBox(tempoPecas(x, 'v10'))), { vid: 'v10', wide: true }),
