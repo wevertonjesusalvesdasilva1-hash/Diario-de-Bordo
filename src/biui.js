@@ -24,6 +24,7 @@ const SEP = '\u0001';
 let curVid = null;
 const hlWrap = (vid, build) => () => {
   const f = build();
+  if (true) return f;   // every chart shows only what the click selected (real numbers, not the whole bar dimmed); the clicked chart itself keeps all its bars
   if (!ui.sel || ui.sel.vid === vid || f.kind === 'area' || f.noHl || !f.cats || !f.series) return f;
   ui.noSel = true; let full; try { full = build(); } finally { ui.noSel = false; }
   const idx = new Map(f.cats.map((c, i) => [c.key, i]));
@@ -381,7 +382,9 @@ function pageGeral(x) {
     return { cats: ms.map((g) => ({ key: g.vals[0], label: lab(g.vals[0]) })), stacked: true, noHl: true, height: 320, fmt: metaPct ? fpct0 : f1, marks: { name: 'Meta', vals: metaPct ? meta.map(() => 1) : meta, noText: metaBy === 'dia', color: '#e2e8f0' },
       series: [{ name: 'Turno do dia', vals: W(dia), color: '#86efac' }, { name: 'Turno da noite', vals: W(noite), color: '#14532d' }, ...(outro.some((v) => v > 0.05) ? [{ name: 'Sem turno', vals: W(outro), color: '#94a3b8' }] : [])],
       tip: (k) => `${metaBy === 'dia' ? dmy(ms[k].vals[0]) : ms[k].vals[0]} · dia ${f1(dia[k])} h + noite ${f1(noite[k])} h = ${f1(tot[k])} h de ${f1(meta[k])} h (${fpct(meta[k] ? tot[k] / meta[k] : 0)}) · ${meta[k] - tot[k] >= 0 ? `faltaram ${f1(meta[k] - tot[k])} h` : `passou ${f1(tot[k] - meta[k])} h da meta`}`,
-      onPick: x.pick('t1', 'p', [col]), selected: x.selOf('t1') }; };
+      onPick: (key, ev) => { const seg = ev?.target?.closest?.('[data-seg]')?.dataset.seg, t = seg === 'Turno do dia' ? '1' : seg === 'Turno da noite' ? '2' : null;   // a click on the light or dark part picks that shift of the day
+        if (t) x.pick('t1', 'p', [col, 't'])(key + SEP + t, ev); else x.pick('t1', 'p', [col])(key, ev); },
+      selected: (() => { const k = x.selOf('t1'); return k ? new Set([...k].map((q) => q.split(SEP)[0])) : null; })() }; };
   const selBy = el('select', { 'aria-label': 'Ver por', onchange: (e) => { metaBy = e.target.value; selBy.closest('.bi-vis')?.rebuild?.(); } }, el('option', { value: 'dia' }, 'Dia a dia'), el('option', { value: 'm' }, `Por ${u.toLowerCase()}`));
   const pctBtn = el('button', { type: 'button', class: 'vf-btn', 'aria-pressed': 'false', onclick: () => { metaPct = !metaPct; pctBtn.textContent = metaPct ? '# Ver em horas' : '% Ver em porcentagem'; pctBtn.classList.toggle('on', metaPct); pctBtn.setAttribute('aria-pressed', String(metaPct)); pctBtn.closest('.bi-vis')?.rebuild?.(); } }, '% Ver em porcentagem');
   return [cardsRow(x, 'resumo', 'p', false, true), el('div', { class: 'bi-grid' },

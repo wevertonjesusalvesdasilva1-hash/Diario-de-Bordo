@@ -145,7 +145,7 @@ export function drawChart(box, full) {
       const v = s.vals[i] || 0, bx = spec.marks ? x0 + step / 2 - bw - 2 : stacked ? x0 + (step - bw) / 2 : x0 + (step - bw * nS) / 2 + k * bw;
       const yTop = y(stacked ? acc + v : v), hgt = Math.max(0, (stacked ? y(acc) : y(0)) - yTop);
       const b0 = bar(svg, c.color ?? s.color, 'v', cats.length * nS <= 120, { x: bx, y: yTop, width: Math.max(1, bw - 1), height: hgt });
-      g.append(b0);
+      b0.setAttribute('data-seg', s.name); g.append(b0);   // the series name travels with the click, so a stack can be picked by segment
       // cross-highlight (like Power BI): the whole bar goes dim and the part that belongs to the clicked selection stays bright
       if (spec.hlOn && s.hl) {
         b0.setAttribute('opacity', '0.22');
