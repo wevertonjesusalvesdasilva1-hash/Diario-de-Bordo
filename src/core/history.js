@@ -199,6 +199,8 @@ export function parseHistoryWorkbook(XLSX, data) {
   // stops: headers on the first row
   const S = rows(names.PARADAS), sh = (S[0] ?? []).map(colName);
   const sc = { m: sh.findIndex((h) => h === 'ROBO' || h === 'MAQUINA'), d: sh.indexOf('DATA'), c: sh.indexOf('CHAPA'), i: sh.indexOf('INICIO'), f: sh.indexOf('FINAL'), t: sh.indexOf('TURNO'), mo: sh.indexOf('MOTIVODAPARADA'), ds: sh.indexOf('DESCRICAODAPARADA'), h: sh.indexOf('TEMPO/DEC'), cod: sh.indexOf('COD') };
+  // the header of the end-time column got overwritten in some sheets (a "0" instead of FINAL): it is the one right after INÍCIO
+  if (sc.f < 0 && sc.i >= 0 && sh.length > sc.i + 1 && (sh[sc.i + 1] === '' || sh[sc.i + 1] === '0') && !Object.values(sc).includes(sc.i + 1)) { sc.f = sc.i + 1; warnings.push('O título da coluna FINAL das paradas estava errado ("0"); usei a coluna logo depois de INÍCIO.'); }
   const sneed = ['m', 'd', 'c', 'i', 'f', 't', 'mo'];
   if (sneed.some((k) => sc[k] < 0)) throw new Error(`Faltam colunas na aba PARADAS: ${sneed.filter((k) => sc[k] < 0).join(', ')}.`);
   const stops = []; let sDiff = 0, sChecked = 0;

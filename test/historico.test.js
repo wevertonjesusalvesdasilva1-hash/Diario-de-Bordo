@@ -233,3 +233,15 @@ test('API do histórico: folha corrigida e enviada de novo troca as linhas antig
   assert.ok(base.prod.some((x) => x.s === 'sheetaaa1' && x.f1 === '09:30'));
   assert.deepEqual(base.batches.map((b) => [b.id, b.nProd, b.nStops]), [['b1', 1, 0], ['b2', 1, 0]]);
 });
+
+test('importar Excel: título da coluna FINAL das paradas sobrescrito por "0" ainda é lido', async () => {
+  const XLSX = await import('xlsx');
+  const wb = XLSX.utils.book_new();
+  const prod = [[null, null, null, null, null, '1ºTURNO'], ['COD', 'MAQUINA', 'DATA', 'PEÇA ', 'MODELO', 'CHAPA', 'INÍCIO', 'FIM', 'CHAPA2', 'INICIO', 'FIM ', 'CHAPA3', 'INCIO', 'FIM 2', 'TURNO QUE FINALIZOU', 'OBSERVAÇÕES '],
+    ['x', 'HMC-16', 46262, 'MESA', 'PC360LC-8M2', 12359, 0.3680555555555556, 0.5, null, null, null, null, null, null, 1, null]];
+  const stops = [[null, 'MAQUINA', 'DATA', 'CHAPA', 'INICIO ', '0', 'TURNO', 'MOTIVO DA PARADA', 'DESCRIÇÃO DA PARADA', 'TTL', 'TEMPO/DEC'], [null, 'HMC-16', 46276, 12359, 0.3263888888888889, 0.3541666666666667, 1, 'TROCA DE PEÇA ', 'TYOREI', 0.0277, 0.6667]];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prod), 'PRODUÇÃO'); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(stops), 'PARADAS');
+  const { parseHistoryWorkbook } = await import('../src/core/history.js');
+  const r = parseHistoryWorkbook(XLSX, XLSX.write(wb, { type: 'array', bookType: 'xlsx' }));
+  assert.equal(r.stops.length, 1); assert.equal(r.stops[0].f, '08:30'); assert.ok(r.warnings.some((w) => /FINAL/.test(w)));
+});
