@@ -336,7 +336,7 @@ function pageGeral(x) {
       totals: ['Total', fint(M.qtdPecas(tot)), f2(M.horasProd(tot)), f2(M.target(tot)), fpct(M.pct(tot)), variacaoTexto(M.pct(tot)), f2(M.horasParadas(tot))] }); };
   // target vs delivered: what the machine should have produced (meta) against what it did, and the gap, per machine
   const metaEnt = () => { const gr = rowsOf(groupP(x.cube, x.F('t1'), ['m'])).slice().sort((a, b) => M.pct(b.c) - M.pct(a.c));
-    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0], color: corPctS(M.pct(g.c)) })), series: [{ name: 'Meta (h)', vals: gr.map((g) => M.target(g.c)), color: PALETTE[3] }, { name: 'Entregue (h)', vals: gr.map((g) => M.horasProd(g.c)), color: GREEN }], height: 300, fmt: f1,
+    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Meta (h)', vals: gr.map((g) => M.target(g.c)), color: PALETTE[3] }, { name: 'Entregue (h)', vals: gr.map((g) => M.horasProd(g.c)), color: GREEN }], height: 300, fmt: f1,
       tip: (i) => { const c = gr[i].c, f = M.target(c) - M.horasProd(c); return `${gr[i].vals[0]} · meta ${f1(M.target(c))} h · entregou ${f1(M.horasProd(c))} h (${fpct(M.pct(c))}) · ${f >= 0 ? `faltaram ${f1(f)} h` : `passou ${f1(-f)} h da meta`}`; },
       onPick: x.pick('t1', 'p', ['m']), selected: x.selOf('t1') }; };
   return [alertsStrip(x),
