@@ -33,6 +33,12 @@ const chartBox = (spec, cls) => { const vid = curVid; return rawChartBox(typeof 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const fileSafe = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 -]+/g, ' ').trim().replace(/\s+/g, '-').slice(0, 60) || 'dados';
 let slicerFills = [];
+// like Power BI: a click on empty space (outside any bar, row, button or filter) drops the click filter and shows everything again
+let clearClick = null;
+if (typeof document !== 'undefined') document.addEventListener('click', (e) => {
+  if (!clearClick || !(ui.sel || ui.t24.key) || !e.target.closest?.('.bi') || e.target.closest('.pick, button, select, input, textarea, a, label, tr, .bi-slicer, .acard, .bi-note, dialog, [role=dialog], .bi-modal')) return;
+  clearClick();
+});
 const ddmm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const r6 = (v) => Math.round((v ?? 0) * 1e6) / 1e6;   // drop floating-point noise before rounding
 const f1 = (v) => r6(v).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -559,6 +565,7 @@ export async function renderBiUI(root, ctx) {
   const noteHost = el('div', { class: 'bi-notehost' });
   const noteFn = () => noteHost.replaceChildren(...(ui.sel ? [el('p', { class: 'bi-note' }, `${ui.stack.length ? `${ui.stack.length + 1} filtros por clique ativos (um dentro do outro). ` : 'Filtro por clique ativo nos outros gráficos. '}Dois cliques na mesma barra abrem os registros. `, el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.sel = null; ui.stack = []; drawMain(); } }, 'Limpar clique'), ' ', el('button', { type: 'button', class: 'bi-more', onclick: openSelRecords }, 'Ver registros'))] : []));
   let built = false;
+  clearClick = () => { ui.sel = null; ui.stack = []; ui.t24.key = null; drawMain(); };
   function drawMain() {
     if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { mirror(); prune(); mirror(); drawMain(); }), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }
     else {                                         // like Power BI: the other visuals redraw, the page does not move
