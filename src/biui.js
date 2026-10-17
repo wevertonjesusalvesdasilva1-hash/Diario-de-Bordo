@@ -214,14 +214,15 @@ const legendNote = () => {
 const rowsOf = (groups) => groups.map((g) => ({ vals: g.vals, c: g.c }));
 
 // ---- records (modal) ------------------------------------------------------------------------------------------
-function openRecords(title, head, rows, note) {
+function openRecords(title, head, rows, note, more = []) {
   document.getElementById('bd-modal')?.remove();
   const close = () => { box.remove(); document.removeEventListener('keydown', onKey); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
-  const tbl = table(head.map((h, i) => ({ h, v: (r) => r[i], n: typeof rows[0]?.[i] === 'number' })), rows, { limit: 400 });
+  const mk = (hd, rs) => table(hd.map((h, i) => ({ h, v: (r) => r[i], n: typeof rs[0]?.[i] === 'number' })), rs, { limit: 400 });
+  const tbl = mk(head, rows), tbls = more.map(([, hd, rs]) => mk(hd, rs));
   const box = el('div', { id: 'bd-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, el('div', { class: 'bd-box wide' },
-    el('div', { class: 'bd-head' }, el('h3', {}, title), el('span', { class: 'hd' }, el('button', { type: 'button', class: 'ghost', onclick: async () => { const t = tbl.getTable(); const X = await import('xlsx'); const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([t.head, ...t.rows]), 'Dados'); X.writeFile(wb, `${fileSafe(title)}.xlsx`); } }, '⬇ Excel'), el('button', { type: 'button', class: 'bd-x', 'aria-label': 'Fechar', onclick: close }, '✕'))),
-    el('div', { class: 'bd-body' }, note ? el('p', { class: 'note' }, note) : '', tbl)));
+    el('div', { class: 'bd-head' }, el('h3', {}, title), el('span', { class: 'hd' }, el('button', { type: 'button', class: 'ghost', onclick: async () => { const X = await import('xlsx'), wb = X.utils.book_new(); [[title, tbl], ...more.map(([n], i) => [n, tbls[i]])].forEach(([n, tb]) => { const t = tb.getTable(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([t.head, ...t.rows]), String(n).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31) || 'Dados'); }); X.writeFile(wb, `${fileSafe(title)}.xlsx`); } }, '⬇ Excel'), el('button', { type: 'button', class: 'bd-x', 'aria-label': 'Fechar', onclick: close }, '✕'))),
+    el('div', { class: 'bd-body' }, note ? el('p', { class: 'note' }, note) : '', more.length ? el('h4', {}, title) : '', tbl, ...more.flatMap(([n], i) => [el('h4', { style: 'margin-top:1.2rem' }, n), tbls[i]]))));
   box.addEventListener('click', (e) => { if (e.target === box) close(); });
   document.body.append(box); document.addEventListener('keydown', onKey);
 }
@@ -565,7 +566,9 @@ export async function renderBiUI(root, ctx) {
       lastPick.t = Date.now();                                          // counted after the redraw (it can take a while on big pages)
     } };
   x.drawMain = () => drawMain();
-  function openSelRecords() { const c = slice(cube, mergeF(pageFilter(), selFilter())); if (ui.sel.side === 's') openRecords(`Paradas (${c.S.length})`, STOP_HEAD, c.S.map(stopRow)); else openRecords(`Produções (${c.P.length})`, PROD_HEAD, c.P.map(prodRow)); }
+  function openSelRecords() { const f = mergeF(pageFilter(), selFilter()), a0 = ui.sel.side, b0 = a0 === 'p' ? 's' : 'p'; for (const col of SHARED) if (f[a0][col]) f[b0][col] = new Set(f[a0][col]);   // date, month, robot and shift picked on one side also narrow the other
+    const c = slice(cube, f), P = [`Produções (${c.P.length})`, PROD_HEAD, c.P.map(prodRow)], S = [`Paradas (${c.S.length})`, STOP_HEAD, c.S.map(stopRow)];   // both, so the stops of the same robot and day are seen next to the production
+    const [a, b] = ui.sel.side === 's' ? [S, P] : [P, S]; openRecords(a[0], a[1], a[2], '', [b]); }
   slicerFills = [];
   const prune = () => { const f = pageFilter(); for (let k = 0; k < 2; k++) for (const [, sd, col] of SLICERS[ui.page] ?? []) { const set = f[sd][col]; if (!set) continue; const ok = new Set(optionsFor(cube, sd, col, f)); const keep = [...set].filter((v) => ok.has(v)); if (keep.length === set.size) continue; if (keep.length) f[sd][col] = new Set(keep); else delete f[sd][col]; } };
   const slicers = (SLICERS[ui.page] ?? []).map(([t, sd, col]) => slicerBox(t === '@unit' ? GROUPS[ui.g].unit : t, sd, col, cube, () => { mirror(); prune(); mirror(); slicerFills.forEach((fn) => fn()); ui.sel = null; ui.stack = []; drawMain(); }));
