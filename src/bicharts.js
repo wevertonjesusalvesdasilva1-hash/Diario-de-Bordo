@@ -58,18 +58,18 @@ function niceMax(v) {
 export function drawChart(box, full) {
   box.replaceChildren();
   // legend as buttons: click = show only that series (click again = all); Ctrl/⌘ + click adds or removes series
-  const only = (box._only ??= new Set()), names = [...full.series.map((s) => s.name), ...(full.line ? [full.line.name] : [])];
+  const only = (box._only ??= new Set()), names = [...full.series.map((s) => s.name), ...(full.line ? [full.line.name] : []), ...(full.marks ? [full.marks.name] : [])];
   for (const n of [...only]) if (!names.includes(n)) only.delete(n);
   const toggle = (name, multi) => { if (multi) { if (only.has(name)) only.delete(name); else only.add(name); } else if (only.size === 1 && only.has(name)) only.clear(); else { only.clear(); only.add(name); } drawChart(box, full); };
   const on = (n) => !only.size || only.has(n);
-  const spec = { ...full, series: full.series.filter((s) => on(s.name)), line: full.line && on(full.line.name) ? full.line : undefined };
+  const spec = { ...full, series: full.series.filter((s) => on(s.name)), line: full.line && on(full.line.name) ? full.line : undefined, marks: full.marks && on(full.marks.name) ? full.marks : undefined };
   const { cats, series, fmt = String, orient = 'v', stacked = false, line, selected, onPick, tip } = spec;
   if (!cats.length) { box.append(el('p', { class: 'bi-note' }, 'Sem dados para os filtros escolhidos.')); return; }
   const avail = Math.max(box.clientWidth || 360, 240);
   const sel = selected && selected.size ? selected : null;
   const pickAttrs = (c) => (onPick ? { class: `pick${sel && !sel.has(c.key) ? ' dim' : ''}`, tabindex: 0, role: 'button', onclick: (e) => onPick(c.key, e), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(c.key, e); } } } : { class: sel && !sel.has(c.key) ? 'dim' : '' });
   const lg = (name, color) => el('button', { type: 'button', class: `lg${on(name) ? '' : ' off'}`, 'aria-pressed': String(only.has(name)), title: 'Clique para ver só este; Ctrl + clique para somar', onclick: (e) => toggle(name, e.ctrlKey || e.metaKey) }, el('i', { style: `background:${color}` }), name);
-  const legend = full.series.length > 1 || full.line ? el('div', { class: 'bi-leg' }, full.series.map((s) => lg(s.name, s.color)), full.line ? lg(full.line.name, full.line.color ?? '#fb7185') : '') : null;
+  const legend = full.series.length > 1 || full.line || full.marks ? el('div', { class: 'bi-leg' }, full.series.map((s) => lg(s.name, s.color)), full.line ? lg(full.line.name, full.line.color ?? '#fb7185') : '', full.marks ? lg(full.marks.name, 'rgba(148,163,184,0.75)') : '') : null;
 
   if (orient === 'h') {
     const rowH = 24 * Math.max(1, stacked ? 1 : series.length) * (series.length > 1 && !stacked ? 0.8 : 1) + 6, labW = Math.min(200, Math.max(60, Math.min(26, Math.max(...cats.map((c) => String(c.label).length))) * 7.6));
@@ -157,8 +157,9 @@ export function drawChart(box, full) {
     });
     if (spec.marks) {   // real total on top of the stack, planned on top of the bar beside it
       const mk = spec.marks, mv = mk.vals[i] || 0, cs = x0 + step / 2 - bw / 2 - 2, cm = x0 + step / 2 + bw / 2 + 2;
-      g.append(S('text', { x: cs, y: y(acc) - 6, 'text-anchor': 'middle', style: 'font-weight:700;font-size:12px' }, fmt(acc)),
-        ...(mk.noText ? [] : [S('text', { x: cm, y: y(mv) - 6, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, mk.texts?.[i] ?? fmt(mv)), S('text', { x: cm, y: y(mv) - 17, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, 'meta')]));
+      if (series.length) g.append(S('text', { x: cs, y: y(acc) - 6, 'text-anchor': 'middle', style: 'font-weight:700;font-size:12px' }, fmt(acc)));
+      g.append(S('text', { x: cm, y: y(mv) - 6, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, mk.texts?.[i] ?? fmt(mv)));
+      if (!mk.noText) g.append(S('text', { x: cm, y: y(mv) - 17, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, 'meta'));
     } else if (stacked && nS > 1 && acc && (!spec.totalsOnlyAlerts || c.alert)) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:11px${c.alert ? ';fill:#fb7185' : ''}` }, (c.alert ? '⚠ ' : '') + fmt(acc)));   // total of the stack on top
     const lab = clip(c.label, 14), rot = rotAny;
     g.append(S('text', rot ? { x: x0 + step / 2, y: H - bottom + 12, 'text-anchor': 'end', transform: `rotate(-35 ${x0 + step / 2} ${H - bottom + 12})`, class: 'mut' } : { x: x0 + step / 2, y: H - bottom + 14, 'text-anchor': 'middle', class: 'mut' }, lab));
