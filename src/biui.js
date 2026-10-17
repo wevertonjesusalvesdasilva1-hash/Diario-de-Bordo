@@ -149,19 +149,25 @@ function slicerBox(title, side, col, cube, onChange) {
   const box = el('section', { class: 'bi-slicer' }, el('header', {}, el('span', { class: 'tt' }, title, badge)), el('div', { class: 'sl-wrap' }, btn, list));
   const close = () => { list.hidden = true; btn.setAttribute('aria-expanded', 'false'); box.classList.remove('open'); };
   btn.onclick = (e) => { e.stopPropagation(); const op = list.hidden; document.querySelectorAll('.bi-slicer.open').forEach((b) => b.querySelector('.sl-btn')?.click()); if (op) { list.hidden = false; const r = btn.getBoundingClientRect(); Object.assign(list.style, { left: `${r.left}px`, width: `${r.width}px`, top: `${r.bottom + 4}px`, maxHeight: `${Math.max(120, Math.min(260, innerHeight - r.bottom - 16))}px` }); btn.setAttribute('aria-expanded', 'true'); box.classList.add('open'); } else close(); };
-  document.addEventListener('click', (e) => { if (!box.isConnected) return; if (!box.contains(e.target)) close(); });
+  document.addEventListener('click', (e) => { if (!box.isConnected || !e.target.isConnected) return; if (!box.contains(e.target)) close(); });   // a click on an item that was just redrawn is still inside
+  // plain click = only that item (again = back to all); Ctrl/⌘ + click = take that item out of the list (or put it back); "Todos" brings everything back
   function pick(v, add) {
-    const cur = sets()[col];
-    if (add) { const s2 = (sets()[col] ??= new Set()); if (s2.has(v)) s2.delete(v); else s2.add(v); if (!s2.size) delete sets()[col]; }
-    else if (cur && cur.size === 1 && cur.has(v)) delete sets()[col];
+    const cur = sets()[col], all = optionsFor(cube, side, col, f);
+    if (add) {
+      const s2 = cur ? new Set(cur) : new Set(all);   // with no filter every item counts as chosen, so the first Ctrl+click removes just that one
+      if (s2.has(v)) s2.delete(v); else s2.add(v);
+      if (!s2.size || all.every((x) => s2.has(x))) delete sets()[col]; else sets()[col] = s2;
+    } else if (cur && cur.size === 1 && cur.has(v)) delete sets()[col];
     else sets()[col] = new Set([v]);
     fill(); onChange();
   }
   function fill() {
-    const vals = optionsFor(cube, side, col, f), cur = sets()[col];
+    const vals = optionsFor(cube, side, col, f), cur = sets()[col], on = (v) => !cur || cur.has(v), off = cur ? vals.filter((v) => !cur.has(v)) : [];
     badge.textContent = '';
-    btn.textContent = !cur?.size ? 'Todos' : cur.size === 1 ? optLabel(col, [...cur][0]) : 'Seleções múltiplas';
-    list.replaceChildren(...vals.map((v) => el('li', {}, el('label', {}, el('input', { type: 'checkbox', checked: cur?.has(v) || null, onclick: (e) => { e.preventDefault(); pick(v, e.ctrlKey || e.metaKey || ui.multi); } }), optLabel(col, v)))));
+    btn.textContent = !cur?.size ? 'Todos' : cur.size === 1 ? optLabel(col, [...cur][0]) : off.length && off.length <= 2 ? `Todos menos ${off.map((v) => optLabel(col, v)).join(', ')}` : 'Seleções múltiplas';
+    list.replaceChildren(el('li', { class: 'sl-all' }, el('label', {}, el('input', { type: 'checkbox', checked: !cur || null, onclick: (e) => { e.preventDefault(); delete sets()[col]; fill(); onChange(); } }), el("b", {}, "Todos"))),
+      el('li', { class: 'sl-tip' }, 'Ctrl + clique tira só um da lista'),
+      ...vals.map((v) => el('li', {}, el('label', {}, el('input', { type: 'checkbox', checked: on(v) || null, onclick: (e) => { e.preventDefault(); pick(v, e.ctrlKey || e.metaKey || ui.multi); } }), optLabel(col, v)))));
   }
   fill();
   slicerFills.push(fill);

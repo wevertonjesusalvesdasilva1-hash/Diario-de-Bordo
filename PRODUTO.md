@@ -327,3 +327,6 @@ Ao ir de uma página do Painel BI para outra (Visão geral, Paradas, …), os cl
 
 ## Pincel: editar um gráfico do Painel BI
 Cada gráfico tem um pincel (🖌) no lugar de "Filtros" e "Excel" (removidos). Ao clicar, o gráfico entra em modo de edição: dá para arrastar pelo título para mudar de lugar, escolher a largura (⅓, ½, ⅔ ou tela toda), a altura, o tamanho da letra, mostrar ou esconder valores, linhas de grade e legenda, escrever o título do gráfico e dos eixos X e Y e trocar a cor de cada série. Os dados em si não se editam. O arranjo fica salvo no navegador, por página e grupo; "↺ Padrão" volta ao original.
+
+## Filtros da lateral: tirar só um da lista
+Cada filtro (Robô, Dia, Mês, Turno…) tem a opção "Todos" no topo, e com tudo marcado um Ctrl + clique (⌘ no Mac) num item tira só aquele da lista (aparece "Todos menos RAW06"). Outro Ctrl + clique tira mais um ou devolve o item. Um clique simples escolhe só aquele item. A lista continua aberta enquanto você marca.
