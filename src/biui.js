@@ -463,7 +463,6 @@ function pageGeral(x) {
   return [cardsRow(x, 'resumo', 'p', false, true), el('div', { class: 'bi-grid g3' },
       v24,
       vis('DISPONIBILIDADE', () => chartBox(disp), { vid: 'v3', wide: true }), 
-      vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6', wide: true }),
       vis('PEÇAS PRODUZIDAS POR TURNO', () => chartBox(pecasTurno), { vid: 'v9', wide: true }),
       
       vis(`META X ENTREGUE · DIA + NOITE`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Cada barra soma o que foi entregue no turno do dia e no da noite (por dia ou por ${u.toLowerCase()}, na caixa ao lado); o total fica em cima, com a meta ao lado. A barra cinza ao lado é a meta: a diferença de altura entre a verde e a cinza é o que ficou para trás.`), chartBox(metaTurno)), { vid: 't1', wide: true, acts: [pctBtn, selBy] }),
