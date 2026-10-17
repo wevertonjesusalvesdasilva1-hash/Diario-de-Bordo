@@ -97,7 +97,7 @@ export function drawChart(box, full) {
 
   if (spec.kind === 'area') return drawArea(box, spec, avail, legend, sel);
   // vertical columns
-  const nS = series.length, bwMin = spec.barW ?? 22, minStep = stacked ? 34 : Math.max(34, nS * bwMin + 10);
+  const nS = series.length, bwMin = spec.barW ?? 22, minStep = spec.marks?.noText ? 58 : stacked ? 34 : Math.max(34, nS * bwMin + 10);
   const step = Math.max(minStep, Math.min(90, (avail - 100) / cats.length));
   const hasGroup = cats.some((c) => c.group != null);
   // groups (e.g. one day with a bar per robot) are separated by a gap and an alternating band, so no bar looks like it belongs to the next group
@@ -157,8 +157,9 @@ export function drawChart(box, full) {
     });
     if (spec.marks) {   // real total on top of the stack, planned on top of the bar beside it
       const mk = spec.marks, mv = mk.vals[i] || 0, cs = x0 + step / 2 - bw / 2 - 2, cm = x0 + step / 2 + bw / 2 + 2;
-      if (series.length) g.append(S('text', { x: cs, y: y(acc) - 6, 'text-anchor': 'middle', style: 'font-weight:700;font-size:12px' }, fmt(acc)));
-      g.append(S('text', { x: cm, y: y(mv) - 6, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, mk.texts?.[i] ?? fmt(mv)));
+      if (series.length) g.append(S('text', { x: cs, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:${mk.noText ? 11 : 12}px` }, fmt(acc)));
+      if (mk.noText) { if (y(0) - y(mv) > 34) g.append(S('text', { x: cm + 3, y: y(mv) + 7, 'text-anchor': 'end', transform: `rotate(-90 ${cm + 3} ${y(mv) + 7})`, style: 'font-size:10px;fill:#e2e8f0;font-weight:600' }, mk.texts?.[i] ?? fmt(mv))); }   // day by day: the planned value runs up inside its bar, so labels never touch
+      else g.append(S('text', { x: cm, y: y(mv) - 6, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, mk.texts?.[i] ?? fmt(mv)));
       if (!mk.noText) g.append(S('text', { x: cm, y: y(mv) - 17, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, 'meta'));
     } else if (stacked && nS > 1 && acc && (!spec.totalsOnlyAlerts || c.alert)) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:11px${c.alert ? ';fill:#fb7185' : ''}` }, (c.alert ? '⚠ ' : '') + fmt(acc)));   // total of the stack on top
     const lab = clip(c.label, 14), rot = rotAny;
