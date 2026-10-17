@@ -139,6 +139,7 @@ export function drawChart(box, full) {
   cats.forEach((c, i) => {
     const x0 = xAt(i), bw = stacked ? step * 0.62 : Math.min(40, (step * 0.7) / nS);
     const g = S('g', pickAttrs(c), S('title', {}, `${c.group ? c.group + ' · ' : ''}${c.label}\n${series.map((s) => `${s.name}: ${fmt(s.vals[i])}`).join('\n')}${line ? `\n${line.name}: ${(line.fmt ?? String)(line.vals[i])}` : ''}${tip ? '\n' + tip(i) : ''}`));
+    if (spec.marks) { const mv = spec.marks.vals[i] || 0; if (mv > 0) g.append(S('rect', { x: x0 + (step - bw) / 2 - 8, y: y(mv), width: bw + 16, height: Math.max(0, y(0) - y(mv)), rx: 4, fill: 'rgba(148,163,184,0.16)', stroke: 'rgba(203,213,225,0.55)', 'stroke-width': 1, 'stroke-dasharray': '4 3' })); }   // the planned (meta) as a ghost bar behind the real one
     let acc = 0;
     series.forEach((s, k) => {
       const v = s.vals[i] || 0, bx = stacked ? x0 + (step - bw) / 2 : x0 + (step - bw * nS) / 2 + k * bw;

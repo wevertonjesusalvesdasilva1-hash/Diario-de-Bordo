@@ -367,7 +367,7 @@ function pageGeral(x) {
       vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6' }),
       vis('POR MÊS', () => chartBox(mes), { vid: 'v7' }),
       vis(`META X ENTREGUE POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Meta = horas que o ${u.toLowerCase()} deveria produzir (${(18.58).toString().replace('.', ',')} h por dia ativo, ${Math.round(META * 100)}% de 24 h com as pausas). Entregue = horas realmente produzidas. A diferença é o que ficou para trás.`), chartBox(metaEnt)), { vid: 't1', wide: true }),
-      vis(`META X ENTREGUE · DIA + NOITE`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Cada barra soma o que o ${u.toLowerCase()} entregou no turno do dia e no da noite; o total fica em cima, com a meta ao lado. O traço tracejado marca a meta: quanto falta para chegar nele é o que ficou para trás.`), chartBox(metaTurno)), { vid: 't1', wide: true, acts: [pctBtn] }),
+      vis(`META X ENTREGUE · DIA + NOITE`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Cada barra soma o que o ${u.toLowerCase()} entregou no turno do dia e no da noite; o total fica em cima, com a meta ao lado. A barra cinza tracejada ao fundo é a meta: o espaço entre o topo da barra verde e o topo da cinza é o que ficou para trás.`), chartBox(metaTurno)), { vid: 't1', wide: true, acts: [pctBtn] }),
       vis('PEÇAS PRODUZIDAS POR TURNO', () => chartBox(pecasTurno), { vid: 'v9' }), vis('TEMPO DAS PEÇAS PRODUZIDAS · peças e horas', () => chartBox(tempoPecas(x, 'v10')), { vid: 'v10' }),
       vis(`RESUMO POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, tbl, { vid: 't1', wide: true }))];
 }
