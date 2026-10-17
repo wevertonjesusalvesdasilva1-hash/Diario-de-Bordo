@@ -321,3 +321,6 @@ Cada registro enviado leva o código da folha de origem. Se você altera uma fol
 
 ## Cliques que acompanham ao trocar de página do Painel BI
 Ao ir de uma página do Painel BI para outra (Visão geral, Paradas, …), os cliques ativos continuam: se você clicou no dia 15/10 do RAW11 na Visão geral, em Paradas o dia 15/10 do RAW11 aparece destacado no gráfico de paradas por dia e as etiquetas continuam iguais. Dia, mês, máquina e turno clicados valem para produção e paradas. Só trocar de grupo (RAW ↔ Usinagem) ou "Limpar tudo" tira os cliques.
+
+## Dia útil e feriados
+"Só dias úteis" (Painel BI) e o card dourado "turno sem anotação" contam segunda a sexta **sem os feriados nacionais** (Confraternização, Sexta-feira Santa, Tiradentes, Dia do Trabalho, Independência, Aparecida, Finados, Proclamação da República, Consciência Negra e Natal). Carnaval e Corpus Christi (pontos facultativos) não são tirados. A lista fica em `src/core/holidays.js`.

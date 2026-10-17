@@ -12,6 +12,7 @@ import { auditData } from './core/audit.js';
 import { getValor } from './valorhora.js';
 import { brl } from './core/plan.js';
 import * as BI from './core/bi.js';
+import { isWorkingDay } from './core/holidays.js';
 
 // the report's color rules are kept, painted with the Painel's palette
 const SKIN = { '#81C784': '#a3e635', '#70AD47': '#a3e635', '#FFD966': '#fbbf24', '#E57373': '#fb7185', '#C00000': '#fb7185', '#E6A8A8': '#fb7185', '#4472C4': '#22d3ee' };
@@ -539,7 +540,7 @@ function quickBar(cube, side, apply) {
   const dates = options(cube, side, 'data');
   if (!dates.length) return '';
   const last = dates.at(-1), f = pageFilter(), box = el('div', { class: 'bi-quick', role: 'group', 'aria-label': 'Período' });
-  const pk = ui.g, wk = (d) => { const w = new Date(`${d}T12:00:00Z`).getUTCDay(); return w >= 1 && w <= 5; };
+  const pk = ui.g, wk = isWorkingDay;   // Monday to Friday, holidays out
   const U = (ui.uteis[pk] ??= { on: false, prev: null });
   const set = (arr) => { if (U.on) arr = (arr ?? dates).filter(wk); if (arr && arr.length === dates.length && !U.on) arr = null; if (arr) f[side].data = new Set(arr); else delete f[side].data; ui.sel = null; ui.stack = []; apply(); slicerFills.forEach((fn) => fn()); mark(); };
   const range = (a, b) => dates.filter((d) => d >= a && d <= b);

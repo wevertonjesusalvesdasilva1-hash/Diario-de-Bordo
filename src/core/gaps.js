@@ -7,6 +7,7 @@
 // nothing is said. The person can mark a card as correct (a holiday, a machine without a shift) and it stays hidden. Pure functions.
 import { toMin, pairsOf, groupOfMachine } from './history.js';
 import { shiftOfTime } from './turno.js';
+import { isWorkingDay } from './holidays.js';
 
 export const GAP_KIND = 'turno sem anotação';
 export const GAP_COLOR = '#e8b923';                       // gold
@@ -21,7 +22,7 @@ const WEEK = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quint
 
 const utcDay = (iso) => Math.floor(Date.parse(`${iso}T00:00:00Z`) / 86400000);
 const isoOf = (day) => new Date(day * 86400000).toISOString().slice(0, 10);
-export const isBusinessDay = (iso) => { const w = new Date(`${iso}T12:00:00Z`).getUTCDay(); return w !== 0 && w !== 6; };
+export const isBusinessDay = isWorkingDay;   // Monday to Friday, national holidays out
 export const weekdayOf = (iso) => WEEK[new Date(`${iso}T12:00:00Z`).getUTCDay()];
 export const ddmm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const localIso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

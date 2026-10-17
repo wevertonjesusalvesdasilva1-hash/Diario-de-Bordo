@@ -58,9 +58,9 @@ test('fim de semana não é cobrado; turno que a máquina nunca trabalha não é
 });
 
 test('dia útil sem nenhuma anotação de nenhuma máquina: um card só para todas', () => {
-  const b = base({ skip: (m, d) => d === '2026-10-12' });                               // segunda 12/10
+  const b = base({ skip: (m, d) => d === '2026-10-08' });                               // quinta 08/10 (12/10 é feriado e nem entra na conta)
   const c = buildGapCards({ ...b, today: TODAY });
-  assert.equal(c.length, 1); assert.match(c[0].machine, /Todos/); assert.equal(c[0].day, '12/10'); assert.equal(c[0].faces.length, 2);
+  assert.equal(c.length, 1); assert.match(c[0].machine, /Todos/); assert.equal(c[0].day, '08/10'); assert.equal(c[0].faces.length, 2);
   assert.match(c[0].faces[0].text, /feriado/);
 });
 
@@ -81,4 +81,12 @@ test('usinagem e RAW são julgados separados', () => {
 test('frases: um turno ou os dois', () => {
   assert.equal(inTurnos(['2']), 'no turno da noite'); assert.equal(inTurnos(['1', '2']), 'nos turnos do dia e da noite');
   assert.match(inTurnos(['2'], true), /20:40 às 05:30/);
+});
+
+import { holidayName, isWorkingDay, easter } from '../src/core/holidays.js';
+test('feriados nacionais não são dia útil (12/10 Aparecida, Sexta-feira Santa, fim de semana)', () => {
+  assert.equal(holidayName('2026-10-12'), 'Nossa Senhora Aparecida');
+  assert.equal(easter(2026), '2026-04-05'); assert.equal(holidayName('2026-04-03'), 'Sexta-feira Santa');
+  assert.equal(isWorkingDay('2026-10-12'), false); assert.equal(isWorkingDay('2026-10-13'), true); assert.equal(isWorkingDay('2026-10-17'), false);
+  assert.equal(isBusinessDay('2026-09-07'), false);
 });
