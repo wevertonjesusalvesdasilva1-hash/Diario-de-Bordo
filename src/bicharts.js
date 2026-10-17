@@ -137,12 +137,12 @@ export function drawChart(box, full) {
     });
   }
   cats.forEach((c, i) => {
-    const x0 = xAt(i), bw = stacked ? step * 0.62 : Math.min(40, (step * 0.7) / nS);
+    const x0 = xAt(i), bw = spec.marks ? step * 0.34 : stacked ? step * 0.62 : Math.min(40, (step * 0.7) / nS);
     const g = S('g', pickAttrs(c), S('title', {}, `${c.group ? c.group + ' · ' : ''}${c.label}\n${series.map((s) => `${s.name}: ${fmt(s.vals[i])}`).join('\n')}${line ? `\n${line.name}: ${(line.fmt ?? String)(line.vals[i])}` : ''}${tip ? '\n' + tip(i) : ''}`));
-    if (spec.marks) { const mv = spec.marks.vals[i] || 0; if (mv > 0) g.append(S('rect', { x: x0 + (step - bw) / 2 - 8, y: y(mv), width: bw + 16, height: Math.max(0, y(0) - y(mv)), rx: 4, fill: 'rgba(148,163,184,0.16)', stroke: 'rgba(203,213,225,0.55)', 'stroke-width': 1, 'stroke-dasharray': '4 3' })); }   // the planned (meta) as a ghost bar behind the real one
+    if (spec.marks) { const mv = spec.marks.vals[i] || 0; if (mv > 0) g.append(S('rect', { x: x0 + step / 2 + 2, y: y(mv), width: bw, height: Math.max(0, y(0) - y(mv)), rx: 4, fill: 'rgba(148,163,184,0.55)', stroke: 'rgba(203,213,225,0.8)', 'stroke-width': 1 })); }   // the planned (meta) as a bar beside the real one
     let acc = 0;
     series.forEach((s, k) => {
-      const v = s.vals[i] || 0, bx = stacked ? x0 + (step - bw) / 2 : x0 + (step - bw * nS) / 2 + k * bw;
+      const v = s.vals[i] || 0, bx = spec.marks ? x0 + step / 2 - bw - 2 : stacked ? x0 + (step - bw) / 2 : x0 + (step - bw * nS) / 2 + k * bw;
       const yTop = y(stacked ? acc + v : v), hgt = Math.max(0, (stacked ? y(acc) : y(0)) - yTop);
       const b0 = bar(svg, c.color ?? s.color, 'v', cats.length * nS <= 120, { x: bx, y: yTop, width: Math.max(1, bw - 1), height: hgt });
       g.append(b0);
@@ -155,11 +155,10 @@ export function drawChart(box, full) {
       if (v && (bw >= 22 || (cats.length <= 14 && bw >= 14)) && !(stacked && hgt < 12)) g.append(rotLab ? S('text', { x: bx + bw / 2 + 3, y: yTop - 4, 'text-anchor': 'start', transform: `rotate(-90 ${bx + bw / 2 + 3} ${yTop - 4})`, style: 'font-size:10px' }, fmt(v)) : S('text', { x: bx + bw / 2, y: stacked ? yTop + hgt / 2 : yTop - 3, 'text-anchor': 'middle', 'dominant-baseline': stacked ? 'middle' : 'auto', style: 'font-size:10px' }, fmt(v)));
       if (stacked) acc += v;
     });
-    if (spec.marks) {   // planned value of each bar: a dashed tick over it, and the real total + planned above, as in "51,4 de 88,8 h"
-      const mk = spec.marks, mv = mk.vals[i] || 0, yb = Math.min(y(mv), y(acc)) - 6;
-      g.append(S('line', { x1: x0 + (step - bw) / 2 - 8, x2: x0 + (step + bw) / 2 + 8, y1: y(mv), y2: y(mv), stroke: mk.color ?? '#e2e8f0', 'stroke-width': 2, 'stroke-dasharray': '5 3' }),
-        S('text', { x: x0 + step / 2, y: yb - 13, 'text-anchor': 'middle', style: 'font-weight:700;font-size:12px' }, fmt(acc)),
-        S('text', { x: x0 + step / 2, y: yb, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, mk.texts?.[i] ?? `meta ${fmt(mv)}`));
+    if (spec.marks) {   // real total on top of the stack, planned on top of the bar beside it
+      const mk = spec.marks, mv = mk.vals[i] || 0, cs = x0 + step / 2 - bw / 2 - 2, cm = x0 + step / 2 + bw / 2 + 2;
+      g.append(S('text', { x: cs, y: y(acc) - 6, 'text-anchor': 'middle', style: 'font-weight:700;font-size:12px' }, fmt(acc)),
+        S('text', { x: cm, y: y(mv) - 6, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, mk.texts?.[i] ?? fmt(mv)), S('text', { x: cm, y: y(mv) - 17, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, 'meta'));
     } else if (stacked && nS > 1 && acc && (!spec.totalsOnlyAlerts || c.alert)) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:11px${c.alert ? ';fill:#fb7185' : ''}` }, (c.alert ? '⚠ ' : '') + fmt(acc)));   // total of the stack on top
     const lab = clip(c.label, 14), rot = rotAny;
     g.append(S('text', rot ? { x: x0 + step / 2, y: H - bottom + 12, 'text-anchor': 'end', transform: `rotate(-35 ${x0 + step / 2} ${H - bottom + 12})`, class: 'mut' } : { x: x0 + step / 2, y: H - bottom + 14, 'text-anchor': 'middle', class: 'mut' }, lab));

@@ -356,7 +356,7 @@ function pageGeral(x) {
     const tot = ms.map((g, i) => dia[i] + noite[i] + outro[i]);
     const pc = (v, k) => (meta[k] ? v / meta[k] : 0), P = (arr) => arr.map((v, k) => pc(v, k));   // everything as a share of the planned (meta = 100 %)
     const W = (arr) => (metaPct ? P(arr) : arr);
-    return { cats: ms.map((g) => ({ key: g.vals[0], label: g.vals[0] })), stacked: true, height: 320, fmt: metaPct ? fpct0 : f1, marks: { name: 'Meta', vals: metaPct ? meta.map(() => 1) : meta, texts: metaPct ? meta.map((m) => `meta ${f1(m)} h`) : undefined, color: '#e2e8f0' },
+    return { cats: ms.map((g) => ({ key: g.vals[0], label: g.vals[0] })), stacked: true, height: 320, fmt: metaPct ? fpct0 : f1, marks: { name: 'Meta', vals: metaPct ? meta.map(() => 1) : meta, texts: metaPct ? meta.map((m) => `${fint(m)} h`) : undefined, color: '#e2e8f0' },
       series: [{ name: 'Turno do dia', vals: W(dia), color: '#86efac' }, { name: 'Turno da noite', vals: W(noite), color: '#14532d' }, ...(outro.some((v) => v > 0.05) ? [{ name: 'Sem turno', vals: W(outro), color: '#94a3b8' }] : [])],
       tip: (k) => `${ms[k].vals[0]} · dia ${f1(dia[k])} h + noite ${f1(noite[k])} h = ${f1(tot[k])} h de ${f1(meta[k])} h (${fpct(meta[k] ? tot[k] / meta[k] : 0)}) · ${meta[k] - tot[k] >= 0 ? `faltaram ${f1(meta[k] - tot[k])} h` : `passou ${f1(tot[k] - meta[k])} h da meta`}`,
       onPick: x.pick('t1', 'p', ['m']), selected: x.selOf('t1') }; };
@@ -367,7 +367,7 @@ function pageGeral(x) {
       vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6' }),
       vis('POR MÊS', () => chartBox(mes), { vid: 'v7' }),
       vis(`META X ENTREGUE POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Meta = horas que o ${u.toLowerCase()} deveria produzir (${(18.58).toString().replace('.', ',')} h por dia ativo, ${Math.round(META * 100)}% de 24 h com as pausas). Entregue = horas realmente produzidas. A diferença é o que ficou para trás.`), chartBox(metaEnt)), { vid: 't1', wide: true }),
-      vis(`META X ENTREGUE · DIA + NOITE`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Cada barra soma o que o ${u.toLowerCase()} entregou no turno do dia e no da noite; o total fica em cima, com a meta ao lado. A barra cinza tracejada ao fundo é a meta: o espaço entre o topo da barra verde e o topo da cinza é o que ficou para trás.`), chartBox(metaTurno)), { vid: 't1', wide: true, acts: [pctBtn] }),
+      vis(`META X ENTREGUE · DIA + NOITE`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Cada barra soma o que o ${u.toLowerCase()} entregou no turno do dia e no da noite; o total fica em cima, com a meta ao lado. A barra cinza ao lado é a meta: a diferença de altura entre a verde e a cinza é o que ficou para trás.`), chartBox(metaTurno)), { vid: 't1', wide: true, acts: [pctBtn] }),
       vis('PEÇAS PRODUZIDAS POR TURNO', () => chartBox(pecasTurno), { vid: 'v9' }), vis('TEMPO DAS PEÇAS PRODUZIDAS · peças e horas', () => chartBox(tempoPecas(x, 'v10')), { vid: 'v10' }),
       vis(`RESUMO POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, tbl, { vid: 't1', wide: true }))];
 }
