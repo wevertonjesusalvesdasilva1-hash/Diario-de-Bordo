@@ -339,14 +339,14 @@ function pageGeral(x) {
     return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Meta (h)', vals: gr.map((g) => M.target(g.c)), color: PALETTE[3] }, { name: 'Entregue (h)', vals: gr.map((g) => M.horasProd(g.c)), color: GREEN }], height: 300, fmt: f1,
       tip: (i) => { const c = gr[i].c, f = M.target(c) - M.horasProd(c); return `${gr[i].vals[0]} · meta ${f1(M.target(c))} h · entregou ${f1(M.horasProd(c))} h (${fpct(M.pct(c))}) · ${f >= 0 ? `faltaram ${f1(f)} h` : `passou ${f1(-f)} h da meta`}`; },
       onPick: x.pick('t1', 'p', ['m']), selected: x.selOf('t1') }; };
-  return [alertsStrip(x),
-    el('div', { class: 'bi-grid' },
+  return [el('div', { class: 'bi-grid' },
       v24,
       vis('DISPONIBILIDADE', () => chartBox(disp), { vid: 'v3' }), vis('HORAS PRODUZIDAS X PARADAS', () => chartBox(prodPar), { vid: 'v4' }),
       vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6' }),
       vis('POR MÊS', () => chartBox(mes), { vid: 'v7' }),
       vis(`META X ENTREGUE POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Meta = horas que o ${u.toLowerCase()} deveria produzir (${(18.58).toString().replace('.', ',')} h por dia ativo, ${Math.round(META * 100)}% de 24 h com as pausas). Entregue = horas realmente produzidas. A diferença é o que ficou para trás.`), chartBox(metaEnt)), { vid: 't1', wide: true }),
-      vis(`RESUMO POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, tbl, { vid: 't1', wide: true }))];
+      vis(`RESUMO POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, tbl, { vid: 't1', wide: true })),
+    cardsRow(x, 'resumo', 'p', true)];
 }
 
 function pageParadas(x) {
