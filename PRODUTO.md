@@ -324,3 +324,6 @@ Ao ir de uma página do Painel BI para outra (Visão geral, Paradas, …), os cl
 
 ## Dia útil e feriados
 "Só dias úteis" (Painel BI) e o card dourado "turno sem anotação" contam segunda a sexta **sem os feriados nacionais** (Confraternização, Sexta-feira Santa, Tiradentes, Dia do Trabalho, Independência, Aparecida, Finados, Proclamação da República, Consciência Negra e Natal). Carnaval e Corpus Christi (pontos facultativos) não são tirados. A lista fica em `src/core/holidays.js`.
+
+## Pincel: editar um gráfico do Painel BI
+Cada gráfico tem um pincel (🖌) no lugar de "Filtros" e "Excel" (removidos). Ao clicar, o gráfico entra em modo de edição: dá para arrastar pelo título para mudar de lugar, escolher a largura (⅓, ½, ⅔ ou tela toda), a altura, o tamanho da letra, mostrar ou esconder valores, linhas de grade e legenda, escrever o título do gráfico e dos eixos X e Y e trocar a cor de cada série. Os dados em si não se editam. O arranjo fica salvo no navegador, por página e grupo; "↺ Padrão" volta ao original.

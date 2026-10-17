@@ -33,7 +33,22 @@ const hlWrap = (vid, build) => () => {
   full.hlOn = true;
   return full;
 };
-const chartBox = (spec, cls) => { const vid = curVid; return rawChartBox(typeof spec === 'function' ? hlWrap(vid, spec) : spec, cls); };
+
+// the person's own arrangement of the charts (order, width, height, colors), kept per browser and per page
+let LAY = {}; try { LAY = JSON.parse(localStorage.getItem('bi.layout') || '{}'); } catch { /* none */ }
+const saveLay = () => { try { localStorage.setItem('bi.layout', JSON.stringify(LAY)); } catch { /* no storage */ } };
+const pageKey = () => `${ui.g}.${ui.page}`;
+const layOf = (vid) => LAY[pageKey()]?.vis?.[vid] ?? null;
+const setLay = (vid, patch) => { const p = (LAY[pageKey()] ??= { order: [], vis: {} }); p.vis[vid] = { ...(p.vis[vid] ?? {}), ...patch }; saveLay(); };
+const withLay = (vid, spec) => () => {
+  const f = spec(), l = layOf(vid); if (!l) return f;
+  if (l.legend === false) f.noLegend = true;
+  if (l.labels === false || l.grid === false) f.post = (box) => { if (l.grid === false) box.querySelectorAll('.grid').forEach((g) => g.remove()); if (l.labels === false) box.querySelectorAll('svg text').forEach((t) => { const st = t.getAttribute('style') || ''; if (/font-size/.test(st) && !/var\(--ink/.test(st)) t.remove(); }); };
+  if (l.h) f.height = (f.height ?? 240) + l.h;
+  if (l.colors) { for (const s of f.series ?? []) if (l.colors[s.name]) { s.color = l.colors[s.name]; if (f.series.length === 1) f.cats?.forEach((c) => { delete c.color; }); } if (f.marks && l.colors[f.marks.name]) f.marks.color = l.colors[f.marks.name]; }
+  return f;
+};
+const chartBox = (spec, cls) => { const vid = curVid; return rawChartBox(typeof spec === 'function' ? hlWrap(vid, withLay(vid, spec)) : spec, cls); };
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const fileSafe = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 -]+/g, ' ').trim().replace(/\s+/g, '-').slice(0, 60) || 'dados';
 let slicerFills = [];
@@ -192,6 +207,7 @@ function vis(title, build, { vid, side = 'p', wide = false, acts = [], filters =
     curVid = vid;
     try { slot.replaceChildren(build()); } finally { curVid = null; }
     const nu = slot.querySelector('.bi-ch'); if (nu && keep) nu._left = keep;
+    box.dispatchEvent(new Event('rebuilt'));
   };
   const barHost = el('div', { class: 'vf-host' }), fkey = `${ui.g}.${ui.page}.${vid}`;
   let open = false;
@@ -216,10 +232,42 @@ function vis(title, build, { vid, side = 'p', wide = false, acts = [], filters =
   };
   REG.push(box);
   const xl = el('button', { type: 'button', 'aria-label': 'Baixar em Excel', title: 'Baixar os dados deste gráfico em Excel', onclick: async () => { const t = slot.firstElementChild?.getTable?.(); if (!t) return; const X = await import('xlsx'); const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet([t.head, ...t.rows]), 'Dados'); X.writeFile(wb, `${fileSafe(title)}.xlsx`); } }, '⬇ Excel');
-  box.append(el('header', {}, el('h4', {}, title), el('div', { class: 'acts' }, acts, filters ? fbtn : '', filters ? xl : '', max)), filters ? barHost : '', slot);
-  if (filters) box.rebuildBar();
+  // edit mode (the brush): drag the chart to another place, make it wider or taller, change its colors
+  const h4 = el('h4', {}, layOf(vid)?.title ?? title), axisUi = () => { slot.querySelectorAll('.bi-axis').forEach((p) => p.remove()); const l = layOf(vid); if (l?.axisY) slot.prepend(el('p', { class: 'bi-axis y' }, `↑ ${l.axisY}`)); if (l?.axisX) slot.append(el('p', { class: 'bi-axis x' }, `${l.axisX} →`)); };
+  box.addEventListener('rebuilt', axisUi);
+  const bar = el('div', { class: 've-bar', hidden: true }), ed = el('button', { type: 'button', class: 've-btn', title: 'Editar este gráfico: mover, esticar, mudar cores', 'aria-pressed': 'false', onclick: () => toggleEdit() }, '🖌');
+  const applyW = () => { const w = layOf(vid)?.w, fs = layOf(vid)?.fs; if (w) box.dataset.w = w; else delete box.dataset.w; if (fs) box.dataset.fs = fs; else delete box.dataset.fs; };
+  const toggleEdit = () => {
+    const on = !box.classList.contains('editing'); box.classList.toggle('editing', on); box.draggable = on; ed.setAttribute('aria-pressed', String(on)); bar.hidden = !on; h4.contentEditable = on ? 'true' : 'false'; h4.title = on ? 'Clique para editar o título' : ''; if (!on) return;
+    const chart = slot.querySelector('.bi-ch')?._full, names = chart ? [...chart.series.map((q) => [q.name, q.color]), ...(chart.marks ? [[chart.marks.name, chart.marks.color ?? '#e2e8f0']] : [])] : [];
+    const W = (w, t) => el('button', { type: 'button', class: `ve-opt${(layOf(vid)?.w ?? '') === w ? ' on' : ''}`, onclick: () => { setLay(vid, { w }); applyW(); toggleEdit(); toggleEdit(); } }, t);
+    const H = (d, t) => el('button', { type: 'button', class: 've-opt', onclick: () => { setLay(vid, { h: Math.max(-120, Math.min(480, (layOf(vid)?.h ?? 0) + d)) }); box.rebuild(); } }, t);
+    bar.replaceChildren(el('span', {}, 'Arraste pelo título para mover. Largura:'), W('third', '⅓'), W('half', '½'), W('twothird', '⅔'), W('full', 'Tela toda'), el('span', {}, 'Altura:'), H(-60, '−'), H(60, '+'),
+      ...[['labels', 'Valores'], ['grid', 'Linhas de grade'], ['legend', 'Legenda']].map(([k, t]) => el('label', { class: 've-col' }, el('input', { type: 'checkbox', checked: layOf(vid)?.[k] !== false || null, onchange: (e) => { setLay(vid, { [k]: e.target.checked }); box.rebuild(); } }), ` ${t}`)),
+      el('input', { class: 've-txt', placeholder: 'Título do eixo X', value: layOf(vid)?.axisX ?? '', oninput: (e) => { setLay(vid, { axisX: e.target.value }); axisUi(); } }), el('input', { class: 've-txt', placeholder: 'Título do eixo Y', value: layOf(vid)?.axisY ?? '', oninput: (e) => { setLay(vid, { axisY: e.target.value }); axisUi(); } }),
+      el('span', {}, 'Letra:'), ...[['small', 'A−'], ['', 'A'], ['big', 'A+']].map(([v, t]) => el('button', { type: 'button', class: `ve-opt${(layOf(vid)?.fs ?? '') === v ? ' on' : ''}`, onclick: () => { setLay(vid, { fs: v }); applyW(); toggleEdit(); toggleEdit(); } }, t)),
+      ...names.map(([n, c]) => el('label', { class: 've-col' }, el('input', { type: 'color', value: /^#[0-9a-f]{6}$/i.test(c) ? c : '#16a34a', oninput: (e) => { setLay(vid, { colors: { ...(layOf(vid)?.colors ?? {}), [n]: e.target.value } }); box.rebuild(); } }), ` ${n}`)),
+      el('button', { type: 'button', class: 've-opt', onclick: () => { const p = LAY[pageKey()]; if (p) { delete p.vis[vid]; saveLay(); } applyW(); box.rebuild(); toggleEdit(); toggleEdit(); } }, '↺ Padrão'), el('button', { type: 'button', class: 've-opt primary', onclick: toggleEdit }, 'Concluir'));
+  };
+  box.addEventListener('dragstart', (e) => { if (!box.classList.contains('editing')) return; e.dataTransfer.setData('text/plain', vid); e.dataTransfer.effectAllowed = 'move'; box.classList.add('dragging'); window.__biDrag = box; });
+  box.addEventListener('dragend', () => { box.classList.remove('dragging'); window.__biDrag = null; });
+  box.addEventListener('dragover', (e) => { const d = window.__biDrag; if (!d || d === box || d.parentNode !== box.parentNode) return; e.preventDefault(); const r = box.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2 && e.clientX > r.left; box.parentNode.insertBefore(d, after ? box.nextSibling : box); });
+  box.addEventListener('drop', (e) => { e.preventDefault(); const p = (LAY[pageKey()] ??= { order: [], vis: {} }); p.order = [...box.parentNode.children].map((c) => c.vid).filter(Boolean); saveLay(); });
+  h4.addEventListener('blur', () => { if (h4.contentEditable === 'true') setLay(vid, { title: h4.textContent.trim() || title }); });
+  h4.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); h4.blur(); } });
+  applyW(); axisUi();
+  box.append(el('header', {}, h4, el('div', { class: 'acts' }, acts, ed, max)), bar, slot);
   box.rebuild();
   return box;
+}
+// put the charts back in the order the person left them
+function applyOrder(body) {
+  const order = LAY[pageKey()]?.order ?? []; if (!order.length) return;
+  for (const grid of body.querySelectorAll('.bi-grid')) {
+    const kids = [...grid.children].filter((c) => c.vid); if (kids.length < 2) continue;
+    const rank = (c) => { const i = order.indexOf(c.vid); return i < 0 ? 1e6 : i; };
+    [...kids].sort((a, b) => rank(a) - rank(b)).forEach((c) => grid.append(c));
+  }
 }
 // sortable table. cols: [{ h, v(row) → shown, n: numeric, key(row) → sort value, bg(row) → cell color }]
 function table(cols, rows, { totals, order, desc = true, limit = 300, rowKey, onRow, selected } = {}) {
@@ -631,7 +679,7 @@ export async function renderBiUI(root, ctx) {
   if (typeof window !== 'undefined') window.__biRedraw = () => REG.forEach((r) => r.rebuild()), window.__biUi = ui;   // test hook: redraw every visual from the current state
   clearClick = () => { ui.sel = null; ui.stack = []; ui.t24.key = null; drawMain(); };
   function drawMain() {
-    if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { mirror(); prune(); mirror(); drawMain(); }), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }
+    if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { mirror(); prune(); mirror(); drawMain(); }), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; applyOrder(body); }
     else {                                         // like Power BI: the other visuals redraw, the page does not move
       // anchor on the first chart that is on screen: whatever grows or shrinks ABOVE it (alerts, the note, the cards) must not push it
       const vs = [...document.querySelectorAll('.bi-vis')], ai = vs.findIndex((v) => v.getBoundingClientRect().bottom > 140), top0 = vs[ai]?.getBoundingClientRect().top;

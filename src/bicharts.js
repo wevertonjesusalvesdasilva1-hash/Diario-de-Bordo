@@ -70,7 +70,7 @@ export function drawChart(box, full) {
   const sel = selected && selected.size ? selected : null;
   const pickAttrs = (c) => (onPick ? { class: `pick${sel && !sel.has(c.key) ? ' dim' : ''}`, tabindex: 0, role: 'button', onclick: (e) => onPick(c.key, e), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(c.key, e); } } } : { class: sel && !sel.has(c.key) ? 'dim' : '' });
   const lg = (name, color) => el('button', { type: 'button', class: `lg${on(name) ? '' : ' off'}`, 'aria-pressed': String(only.has(name)), title: 'Clique para ver só este; Ctrl + clique para somar', onclick: (e) => toggle(name, e.ctrlKey || e.metaKey) }, el('i', { style: `background:${color}` }), name);
-  const legend = full.series.length > 1 || full.line || full.marks ? el('div', { class: 'bi-leg' }, full.series.map((s) => lg(s.name, s.color)), full.line ? lg(full.line.name, full.line.color ?? '#fb7185') : '', full.marks ? lg(full.marks.name, 'rgba(148,163,184,0.75)') : '') : null;
+  const legend = !full.noLegend && (full.series.length > 1 || full.line || full.marks) ? el('div', { class: 'bi-leg' }, full.series.map((s) => lg(s.name, s.color)), full.line ? lg(full.line.name, full.line.color ?? '#fb7185') : '', full.marks ? lg(full.marks.name, 'rgba(148,163,184,0.75)') : '') : null;
 
   if (orient === 'h') {
     const rowH = 24 * Math.max(1, stacked ? 1 : series.length) * (series.length > 1 && !stacked ? 0.8 : 1) + 6, labW = Math.min(200, Math.max(60, Math.min(26, Math.max(...cats.map((c) => String(c.label).length))) * 7.6));
@@ -92,7 +92,7 @@ export function drawChart(box, full) {
       });
       svg.append(g);
     });
-    box.append(svg, legend ?? '');
+    box.append(svg, legend ?? ''); spec.post?.(box);
     return;
   }
 
@@ -173,7 +173,7 @@ export function drawChart(box, full) {
     const ok = pts.filter(Boolean); if (ok.length) svg.append(S('path', { d: smooth(ok, top, top + plotH), fill: 'none', stroke: col, 'stroke-width': 2.4, 'stroke-linecap': 'round', class: 'glow', style: `--c:${col}` }));
     pts.forEach((p, i) => { if (!p) return; svg.append(S('circle', { cx: p[0], cy: p[1], r: 3.5, fill: '#fff', stroke: col, 'stroke-width': 2 }, S('title', {}, `${cats[i].label}\n${line.name}: ${(line.fmt ?? String)(line.vals[i])}`))); if (cats.length <= 16 && !dup) svg.append(S('text', { x: p[0], y: p[1] - 7, 'text-anchor': 'middle', style: `font-size:10px;fill:${col}` }, (line.fmt ?? String)(line.vals[i]))); });
   }
-  box.append(svg, legend ?? '');
+  box.append(svg, legend ?? ''); spec.post?.(box);
 }
 
 // a chart box that redraws when its width changes (the page is fluid)
@@ -224,5 +224,5 @@ function drawArea(box, spec, avail, legend, sel) {
       onclick: (e) => onPick?.(c.key, e) }, S('title', {}, `${c.label}\n${series.map((s) => `${s.name}: ${fmt(s.vals[i])}`).join('\n')}`));
     svg.append(hit);
   });
-  box.append(svg, legend ?? '');
+  box.append(svg, legend ?? ''); spec.post?.(box);
 }

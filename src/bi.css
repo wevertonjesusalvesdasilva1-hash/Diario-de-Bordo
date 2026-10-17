@@ -240,3 +240,26 @@ body.pbi main { overflow-x: clip; }
 .bi-grid.g3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
 .bi-scroll { max-height: 460px; overflow: auto; }
 .bi-vis > div > .bi-ch { min-height: 0; }
+
+/* 6-column grid: a chart is 1/3, 1/2, 2/3 or the whole row; the person can change it with the brush */
+.bi-grid:not(.pl-two) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.bi-grid:not(.pl-two) > .bi-vis { grid-column: span 3; }
+.bi-grid:not(.pl-two) > .bi-vis.wide, .bi-grid:not(.pl-two) > .bi-vis[data-w="full"] { grid-column: 1 / -1; }
+.bi-grid:not(.pl-two) > .bi-vis[data-w="third"] { grid-column: span 2; }
+.bi-grid:not(.pl-two) > .bi-vis[data-w="half"] { grid-column: span 3; }
+.bi-grid:not(.pl-two) > .bi-vis[data-w="twothird"] { grid-column: span 4; }
+@media (max-width: 900px) { .bi-grid:not(.pl-two) > .bi-vis { grid-column: 1 / -1 !important; } }
+.bi-vis > header .acts .ve-btn { font-size: .85rem; }
+.bi-vis.editing { outline: 2px dashed var(--pv); outline-offset: 2px; cursor: grab; }
+.bi-vis.editing > header h4 { cursor: grab; }
+.bi-vis.dragging { opacity: .45; }
+.ve-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .5rem; padding: .4rem .5rem; border-radius: 10px; background: var(--accent-soft); font-size: .78rem; }
+.ve-bar[hidden] { display: none !important; }
+.ve-opt { font: inherit; font-size: .78rem; padding: .2rem .55rem; border-radius: 8px; border: 1px solid var(--line2); background: var(--panel2); color: var(--ink); cursor: pointer; }
+.ve-opt.on, .ve-opt.primary { background: var(--pv); border-color: var(--pv); color: #fff; }
+.ve-col { display: inline-flex; align-items: center; gap: .25rem; } .ve-col input { width: 26px; height: 22px; padding: 0; border: 0; background: none; cursor: pointer; }
+
+.ve-txt { font: inherit; font-size: .78rem; padding: .2rem .4rem; border-radius: 8px; border: 1px solid var(--line2); background: var(--panel2); color: var(--ink); width: 9rem; }
+.bi-axis { margin: 0; font-size: .72rem; color: var(--muted); } .bi-axis.x { text-align: center; }
+.bi-vis[data-fs="small"] svg text { font-size: 9px !important; } .bi-vis[data-fs="big"] svg text { font-size: 14px !important; }
+.bi-vis.editing > header h4[contenteditable="true"] { outline: 1px solid var(--pv); border-radius: 4px; padding: 0 .3rem; cursor: text; }
