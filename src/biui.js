@@ -64,8 +64,8 @@ const cubeFor = (g, base) => {
 const SLICERS = {
   geral: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Turno', 'p', 't']],
   paradas: [['Dia', 's', 'data'], ['Mês', 's', 'mes'], ['@unit', 's', 'm'], ['Motivo', 's', 'mo'], ['Turno', 's', 't']],
-  entrega: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['Turno', 'p', 't'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Nome do operador', 'p', 'nome']],
-  pessoas: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['Turno', 'p', 't'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Nome do operador', 'p', 'nome']],
+  entrega: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Nome do operador', 'p', 'nome'], ['Turno', 'p', 't']],
+  pessoas: [['Dia', 'p', 'data'], ['Mês', 'p', 'mes'], ['@unit', 'p', 'm'], ['Peça - Modelo', 'p', 'pm'], ['Nome do operador', 'p', 'nome'], ['Turno', 'p', 't']],
 };
 // ONE set of filters per group, shared by every page: the dates, months, machine and shift you pick follow you from page to page.
 // The Produção side (p) and the Paradas side (s) keep the same values for the columns they share.
@@ -82,7 +82,13 @@ function slicerBox(title, side, col, cube, onChange) {
   const f = pageFilter(), sets = () => f[side];
   const list = el('ul');
   const badge = el('em', { class: 'cnt' });
-  const box = el('section', { class: 'bi-slicer' }, el('header', {}, el('span', { class: 'tt' }, title, badge)), list);
+  // closed like a Power BI dropdown: it only says what is chosen ("Todos", the item, or "Seleções múltiplas"); the list opens over the page, so nothing moves
+  const btn = el('button', { type: 'button', class: 'sl-btn', 'aria-expanded': 'false' });
+  list.hidden = true;
+  const box = el('section', { class: 'bi-slicer' }, el('header', {}, el('span', { class: 'tt' }, title, badge)), el('div', { class: 'sl-wrap' }, btn, list));
+  const close = () => { list.hidden = true; btn.setAttribute('aria-expanded', 'false'); box.classList.remove('open'); };
+  btn.onclick = (e) => { e.stopPropagation(); const op = list.hidden; document.querySelectorAll('.bi-slicer.open').forEach((b) => b.querySelector('.sl-btn')?.click()); if (op) { list.hidden = false; const r = btn.getBoundingClientRect(); Object.assign(list.style, { left: `${r.left}px`, width: `${r.width}px`, top: `${r.bottom + 4}px`, maxHeight: `${Math.max(120, Math.min(260, innerHeight - r.bottom - 16))}px` }); btn.setAttribute('aria-expanded', 'true'); box.classList.add('open'); } else close(); };
+  document.addEventListener('click', (e) => { if (!box.isConnected) return; if (!box.contains(e.target)) close(); });
   function pick(v, add) {
     const cur = sets()[col];
     if (add) { const s2 = (sets()[col] ??= new Set()); if (s2.has(v)) s2.delete(v); else s2.add(v); if (!s2.size) delete sets()[col]; }
@@ -92,7 +98,8 @@ function slicerBox(title, side, col, cube, onChange) {
   }
   function fill() {
     const vals = optionsFor(cube, side, col, f), cur = sets()[col];
-    badge.textContent = cur?.size ? String(cur.size) : '';
+    badge.textContent = '';
+    btn.textContent = !cur?.size ? 'Todos' : cur.size === 1 ? optLabel(col, [...cur][0]) : 'Seleções múltiplas';
     list.replaceChildren(...vals.map((v) => el('li', {}, el('label', {}, el('input', { type: 'checkbox', checked: cur?.has(v) || null, onclick: (e) => { e.preventDefault(); pick(v, e.ctrlKey || e.metaKey || ui.multi); } }), optLabel(col, v)))));
   }
   fill();

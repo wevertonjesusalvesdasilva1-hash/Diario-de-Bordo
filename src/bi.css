@@ -215,3 +215,12 @@ body.pbi main { overflow-x: clip; }
 /* visual mais limpo e sólido (sem neon): sem brilho nas linhas, cartões e fundo mais firmes */
 .bi-ch .glow, .bi-ch .line { filter: none; }
 .bi .bi-vis, .bi .bi-card, .bi .bi-slicer { box-shadow: 0 1px 2px rgb(0 0 0 / .25), 0 8px 24px rgb(0 0 0 / .18); }
+
+/* slicers as dropdowns: closed shows only the choice, the list opens over the page */
+.bi-slicer .sl-wrap { position: relative; }
+.bi-slicer .sl-btn { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: .4rem; text-align: left; font: inherit; font-size: .8rem; padding: .35rem .55rem; border-radius: 8px; border: 1px solid var(--line2); background: var(--panel2); color: var(--ink); cursor: pointer; }
+.bi-slicer .sl-btn::after { content: '⌄'; color: var(--muted); font-size: .9rem; line-height: 1; }
+.bi-slicer.open .sl-btn { border-color: var(--pv); }
+.bi-slicer .sl-wrap ul { position: fixed; z-index: 60; overflow: auto; background: var(--panel); border: 1px solid var(--line2); border-radius: 10px; padding: .3rem; box-shadow: 0 12px 28px rgb(0 0 0 / .35); }
+.bi-slicer .sl-wrap ul[hidden] { display: none !important; }
+.bi-slicer.open { position: relative; z-index: 31; }
