@@ -224,3 +224,8 @@ body.pbi main { overflow-x: clip; }
 .bi-slicer .sl-wrap ul { position: fixed; z-index: 60; overflow: auto; background: var(--panel); border: 1px solid var(--line2); border-radius: 10px; padding: .3rem; box-shadow: 0 12px 28px rgb(0 0 0 / .35); }
 .bi-slicer .sl-wrap ul[hidden] { display: none !important; }
 .bi-slicer.open { position: relative; z-index: 31; }
+
+/* no white frame around a clicked or focused chart group (the bar itself already lights up) */
+.bi-ch .pick, .bi-ch .pick:focus, .bi-ch .pick:focus-visible, .bi-ch .pick:active { outline: none !important; -webkit-tap-highlight-color: transparent; }
+.bi-ch .pick:focus-visible rect { outline: none !important; }
+.bi-ch svg *:focus { outline: none !important; }
