@@ -158,7 +158,7 @@ export function drawChart(box, full) {
     if (spec.marks) {   // real total on top of the stack, planned on top of the bar beside it
       const mk = spec.marks, mv = mk.vals[i] || 0, cs = x0 + step / 2 - bw / 2 - 2, cm = x0 + step / 2 + bw / 2 + 2;
       g.append(S('text', { x: cs, y: y(acc) - 6, 'text-anchor': 'middle', style: 'font-weight:700;font-size:12px' }, fmt(acc)),
-        S('text', { x: cm, y: y(mv) - 6, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, mk.texts?.[i] ?? fmt(mv)), S('text', { x: cm, y: y(mv) - 17, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, 'meta'));
+        ...(mk.noText ? [] : [S('text', { x: cm, y: y(mv) - 6, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, mk.texts?.[i] ?? fmt(mv)), S('text', { x: cm, y: y(mv) - 17, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, 'meta')]));
     } else if (stacked && nS > 1 && acc && (!spec.totalsOnlyAlerts || c.alert)) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:11px${c.alert ? ';fill:#fb7185' : ''}` }, (c.alert ? '⚠ ' : '') + fmt(acc)));   // total of the stack on top
     const lab = clip(c.label, 14), rot = rotAny;
     g.append(S('text', rot ? { x: x0 + step / 2, y: H - bottom + 12, 'text-anchor': 'end', transform: `rotate(-35 ${x0 + step / 2} ${H - bottom + 12})`, class: 'mut' } : { x: x0 + step / 2, y: H - bottom + 14, 'text-anchor': 'middle', class: 'mut' }, lab));
