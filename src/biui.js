@@ -243,7 +243,7 @@ function prevSlice(x, side) {
   return slice(x.cube, (side === 's' ? withS : withP)(x.F('cards'), 'data', prev));
 }
 const arrow = (d, unit, dec = 1) => (Math.abs(d) < 0.05 ? '= igual ao período anterior' : `${d > 0 ? '▲ +' : '▼ −'}${Math.abs(d).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec })}${unit} vs. período anterior`);
-function cardsRow(x, kind, side = 'p', slim = false) {
+function cardsRow(x, kind, side = 'p', slim = false, noLoss = false) {
   return live(() => {
     const c = slice(x.cube, x.F('cards')), pv = prevSlice(x, side);
     const res = kind === 'resumo' ? M.horasParadasResumo(c) : M.horasParadas(c), pct = M.pct(c);
@@ -253,7 +253,7 @@ function cardsRow(x, kind, side = 'p', slim = false) {
       card('HORAS PRODUZIDAS', `${f1(M.horasProd(c))} h`, null, pv ? arrow(M.horasProd(c) - M.horasProd(pv), ' h') : ''),
       card(kind === 'resumo' ? 'HORAS PARADAS (todas do dia e máquina)' : 'HORAS PARADAS (das chapas filtradas)', `${f1(res)} h`, null, resPrev != null ? arrow(res - resPrev, ' h') : ''),
       ...(slim ? [] : [card('DISPONIBILIDADE', fpct(pct), corPctS(pct), `Meta ${Math.round(META * 100)}% · ${gap >= 0 ? '+' : '−'}${f1(Math.abs(gap))} pts${pv ? ' · ' + arrow((pct - M.pct(pv)) * 100, ' pts') : ''}`)]),
-      ...(getValor(x.g) > 0 ? [card('PERDA COM PARADA', brl(res * getValor(x.g)), '#fb7185', `${f1(res)} h × ${brl(getValor(x.g))} por hora`)] : [])];
+      ...(!noLoss && getValor(x.g) > 0 ? [card('PERDA COM PARADA', brl(res * getValor(x.g)), '#fb7185', `${f1(res)} h × ${brl(getValor(x.g))} por hora`)] : [])];
   });
 }
 // top row: cards like the ones of the Análise tab (machine, chip, who, big number, short story, "Abrir")
@@ -346,6 +346,9 @@ function pageGeral(x) {
       tip: (i) => { const c = gr[i].c, f = M.target(c) - M.horasProd(c); return `${gr[i].vals[0]} · meta ${f1(M.target(c))} h · entregou ${f1(M.horasProd(c))} h (${fpct(M.pct(c))}) · ${f >= 0 ? `faltaram ${f1(f)} h` : `passou ${f1(-f)} h da meta`}`; },
       onPick: x.pick('t1', 'p', ['m']), selected: x.selOf('t1') }; };
   // per robot: what the day shift and the night shift delivered, stacked (their sum on top), against the planned (meta) marked over the bar
+  // pieces made in each shift (the same number as the "produção" card above)
+  const pecasTurno = () => { const gr = groupP(x.cube, x.F('v9'), ['t']).sort((a, b) => String(a.vals[0]).localeCompare(String(b.vals[0])));
+    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] ? `Turno ${g.vals[0]}` : 'Sem turno' })), series: [{ name: 'Peças', vals: gr.map((g) => M.qtdPecas(g.c)), color: GREEN }], fmt: fint, onPick: x.pick('v9', 'p', ['t']), selected: x.selOf('v9') }; };
   let metaPct = false;
   const metaTurno = () => { const f = x.F('t1'), ms = rowsOf(groupP(x.cube, f, ['m'])).slice().sort((a, b) => M.pct(b.c) - M.pct(a.c)), by = groupP(x.cube, f, ['m', 't']);
     const of = (m, t) => { const e = by.find((q) => q.vals[0] === m && String(q.vals[1]) === t); return e ? M.horasProd(e.c) : 0; };
@@ -358,15 +361,15 @@ function pageGeral(x) {
       tip: (k) => `${ms[k].vals[0]} · dia ${f1(dia[k])} h + noite ${f1(noite[k])} h = ${f1(tot[k])} h de ${f1(meta[k])} h (${fpct(meta[k] ? tot[k] / meta[k] : 0)}) · ${meta[k] - tot[k] >= 0 ? `faltaram ${f1(meta[k] - tot[k])} h` : `passou ${f1(tot[k] - meta[k])} h da meta`}`,
       onPick: x.pick('t1', 'p', ['m']), selected: x.selOf('t1') }; };
   const pctBtn = el('button', { type: 'button', class: 'vf-btn', 'aria-pressed': 'false', onclick: () => { metaPct = !metaPct; pctBtn.textContent = metaPct ? '# Ver em horas' : '% Ver em porcentagem'; pctBtn.classList.toggle('on', metaPct); pctBtn.setAttribute('aria-pressed', String(metaPct)); pctBtn.closest('.bi-vis')?.rebuild?.(); } }, '% Ver em porcentagem');
-  return [el('div', { class: 'bi-grid' },
+  return [cardsRow(x, 'resumo', 'p', false, true), el('div', { class: 'bi-grid' },
       v24,
       vis('DISPONIBILIDADE', () => chartBox(disp), { vid: 'v3' }), vis('HORAS PRODUZIDAS X PARADAS', () => chartBox(prodPar), { vid: 'v4' }),
       vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6' }),
       vis('POR MÊS', () => chartBox(mes), { vid: 'v7' }),
       vis(`META X ENTREGUE POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Meta = horas que o ${u.toLowerCase()} deveria produzir (${(18.58).toString().replace('.', ',')} h por dia ativo, ${Math.round(META * 100)}% de 24 h com as pausas). Entregue = horas realmente produzidas. A diferença é o que ficou para trás.`), chartBox(metaEnt)), { vid: 't1', wide: true }),
       vis(`META X ENTREGUE · DIA + NOITE`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Cada barra soma o que o ${u.toLowerCase()} entregou no turno do dia e no da noite; o total fica em cima, com a meta ao lado. O traço tracejado marca a meta: quanto falta para chegar nele é o que ficou para trás.`), chartBox(metaTurno)), { vid: 't1', wide: true, acts: [pctBtn] }),
-      vis(`RESUMO POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, tbl, { vid: 't1', wide: true })),
-    cardsRow(x, 'resumo', 'p', true)];
+      vis('PEÇAS PRODUZIDAS POR TURNO', () => chartBox(pecasTurno), { vid: 'v9' }), vis('TEMPO DAS PEÇAS PRODUZIDAS · peças e horas', () => chartBox(tempoPecas(x, 'v10')), { vid: 'v10' }),
+      vis(`RESUMO POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, tbl, { vid: 't1', wide: true }))];
 }
 
 function pageParadas(x) {
