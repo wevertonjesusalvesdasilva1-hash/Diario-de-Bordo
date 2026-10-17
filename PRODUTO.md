@@ -312,3 +312,6 @@ Os filtros escolhidos (Dia, Mês, Robô, Peça, Turno, períodos e filtros de ca
 
 ## Cliques do Painel BI (regra simples)
 Cada clique numa barra vira uma etiqueta visível acima dos gráficos ("Dia: 13/10/2026 · Robô: RAW10 ✕", "Turno: 1 ✕"). Os outros gráficos e os cards mostram só o que combina com todas as etiquetas; o gráfico em que se clicou continua mostrando todas as barras. Clicar de novo na barra, ou no ✕ da etiqueta, tira aquele filtro. Nenhum número muda sem uma etiqueta explicando.
+
+## Base de dados: importar com conferência
+A janela "Base de dados" mostra uma caixa por grupo (RAW e Usinagem), cada uma com: última importação (data, hora e arquivo), produções, paradas, dias, período e robôs/máquinas com a contagem, botão próprio "Importar Excel de …" (só aceita planilha do grupo), lista de todas as versões enviadas (com "Desfazer") e "Conferir a base". Depois de cada importação o app lê a base de volta e mostra uma tabela de conferência (planilha × base: produções, paradas e horas). "Substituir tudo" pergunta mostrando quantos registros do grupo serão apagados e não toca no outro grupo.

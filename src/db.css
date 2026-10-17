@@ -40,3 +40,13 @@
 .bd-slot { border: 1px dashed var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 8px; align-content: start; }
 .bd-slot h4 { margin: 0; }
 @media (max-width: 640px) { .bd-slots { grid-template-columns: 1fr; } }
+
+.bd-slots.one { grid-template-columns: 1fr; }
+.bd-card { border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: grid; gap: 8px; align-content: start; background: var(--panel); }
+.bd-card h4 { margin: 0; font-size: 1.05rem; }
+.bd-stats p { margin: .15rem 0; }
+.bd-last { color: var(--muted); }
+.bd-mach { display: flex; flex-wrap: wrap; gap: .3rem; }
+.bd-mach .chip { font-size: .72rem; padding: .12rem .5rem; border-radius: 999px; border: 1px solid var(--line2, var(--line)); }
+.bd-versions[hidden] { display: none !important; }
+.bd-verify { margin-top: .6rem; } .bd-verify caption { text-align: left; font-weight: 700; padding: .3rem 0; } .bd-verify tr.bad td { color: #f87171; }

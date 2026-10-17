@@ -209,3 +209,13 @@ test('RAW e usinagem nunca se misturam: máquina de um grupo enviada ao outro é
   const u = await call({ method: 'POST', body: { g: 'usi', op: 'append', batch: 'x2', prod: [P(), P({ m: 'UMC 01' })], stops: [] } });
   assert.deepEqual(u.body.added, { prod: 1, stops: 0 }); assert.equal(u.body.invalid, 1);
 });
+
+test('API do histórico: parada com duas chapas ("12273 / 11647") volta inteira, sem cortar dígitos', async () => {
+  process.env.ACCESS_CODE = 'abc';
+  useStore(mem());
+  const dois = S({ c: '12273 / 11647', mo: 'ELÉTRICA', ds: 'ALARME SHOCKSENSOR' });
+  await call({ method: 'POST', body: { g: 'raw', op: 'append', batch: 'b1', prod: [P()], stops: [dois] } });
+  const base = (await call({ query: { g: 'raw' } })).body;
+  assert.equal(base.stops[0].c, '12273 / 11647');
+  assert.equal(base.batches[0].op, 'append');
+});

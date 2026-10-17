@@ -39,7 +39,7 @@ function cleanStop(g, r) {
   r = fixM(r);
   if (!r || typeof r !== 'object' || !MACHINES[g].test(r.m) || !/^\d{4}-\d{2}-\d{2}$/.test(r.d) || !hm(r.i) || !hm(r.f)) return null;
   const t = r.t === 1 || r.t === 2 || r.t === 3 ? r.t : null;
-  return { m: r.m, d: r.d, c: str(r.c, 12), i: r.i, f: r.f, t, mo: str(r.mo), ds: str(r.ds, 300), h: num(r.h) };
+  return { m: r.m, d: r.d, c: str(r.c, 40), i: r.i, f: r.f, t, mo: str(r.mo), ds: str(r.ds, 300), h: num(r.h) };
 }
 
 const sameRec = (a, b) => Object.keys(a).every((k) => k === 'b' || (a[k] ?? '') === (b[k] ?? ''));
@@ -136,7 +136,7 @@ export default async function handler(req, res) {
     const existing = base.batches.find((x) => x.id === batch);
     const batches = existing
       ? base.batches.map((x) => (x.id === batch ? { ...x, nProd: x.nProd + addP.length, nStops: x.nStops + addS.length } : x))
-      : [...base.batches, { id: batch, at: new Date().toISOString(), label: str(body.label, 120) || 'Envio', nProd: addP.length, nStops: addS.length }];
+      : [...base.batches, { id: batch, at: new Date().toISOString(), label: str(body.label, 120) || 'Envio', op: body.op === 'replace' ? 'replace' : 'append', nProd: addP.length, nStops: addS.length }];
     const next = { ...base, prod: [...base.prod, ...addP], stops: [...base.stops, ...addS], batches: batches.slice(-200) };
     await write(g, { ...next, rev: cur.rev });
     return send(res, 200, { rev: cur.rev + 1, batch, added: { prod: addP.length, stops: addS.length }, dup: { prod: dupP, stops: dupS }, invalid, total: { prod: next.prod.length, stops: next.stops.length } });
