@@ -263,3 +263,9 @@ body.pbi main { overflow-x: clip; }
 .bi-axis { margin: 0; font-size: .72rem; color: var(--muted); } .bi-axis.x { text-align: center; }
 .bi-vis[data-fs="small"] svg text { font-size: 9px !important; } .bi-vis[data-fs="big"] svg text { font-size: 14px !important; }
 .bi-vis.editing > header h4[contenteditable="true"] { outline: 1px solid var(--pv); border-radius: 4px; padding: 0 .3rem; cursor: text; }
+
+/* the group and page buttons stay under the app header while scrolling, and the filters stay under them */
+.bi-bar { justify-content: flex-start; gap: .5rem .9rem; position: sticky; top: var(--app-top, 64px); z-index: 20; padding: .45rem 0; background: var(--bg, #0b0c0e); }
+.bi-sep { width: 1px; align-self: stretch; background: var(--line); margin: .15rem 0; }
+.bi-side { top: calc(var(--app-top, 64px) + var(--bar-h, 48px) + .6rem); max-height: calc(100vh - var(--app-top, 64px) - var(--bar-h, 48px) - 1.2rem); align-self: start; }
+@media (max-width: 900px) { .bi-bar { position: static; } .bi-sep { display: none; } }

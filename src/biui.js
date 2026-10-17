@@ -620,10 +620,12 @@ const mergeF = (a, b) => {
 
 export async function renderBiUI(root, ctx) {
   const wrap = el('div', { class: 'bi pn' }), bar = el('div', { class: 'bi-bar' }), title = el('h2', { class: 'bi-h2' }, 'Indicadores'), main = el('div'), side = el('aside', { class: 'bi-side' });
-  const seg = el('div', { class: 'bi-seg', role: 'group', 'aria-label': 'Grupo' }, Object.entries(GROUPS).map(([g, v]) => el('button', { type: 'button', 'aria-pressed': String(ui.g === g), onclick: () => { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; ui.stack = []; try { localStorage.setItem('bi.g', g); } catch { /* ignore */ } ctx.onGroup?.(g); renderBiUI(root, ctx); } }, v.name)));
+  const seg = el('div', { class: 'bi-seg', role: 'group', 'aria-label': 'Grupo' }, Object.entries(GROUPS).map(([g, v]) => el('button', { type: 'button', 'aria-pressed': String(ui.g === g), title: v.name, onclick: () => { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; ui.stack = []; try { localStorage.setItem('bi.g', g); } catch { /* ignore */ } ctx.onGroup?.(g); renderBiUI(root, ctx); } }, v.name.replace(/ \(.*\)/, ''))));
   const tabs = el('div', { class: 'bi-pages', role: 'group', 'aria-label': 'Página' }, PAGES[ui.g].map(([id, label]) => el('button', { type: 'button', 'aria-pressed': String(ui.page === id), onclick: () => { ui.page = id; carrySelections(id); renderBiUI(root, ctx); } }, label)));
-  bar.append(seg, tabs);
+  bar.append(seg, el('span', { class: 'bi-sep', 'aria-hidden': 'true' }), tabs);
   wrap.append(title, bar, main);
+  const place = () => { const top = document.querySelector('header.top')?.offsetHeight ?? 64; wrap.style.setProperty('--app-top', `${top}px`); wrap.style.setProperty('--bar-h', `${bar.offsetHeight}px`); };
+  requestAnimationFrame(place); setTimeout(place, 400); window.addEventListener('resize', place);
   root.replaceChildren(wrap);
   main.append(el('p', { class: 'bi-note' }, 'Lendo a base…'));
   let base;
