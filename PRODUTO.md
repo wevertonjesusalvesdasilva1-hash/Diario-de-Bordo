@@ -309,3 +309,6 @@ Clicar numa barra de um gráfico: nos outros gráficos de colunas e barras, tudo
 
 ## Filtros do Painel BI compartilhados
 Os filtros escolhidos (Dia, Mês, Robô, Peça, Turno, períodos e filtros de cada gráfico) ficam salvos no navegador e voltam ao atualizar a página. Com a sincronização ligada, são enviados à sala da equipe (`/api/sync?bi=1`, último salvo vale) e as outras telas abertas os recebem em até 20 s, só enquanto o Painel BI está aberto e visível. Abas do mesmo navegador acompanham na hora.
+
+## Cliques do Painel BI (regra simples)
+Cada clique numa barra vira uma etiqueta visível acima dos gráficos ("Dia: 13/10/2026 · Robô: RAW10 ✕", "Turno: 1 ✕"). Os outros gráficos e os cards mostram só o que combina com todas as etiquetas; o gráfico em que se clicou continua mostrando todas as barras. Clicar de novo na barra, ou no ✕ da etiqueta, tira aquele filtro. Nenhum número muda sem uma etiqueta explicando.

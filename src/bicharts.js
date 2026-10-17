@@ -58,6 +58,7 @@ function niceMax(v) {
 export function drawChart(box, full) {
   box.replaceChildren();
   // legend as buttons: click = show only that series (click again = all); Ctrl/⌘ + click adds or removes series
+  box._full = full;   // read by the audit tests
   const only = (box._only ??= new Set()), names = [...full.series.map((s) => s.name), ...(full.line ? [full.line.name] : []), ...(full.marks ? [full.marks.name] : [])];
   for (const n of [...only]) if (!names.includes(n)) only.delete(n);
   const toggle = (name, multi) => { if (multi) { if (only.has(name)) only.delete(name); else only.add(name); } else if (only.size === 1 && only.has(name)) only.clear(); else { only.clear(); only.add(name); } drawChart(box, full); };

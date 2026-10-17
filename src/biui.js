@@ -586,7 +586,7 @@ export async function renderBiUI(root, ctx) {
         else ui.sel.keys = new Set([key]);
         if (!ui.sel.keys.size) ui.sel = ui.stack.pop() ?? null;
       }
-      else { if (ui.sel) ui.stack.push(ui.sel); ui.sel = { vid, side: sd, keys: new Set([key]), f() { const o = { p: {}, s: {} }; cols.forEach((c, i) => { o[sd][c] = new Set([...this.keys].map((k) => k.split(SEP)[i])); }); return o; } }; }
+      else { if (ui.sel) ui.stack.push(ui.sel); ui.sel = { vid, side: sd, cols, keys: new Set([key]), f() { const o = { p: {}, s: {} }; cols.forEach((c, i) => { o[sd][c] = new Set([...this.keys].map((k) => k.split(SEP)[i])); }); return o; } }; }
       drawMain();
       lastPick.t = Date.now();                                          // counted after the redraw (it can take a while on big pages)
     } };
@@ -601,9 +601,15 @@ export async function renderBiUI(root, ctx) {
   side.replaceChildren(...slicers);
   const toggle = el('button', { type: 'button', class: 'ghost bi-filters-toggle', onclick: () => side.classList.toggle('open') }, '☰ Filtros');
   const noteHost = el('div', { class: 'bi-notehost' });
-  const noteFn = () => noteHost.replaceChildren(...(ui.sel ? [el('p', { class: 'bi-note' }, `${ui.stack.length ? `${ui.stack.length + 1} filtros por clique ativos (um dentro do outro). ` : 'Filtro por clique ativo nos outros gráficos. '}Dois cliques na mesma barra abrem os registros. `, el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.sel = null; ui.stack = []; drawMain(); } }, 'Limpar clique'), ' ', el('button', { type: 'button', class: 'bi-more', onclick: openSelRecords }, 'Ver registros'))] : []));
+  // what every click is filtering, in plain words, one removable tag per click (so no number ever changes without a visible reason)
+  const COLNAME = { data: 'Dia', mes: 'Mês', m: GROUPS[ui.g].unit, t: 'Turno', pm: 'Peça', nome: 'Operador', mo: 'Motivo', c: 'Chapa' };
+  const valTxt = (c, v) => (v === '' || v == null ? '(vazio)' : c === 'data' ? dmy(v) : String(v));
+  const tagsOf = (q) => (q.cols ?? []).map((c, i) => `${COLNAME[c] ?? c}: ${[...new Set([...q.keys].map((k) => valTxt(c, k.split(SEP)[i])))].join(', ')}`).join(' · ');
+  const dropSel = (q) => { if (q === ui.sel) ui.sel = ui.stack.pop() ?? null; else ui.stack.splice(ui.stack.indexOf(q), 1); if (q.vid === 'v8') ui.t24.key = null; drawMain(); };
+  const noteFn = () => noteHost.replaceChildren(...(ui.sel ? [el('div', { class: 'bi-note bi-chips' }, el('span', {}, 'Filtrando por clique:'), ...[...ui.stack, ui.sel].map((q) => el('button', { type: 'button', class: 'bi-chip', title: 'Tirar este filtro', onclick: () => dropSel(q) }, tagsOf(q), ' ✕')), el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.sel = null; ui.stack = []; ui.t24.key = null; drawMain(); } }, 'Limpar tudo'), el('button', { type: 'button', class: 'bi-more', onclick: openSelRecords }, 'Ver registros'), el('small', { class: 'mut' }, 'O gráfico em que você clicou mostra tudo; os outros mostram só o que combina. Clique de novo na barra para tirar.'))] : []));
   let built = false;
   reloadState = () => { ui.sel = null; ui.stack = []; renderBiUI(root, ctx); };
+  if (typeof window !== 'undefined') window.__biRedraw = () => REG.forEach((r) => r.rebuild()), window.__biUi = ui;   // test hook: redraw every visual from the current state
   clearClick = () => { ui.sel = null; ui.stack = []; ui.t24.key = null; drawMain(); };
   function drawMain() {
     if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { mirror(); prune(); mirror(); drawMain(); }), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }

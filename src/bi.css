@@ -229,3 +229,9 @@ body.pbi main { overflow-x: clip; }
 .bi-ch .pick, .bi-ch .pick:focus, .bi-ch .pick:focus-visible, .bi-ch .pick:active { outline: none !important; -webkit-tap-highlight-color: transparent; }
 .bi-ch .pick:focus-visible rect { outline: none !important; }
 .bi-ch svg *:focus { outline: none !important; }
+
+/* active click filters as removable tags */
+.bi-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .5rem; }
+.bi-chip { font: inherit; font-size: .78rem; padding: .22rem .6rem; border-radius: 999px; border: 1px solid var(--pv); background: var(--accent-soft); color: var(--ink); cursor: pointer; }
+.bi-chip:hover { background: var(--pv); color: #fff; }
+.bi-chips small { flex-basis: 100%; }
