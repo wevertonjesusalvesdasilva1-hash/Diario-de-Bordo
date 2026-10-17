@@ -58,6 +58,24 @@ const PAGES = { raw: [['geral', 'Visão geral'], ['paradas', 'Paradas'], ['entre
 const ui = { t24: { open: false, key: null, only: false }, g: 'raw', page: 'geral', filt: {}, vf: {}, lead: {}, uteis: {}, multi: false, sel: null, stack: [], cubes: {} };
 // click filters pile up like in Power BI: robot 10 → "falta de peça" → the chart of that motive: each one narrows the others (ui.sel = the last, ui.stack = the ones before)
 const selFilter = () => [...ui.stack, ui.sel].filter(Boolean).reduce((a, sl) => mergeF(a, sl.f()), { p: {}, s: {} });
+// a click selection: which chart it came from, the columns it filters and the picked keys. Date, month, machine and shift picked on one side also narrow the other.
+function makeSel(vid, sd, cols, keys) {
+  return { vid, side: sd, cols, keys, f() { const o = { p: {}, s: {} }, other = sd === 'p' ? 's' : 'p'; cols.forEach((c, i) => { o[sd][c] = new Set([...this.keys].map((k) => k.split(SEP)[i])); if (SHARED.includes(c)) o[other][c] = new Set(o[sd][c]); }); return o; } };
+}
+// the same click, kept when the page changes: it lands on the chart of the new page that picks the same columns (that chart then shows it highlighted)
+const ADOPT = { geral: { 'data|m': ['v8', 'p'], m: ['v3', 'p'], t: ['v9', 'p'] }, paradas: { 'm|data': ['v1', 's'], t: ['v2', 's'], mo: ['v3', 's'], m: ['v4', 's'] }, entrega: { 'm|pm': ['t1', 'p'], pm: ['v3', 'p'] }, pessoas: { 'cf|nome': ['t1', 'p'], 'm|pm': ['t1', 'p'] } };
+function carrySelections(page) {
+  const all = [...ui.stack, ui.sel].filter(Boolean); ui.sel = null; ui.stack = []; if (page !== 'geral') ui.t24.key = null;
+  for (const q of all) {
+    const sig = q.cols.join('|'), want = [...q.cols].sort().join('|');
+    const hit = Object.entries(ADOPT[page] ?? {}).find(([k]) => k === sig) ?? Object.entries(ADOPT[page] ?? {}).find(([k]) => k.split('|').sort().join('|') === want);
+    let n;
+    if (hit) { const cols = hit[0].split('|'), idx = cols.map((c) => q.cols.indexOf(c)); n = makeSel(hit[1][0], hit[1][1], cols, new Set([...q.keys].map((k) => { const p = k.split(SEP); return idx.map((i) => p[i]).join(SEP); }))); }
+    else n = makeSel(`carry.${sig}`, q.side, q.cols, new Set(q.keys));   // no chart here picks these columns: it just filters them all (and shows in the tags)
+    if (ui.sel) ui.stack.push(ui.sel); ui.sel = n;
+  }
+}
+
 let lastPick = { vid: '', key: '', t: 0 };
 try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui.g = s; } catch { /* no storage */ }
 // the chosen filters survive a refresh and follow to the other open windows of the app
@@ -553,7 +571,7 @@ const mergeF = (a, b) => {
 export async function renderBiUI(root, ctx) {
   const wrap = el('div', { class: 'bi pn' }), bar = el('div', { class: 'bi-bar' }), title = el('h2', { class: 'bi-h2' }, 'Indicadores'), main = el('div'), side = el('aside', { class: 'bi-side' });
   const seg = el('div', { class: 'bi-seg', role: 'group', 'aria-label': 'Grupo' }, Object.entries(GROUPS).map(([g, v]) => el('button', { type: 'button', 'aria-pressed': String(ui.g === g), onclick: () => { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; ui.stack = []; try { localStorage.setItem('bi.g', g); } catch { /* ignore */ } ctx.onGroup?.(g); renderBiUI(root, ctx); } }, v.name)));
-  const tabs = el('div', { class: 'bi-pages', role: 'group', 'aria-label': 'Página' }, PAGES[ui.g].map(([id, label]) => el('button', { type: 'button', 'aria-pressed': String(ui.page === id), onclick: () => { ui.page = id; ui.sel = null; ui.stack = []; renderBiUI(root, ctx); } }, label)));
+  const tabs = el('div', { class: 'bi-pages', role: 'group', 'aria-label': 'Página' }, PAGES[ui.g].map(([id, label]) => el('button', { type: 'button', 'aria-pressed': String(ui.page === id), onclick: () => { ui.page = id; carrySelections(id); renderBiUI(root, ctx); } }, label)));
   bar.append(seg, tabs);
   wrap.append(title, bar, main);
   root.replaceChildren(wrap);
@@ -585,7 +603,7 @@ export async function renderBiUI(root, ctx) {
         else ui.sel.keys = new Set([key]);
         if (!ui.sel.keys.size) ui.sel = ui.stack.pop() ?? null;
       }
-      else { if (ui.sel) ui.stack.push(ui.sel); ui.sel = { vid, side: sd, cols, keys: new Set([key]), f() { const o = { p: {}, s: {} }; cols.forEach((c, i) => { o[sd][c] = new Set([...this.keys].map((k) => k.split(SEP)[i])); }); return o; } }; }
+      else { if (ui.sel) ui.stack.push(ui.sel); ui.sel = makeSel(vid, sd, cols, new Set([key])); }
       drawMain();
       lastPick.t = Date.now();                                          // counted after the redraw (it can take a while on big pages)
     } };

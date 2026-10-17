@@ -318,3 +318,6 @@ A janela "Base de dados" mostra uma caixa por grupo (RAW e Usinagem), cada uma c
 
 ## Subir de novo uma folha alterada
 Cada registro enviado leva o código da folha de origem. Se você altera uma folha depois de subi-la, ela ganha a etiqueta "✎ alterada depois de subir" e o passo 3 mostra "N alterada(s): subir novamente". A janela vira "Subir novamente para a base (com alterações)": a versão antiga daquela folha sai da base e entra a atual (sem duplicar e sem mexer nas outras folhas). Folhas sem alteração não são reenviadas ("Tudo já está na base"). Envios antigos, de antes desse código, são comparados com a base e trocados pelo envio inteiro. Depois do OK o rodapé some: "Desfazer OK e revisar de novo" fica ao lado das etapas, a análise é o passo 2 e a base é o passo 3.
+
+## Cliques que acompanham ao trocar de página do Painel BI
+Ao ir de uma página do Painel BI para outra (Visão geral, Paradas, …), os cliques ativos continuam: se você clicou no dia 15/10 do RAW11 na Visão geral, em Paradas o dia 15/10 do RAW11 aparece destacado no gráfico de paradas por dia e as etiquetas continuam iguais. Dia, mês, máquina e turno clicados valem para produção e paradas. Só trocar de grupo (RAW ↔ Usinagem) ou "Limpar tudo" tira os cliques.
