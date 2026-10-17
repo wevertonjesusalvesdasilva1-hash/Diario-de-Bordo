@@ -392,7 +392,6 @@ function pageGeral(x) {
       vis('DISPONIBILIDADE', () => chartBox(disp), { vid: 'v3' }), 
       vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6' }),
       
-      vis(`META X ENTREGUE POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Meta = horas que o ${u.toLowerCase()} deveria produzir (${(18.58).toString().replace('.', ',')} h por dia ativo, ${Math.round(META * 100)}% de 24 h com as pausas). Entregue = horas realmente produzidas. A diferença é o que ficou para trás.`), chartBox(metaEnt)), { vid: 't1', wide: true }),
       vis(`META X ENTREGUE · DIA + NOITE`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Cada barra soma o que foi entregue no turno do dia e no da noite (por dia ou por ${u.toLowerCase()}, na caixa ao lado); o total fica em cima, com a meta ao lado. A barra cinza ao lado é a meta: a diferença de altura entre a verde e a cinza é o que ficou para trás.`), chartBox(metaTurno)), { vid: 't1', wide: true, acts: [pctBtn, selBy] }),
       vis('PEÇAS PRODUZIDAS POR TURNO', () => chartBox(pecasTurno), { vid: 'v9' }), vis('TEMPO DAS PEÇAS PRODUZIDAS · peças e horas', () => chartBox(tempoPecas(x, 'v10')), { vid: 'v10' }),
       vis(`RESUMO POR ${u.toUpperCase()} · meta ${Math.round(META * 100)}%`, tbl, { vid: 't1', wide: true }))];
