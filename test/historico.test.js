@@ -219,3 +219,17 @@ test('API do histórico: parada com duas chapas ("12273 / 11647") volta inteira,
   assert.equal(base.stops[0].c, '12273 / 11647');
   assert.equal(base.batches[0].op, 'append');
 });
+
+test('API do histórico: folha corrigida e enviada de novo troca as linhas antigas dela, sem duplicar', async () => {
+  process.env.ACCESS_CODE = 'abc';
+  useStore(mem());
+  const a = [P({ s: 'sheetaaa1', i1: '07:00', f1: '09:00', h: 2 }), P({ s: 'sheetbbb2', i1: '13:00', f1: '15:00', h: 2 })];
+  await call({ method: 'POST', body: { g: 'raw', op: 'append', batch: 'b1', label: 'primeiro', prod: a, stops: [S({ s: 'sheetaaa1' })] } });
+  let r = await call({ method: 'POST', body: { g: 'raw', op: 'append', batch: 'b2', label: 'reenvio', resend: { sids: ['sheetaaa1'], batches: [] }, prod: [P({ s: 'sheetaaa1', i1: '07:00', f1: '09:30', h: 2.5 })], stops: [] } });
+  assert.deepEqual(r.body.removed, { prod: 1, stops: 1 });
+  const base = (await call({ query: { g: 'raw' } })).body;
+  assert.equal(base.prod.length, 2); assert.equal(base.stops.length, 0);
+  assert.ok(base.prod.some((x) => x.s === 'sheetbbb2' && x.f1 === '15:00'));   // the other sheet is untouched
+  assert.ok(base.prod.some((x) => x.s === 'sheetaaa1' && x.f1 === '09:30'));
+  assert.deepEqual(base.batches.map((b) => [b.id, b.nProd, b.nStops]), [['b1', 1, 0], ['b2', 1, 0]]);
+});

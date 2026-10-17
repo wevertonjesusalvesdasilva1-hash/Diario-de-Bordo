@@ -33,13 +33,16 @@ function cleanProd(g, r) {
   // 4th to 8th stretches of the new sheet: 'chapa|início|fim;…' (see src/core/history.js, extrasOf)
   const xs = typeof r.xs === 'string' ? r.xs.split(';').slice(0, 8).map((s) => { const [c, i, f] = s.split('|'); return [str(c ?? '', 12).replace(/[|;]/g, ''), hm(i ?? ''), hm(f ?? '')]; }).filter(([c, i, f]) => c || i || f).map((e) => e.join('|')).join(';') : '';
   if (xs) out.xs = xs;
+  if (typeof r.s === 'string' && r.s) out.s = str(r.s, 24);   // the sheet it came from, so a corrected sheet can replace its own rows
   return out;
 }
 function cleanStop(g, r) {
   r = fixM(r);
   if (!r || typeof r !== 'object' || !MACHINES[g].test(r.m) || !/^\d{4}-\d{2}-\d{2}$/.test(r.d) || !hm(r.i) || !hm(r.f)) return null;
   const t = r.t === 1 || r.t === 2 || r.t === 3 ? r.t : null;
-  return { m: r.m, d: r.d, c: str(r.c, 40), i: r.i, f: r.f, t, mo: str(r.mo), ds: str(r.ds, 300), h: num(r.h) };
+  const out = { m: r.m, d: r.d, c: str(r.c, 40), i: r.i, f: r.f, t, mo: str(r.mo), ds: str(r.ds, 300), h: num(r.h) };
+  if (typeof r.s === 'string' && r.s) out.s = str(r.s, 24);
+  return out;
 }
 
 const sameRec = (a, b) => Object.keys(a).every((k) => k === 'b' || (a[k] ?? '') === (b[k] ?? ''));
@@ -129,6 +132,16 @@ export default async function handler(req, res) {
       await store.write(`historico/${g}.bak.json`, JSON.stringify({ prod: cur.prod, stops: cur.stops, batches: cur.batches }));
       base = { ...cur, prod: [], stops: [], batches: [] };
     }
+    // a corrected sheet sent again: first take out what the same sheets brought before (by sheet id; old envios without it, by envio), so nothing is counted twice
+    let removed = { prod: 0, stops: 0 };
+    if (op === 'append' && body.resend && typeof body.resend === 'object') {
+      const sids = new Set((Array.isArray(body.resend.sids) ? body.resend.sids : []).slice(0, 500).map((x) => str(x, 24)).filter(Boolean)), bats = new Set((Array.isArray(body.resend.batches) ? body.resend.batches : []).slice(0, 50).map((x) => str(x, 40)).filter(Boolean));
+      const gone = (r) => (r.s && sids.has(r.s)) || (!r.s && r.b && bats.has(r.b));
+      const keepP = base.prod.filter((r) => !gone(r)), keepS = base.stops.filter((r) => !gone(r));
+      removed = { prod: base.prod.length - keepP.length, stops: base.stops.length - keepS.length };
+      const cnt = (rows) => { const m = new Map(); for (const r of rows) m.set(r.b, (m.get(r.b) || 0) + 1); return m; }, cp = cnt(keepP), cs = cnt(keepS);
+      base = { ...base, prod: keepP, stops: keepS, batches: base.batches.map((x) => ({ ...x, nProd: cp.get(x.id) || 0, nStops: cs.get(x.id) || 0 })).filter((x) => x.nProd + x.nStops > 0) };
+    }
     // identical rows are kept when they repeat inside the same envio; only copies already in the base (from other envios) are skipped
     const have = (rows, kf) => { const m = new Map(); for (const r of rows) if (r.b !== batch) { const k = kf(r); m.set(k, (m.get(k) || 0) + 1); } return m; };
     const pick = (rows, kf, m) => { const add = [], seen = new Map(); let dup = 0; for (const r of rows) { if (!r) continue; const k = kf(r), n = (seen.get(k) || 0) + 1; seen.set(k, n); if (n <= (m.get(k) || 0)) { dup++; continue; } add.push({ ...r, b: batch }); } return [add, dup]; };
@@ -139,7 +152,7 @@ export default async function handler(req, res) {
       : [...base.batches, { id: batch, at: new Date().toISOString(), label: str(body.label, 120) || 'Envio', op: body.op === 'replace' ? 'replace' : 'append', nProd: addP.length, nStops: addS.length }];
     const next = { ...base, prod: [...base.prod, ...addP], stops: [...base.stops, ...addS], batches: batches.slice(-200) };
     await write(g, { ...next, rev: cur.rev });
-    return send(res, 200, { rev: cur.rev + 1, batch, added: { prod: addP.length, stops: addS.length }, dup: { prod: dupP, stops: dupS }, invalid, total: { prod: next.prod.length, stops: next.stops.length } });
+    return send(res, 200, { rev: cur.rev + 1, batch, added: { prod: addP.length, stops: addS.length }, dup: { prod: dupP, stops: dupS }, removed, invalid, total: { prod: next.prod.length, stops: next.stops.length } });
   } catch (e) {
     return send(res, 500, { error: `Falha no histórico: ${String(e.message).slice(0, 120)}` });
   }

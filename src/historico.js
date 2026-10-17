@@ -27,15 +27,15 @@ export const cachedBase = (g) => mem[g];
 
 const CHUNK = 1500;
 // sends records in chunks small enough for one request each. op: 'append' (default) or 'replace' (the first chunk replaces the base)
-export async function sendRecords(g, { prod = [], stops = [], label = 'Envio', batch = `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, op = 'append', confirm = false, onProgress } = {}) {
-  const total = { added: { prod: 0, stops: 0 }, dup: { prod: 0, stops: 0 }, invalid: 0, batch };
+export async function sendRecords(g, { prod = [], stops = [], label = 'Envio', batch = `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, op = 'append', confirm = false, resend, onProgress } = {}) {
+  const total = { added: { prod: 0, stops: 0 }, dup: { prod: 0, stops: 0 }, removed: { prod: 0, stops: 0 }, invalid: 0, batch };
   const chunks = [];
   for (let i = 0; i < Math.max(prod.length, stops.length, 1); i += CHUNK) chunks.push({ prod: prod.slice(i, i + CHUNK), stops: stops.slice(i, i + CHUNK) });
   for (let i = 0; i < chunks.length; i++) {
-    const r = await apiSend('POST', '/api/historico', { g, op: i === 0 ? op : 'append', confirm: i === 0 ? confirm : undefined, batch, label, ...chunks[i] });
+    const r = await apiSend('POST', '/api/historico', { g, op: i === 0 ? op : 'append', confirm: i === 0 ? confirm : undefined, resend: i === 0 ? resend : undefined, batch, label, ...chunks[i] });
     if (!r.ok) await fail(r);
     const b = await json(r);
-    total.added.prod += b.added.prod; total.added.stops += b.added.stops; total.dup.prod += b.dup.prod; total.dup.stops += b.dup.stops; total.invalid += b.invalid;
+    total.added.prod += b.added.prod; total.added.stops += b.added.stops; total.dup.prod += b.dup.prod; total.dup.stops += b.dup.stops; total.invalid += b.invalid; if (b.removed) { total.removed.prod += b.removed.prod; total.removed.stops += b.removed.stops; }
     onProgress?.((i + 1) / chunks.length);
   }
   mem[g] = null; // changed: the next read downloads the new base

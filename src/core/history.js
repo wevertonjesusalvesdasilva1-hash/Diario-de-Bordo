@@ -116,16 +116,21 @@ export function recordsFromPages(pages) {
     for (const r of p.prod ?? []) {
       const rec = prodRecord({ m: machine, d: r.data || p.date, p: r.peca, o: r.modelo, c1: r.chapa1, i1: r.ini1, f1: r.fim1, c2: r.chapa2, i2: r.ini2, f2: r.fim2, c3: r.chapa3, i3: r.ini3, f3: r.fim3, t: r.turno, ob: r.obs });
       if (!rec.d || !(rec.i1 || rec.i2 || rec.i3)) { if (rec.i1 || rec.p) skipped.push({ page: p.label, why: `produção da linha ${r.linha || '?'} sem data ou horário` }); continue; }
+      if (p.sid) rec.s = p.sid;
       prod.push(rec);
     }
     for (const r of p.stops ?? []) {
       const rec = stopRecord({ m: machine, d: r.data || p.date, c: r.chapa, i: r.ini, f: r.fim, t: r.turno, mo: r.motivo, ds: r.desc });
       if (!rec.d || !rec.i || !rec.f) { if (rec.i || rec.f || rec.mo) skipped.push({ page: p.label, why: `parada da linha ${r.linha || '?'} sem data ou horário` }); continue; }
+      if (p.sid) rec.s = p.sid;
       stops.push(rec);
     }
   }
   return { prod, stops, skipped };
 }
+
+// a fingerprint of what one sheet would send to the base: when it differs from the one saved at the last envio, the sheet was changed after being sent
+export const pageSig = (p) => { const r = recordsFromPages([p]); return JSON.stringify([r.prod, r.stops]); };
 
 // merge new records into the ones already in the base: nothing is ever counted twice (same key = same record)
 export function mergeRecords(existing, incoming, batch) {

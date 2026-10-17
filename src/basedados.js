@@ -1,6 +1,6 @@
 // The "base de dados" screens: submit the validated sheets, import the Excel history, and see/undo what went in.
 import { auditData } from './core/audit.js';
-import { recordsFromPages, mergeRecords, parseHistoryWorkbook, groupOfMachine, dmy, auditDays } from './core/history.js';
+import { recordsFromPages, mergeRecords, parseHistoryWorkbook, groupOfMachine, dmy, auditDays, pageSig } from './core/history.js';
 import { loadBase, sendRecords, undoBatch, restoreBase, emptyBase } from './historico.js';
 
 function h(tag, attrs = {}, ...kids) {
@@ -32,7 +32,7 @@ function modal(title, body, { wide = false, onClose } = {}) {
 // ctx: { pages (the selected sheets), reviewed, flagsOf(page), toast, onDone({ g, batch, pages, result }), goRead() }
 export async function openSubmit(ctx, force = false) {
   const body = h('div', { class: 'bd-body' }, h('p', { class: 'note' }, 'Conferindo o que vai para a base…'));
-  const { close } = modal(force ? 'Subir para a base de dados (mesmo com dúvidas)' : 'Subir para a base de dados', body);
+  const { close, box: dlg } = modal(force ? 'Subir para a base de dados (mesmo com dúvidas)' : 'Subir para a base de dados', body);
   const anyway = () => h('button', { type: 'button', class: 'ghost', title: 'Sobe mesmo assim, com as dúvidas que ficaram', onclick: () => { close(); openSubmit(ctx, true); } }, 'Subir mesmo assim');
   const risks = [];   // what goes in unconfirmed (only filled when the person chose to go on anyway)
   try {
@@ -50,13 +50,29 @@ export async function openSubmit(ctx, force = false) {
       return;
     }
     const groups = ['raw', 'usi'].map((g) => ({ g, pages: pages.filter((p) => groupOfMachine(p.machine) === g) })).filter((x) => x.pages.length);
-    const plans = [];
+    const plans = [], same = [];
+    const everyone = ctx.allPages ?? pages;
     for (const x of groups) {
-      const recs = recordsFromPages(x.pages);
       const base = await loadBase(x.g).catch((e) => { throw new Error(`${GNAME[x.g]}: ${e.message}`); });
-      const merged = mergeRecords(base, recs);
-      plans.push({ ...x, recs, merged });
+      // sheets already sent: still equal to what is in the base (nothing to do), or changed since (they replace their old rows), or new
+      const sids = [], batches = new Set(), send = [], unchanged = [];
+      for (const p of x.pages) {
+        if (!p.submitted || p.submitted.g !== x.g) { send.push(p); continue; }
+        if (p.submitted.sig) { if (p.submitted.sig === pageSig(p)) unchanged.push(p); else { send.push(p); sids.push(p.sid); } continue; }
+        // sent before sheets were tied to their rows: compare the whole old envio with the base
+        const b = p.submitted.batch, sib = everyone.filter((q) => q.submitted?.batch === b && q.submitted.g === x.g), rows = { prod: base.prod.filter((r) => r.b === b), stops: base.stops.filter((r) => r.b === b) }, rc = recordsFromPages(sib), mm = mergeRecords(rows, rc);
+        if (!mm.added.prod && !mm.added.stops && rows.prod.length === rc.prod.length && rows.stops.length === rc.stops.length) unchanged.push(p);
+        else { batches.add(b); for (const q of sib) if (!send.includes(q)) send.push(q); }
+      }
+      const gone = (r) => (r.s && sids.includes(r.s)) || (!r.s && r.b && batches.has(r.b)), base2 = { ...base, prod: base.prod.filter((r) => !gone(r)), stops: base.stops.filter((r) => !gone(r)) };
+      const removed = { prod: base.prod.length - base2.prod.length, stops: base.stops.length - base2.stops.length };
+      if (!send.length) { same.push(...unchanged); continue; }
+      const recs = recordsFromPages(send), merged = mergeRecords(base2, recs);
+      plans.push({ ...x, pages: send, recs, merged, removed, resend: sids.length || batches.size ? { sids: [...sids, ...send.filter((p) => !p.submitted?.sig && p.submitted).map((p) => p.sid)], batches: [...batches] } : null, changed: send.filter((p) => p.submitted).length, unchanged });
     }
+    if (!plans.length) { body.replaceChildren(h('p', { class: 'bd-good' }, '✓ Tudo isso já está na base, sem alterações desde o último envio.'), h('p', { class: 'note' }, `${same.length} folha(s) conferidas: o que está nelas é igual ao que foi enviado.`), h('div', { class: 'bd-btns' }, h('button', { type: 'button', class: 'primary', onclick: close }, 'Fechar'))); return; }
+    const resending = plans.some((p) => p.changed);
+    if (resending) dlg.querySelector('h3').textContent = force ? 'Subir novamente para a base (com alterações e dúvidas)' : 'Subir novamente para a base (com alterações)';
     // a machine cannot run more than 24 h in a day: block the envio when the days touched by these sheets would pass it
     const over = plans.flatMap((p) => { const touched = new Set([...p.recs.prod, ...p.recs.stops].map((r) => `${r.d}|${r.m}`)); const next = (d) => new Date(Date.parse(`${d}T12:00:00Z`) + 86400000).toISOString().slice(0, 10); return auditDays(p.merged.prod, p.merged.stops, (m, d) => touched.has(`${d}|${m}`) || touched.has(`${new Date(Date.parse(`${d}T12:00:00Z`) - 86400000).toISOString().slice(0, 10)}|${m}`)); });
     if (force && over.length) risks.push(`${over.length} dia(s) de máquina passam de 24 h (produção + paradas): confira depois em Painel BI → Plano de ação.`);
@@ -71,14 +87,15 @@ export async function openSubmit(ctx, force = false) {
     // things to look at (they do not stop the envio): the other checks of the audit, only for the machine-days of these sheets
     const warn = plans.flatMap((p) => { const touched = new Set([...p.recs.prod, ...p.recs.stops].map((r) => `${r.d}|${r.m}`)), keep = (r) => touched.has(`${r.d}|${r.m}`); return auditData({ prod: p.merged.prod.filter(keep), stops: p.merged.stops.filter(keep) }).filter((c) => c.count && c.level !== 'info' && !['p-std', 'd-24', 's-nolink', 's-prod', 'p-eff', 's-mot'].includes(c.id)).map((c) => `${GNAME[p.g]}: ${c.count} · ${c.title}`); });
     const total = plans.reduce((n, p) => n + p.merged.added.prod + p.merged.added.stops, 0);
-    const ok = h('input', { type: 'checkbox', id: 'bd-ok' }), go = h('button', { type: 'button', class: 'primary', disabled: true }, 'Sim, subir para a base');
+    const ok = h('input', { type: 'checkbox', id: 'bd-ok' }), go = h('button', { type: 'button', class: 'primary', disabled: true }, resending ? 'Sim, subir novamente' : 'Sim, subir para a base');
     ok.addEventListener('change', () => { go.disabled = !ok.checked || !total; });
     const skipped = plans.flatMap((p) => p.recs.skipped);
     body.replaceChildren(
       h('p', {}, 'Confira o que vai entrar na base de dados (o histórico usado nos painéis BI):'),
       h('table', { class: 'bd-tab' }, h('thead', {}, h('tr', {}, ['Base', 'Folhas', 'Produção (novas)', 'Paradas (novas)', 'Já estavam na base'].map((t) => h('th', {}, t)))),
-        h('tbody', {}, plans.map((p) => h('tr', {}, h('td', {}, GNAME[p.g]), h('td', {}, String(p.pages.length)), h('td', {}, `${p.merged.added.prod} de ${p.recs.prod.length}`), h('td', {}, `${p.merged.added.stops} de ${p.recs.stops.length}`),
+        h('tbody', {}, plans.map((p) => h('tr', {}, h('td', {}, GNAME[p.g]), h('td', {}, String(p.pages.length), p.changed ? h('small', {}, ` (${p.changed} já enviada(s) e alterada(s))`) : ''), h('td', {}, `${p.merged.added.prod} de ${p.recs.prod.length}`), h('td', {}, `${p.merged.added.stops} de ${p.recs.stops.length}`),
           h('td', {}, `${p.merged.dup.prod} produção(ões) · ${p.merged.dup.stops} paradas`))))),
+      plans.some((p) => p.removed.prod + p.removed.stops) ? h('p', { class: 'note' }, 'Estas folhas já estavam na base. A versão antiga delas sai e entra a atual (', plans.filter((p) => p.removed.prod + p.removed.stops).map((p) => `${GNAME[p.g]}: troca ${nf(p.removed.prod)} produções e ${nf(p.removed.stops)} paradas`).join(' · '), '). Dá para desfazer pelo Painel BI → Base de dados → Versões.') : '',
       skipped.length ? h('details', { class: 'bd-skip' }, h('summary', {}, `${skipped.length} linha(s) ficam de fora (sem data ou horário)`), h('ul', {}, skipped.map((s) => h('li', {}, `${s.page}: ${s.why}`)))) : '',
       risks.length ? h('details', { class: 'bd-skip', open: true }, h('summary', {}, `Vai subir com dúvidas (${risks.length})`), h('ul', {}, risks.map((w) => h('li', {}, w))), h('p', { class: 'note' }, 'Depois dá para corrigir na aba Base de dados ou desfazer este envio.')) : '',
       warn.length ? h('details', { class: 'bd-skip', open: true }, h('summary', {}, `Para conferir (${warn.length}) — não impede o envio`), h('ul', {}, warn.map((w) => h('li', {}, w))), h('p', { class: 'note' }, 'Veja os detalhes depois, em Painel BI → Auditoria dos dados.')) : '',
@@ -90,12 +107,12 @@ export async function openSubmit(ctx, force = false) {
       const done = [];
       try {
         for (const p of plans) {
-          const res = await sendRecords(p.g, { prod: p.recs.prod, stops: p.recs.stops, label: `${force ? '(com dúvidas) ' : ''}${p.pages.length} folha(s): ${p.pages.map((x) => x.label.replace(/ · pág\./, ' p.')).slice(0, 3).join(', ')}${p.pages.length > 3 ? '…' : ''}` });
+          const res = await sendRecords(p.g, { prod: p.recs.prod, stops: p.recs.stops, resend: p.resend ?? undefined, label: `${p.changed ? 'Reenvio com alterações · ' : ''}${force ? '(com dúvidas) ' : ''}${p.pages.length} folha(s): ${p.pages.map((x) => x.label.replace(/ · pág\./, ' p.')).slice(0, 3).join(', ')}${p.pages.length > 3 ? '…' : ''}` });
           done.push({ g: p.g, pages: p.pages, result: res });
           ctx.onDone({ g: p.g, batch: res.batch, pages: p.pages, result: res });
         }
         body.replaceChildren(h('p', { class: 'bd-good' }, '✓ Pronto, está na base de dados.'),
-          h('ul', {}, done.map((d) => h('li', {}, `${GNAME[d.g]}: ${d.result.added.prod} produção(ões) e ${d.result.added.stops} paradas novas${d.result.dup.prod + d.result.dup.stops ? ` (${d.result.dup.prod + d.result.dup.stops} já estavam)` : ''}.`))),
+          h('ul', {}, done.map((d) => h('li', {}, `${GNAME[d.g]}: ${d.result.removed?.prod + d.result.removed?.stops ? `${d.result.removed.prod} produção(ões) e ${d.result.removed.stops} paradas antigas trocadas por ` : ''}${d.result.added.prod} produção(ões) e ${d.result.added.stops} paradas novas${d.result.dup.prod + d.result.dup.stops ? ` (${d.result.dup.prod + d.result.dup.stops} já estavam)` : ''}.`))),
           h('p', { class: 'note' }, 'Se foi sem querer, use "Desfazer" na tela da base de dados (aba BI).'), h('div', { class: 'bd-btns' }, h('button', { type: 'button', class: 'primary', onclick: close }, 'Fechar')));
       } catch (e) {
         body.append(h('p', { class: 'bd-warn' }, `Não consegui terminar: ${e.message}`)); go.disabled = false; ok.disabled = false; go.textContent = 'Tentar de novo';

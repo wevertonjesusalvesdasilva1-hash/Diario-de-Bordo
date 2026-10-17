@@ -74,6 +74,7 @@
           <li><button id="tab-read" type="button" class="step on" aria-current="step"><i>1</i><span>Enviar e conferir</span></button></li>
           <li><button id="tab-analysis" type="button" class="step" disabled><i>2</i><span>Análise <small id="tab-lock">precisa do OK</small></span></button></li>
           <li><button id="step-base" type="button" class="step" disabled><i>3</i><span>Subir para a base <small id="step-base-st"></small></span></button></li>
+          <li class="undo-li"><button id="undook" type="button" class="ghost" hidden title="Volta para a conferência; a análise some até o próximo OK">↩ Desfazer OK e revisar de novo</button></li>
         </ol>
       </div>
 
@@ -171,9 +172,6 @@
             <p class="note" id="okstate"></p>
           </div>
           <div class="row okbtns">
-            <button id="undook" type="button" class="ghost" hidden>← Desfazer OK e revisar de novo</button>
-            <button id="submitbase" type="button" class="base" hidden title="Confirma que o preenchimento está finalizado e envia as folhas para o histórico (base de dados)">Subir para a base de dados</button>
-            <button id="viewanalysis" type="button" class="primary" hidden>Ver análise →</button>
             <button id="ok" type="button" class="primary">Revisei tudo · dar OK e gerar análise</button>
           </div>
         </section>

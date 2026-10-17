@@ -974,3 +974,5 @@ body.has-actionbar #toast { bottom: 9.5rem; }
 .flip.gold .story b { color: var(--gold); }
 :root[data-theme="light"] .flip.gold .story b, :root[data-theme="light"] .gapof { color: var(--gold-lo); }
 @media (prefers-color-scheme: light) { :root:not([data-theme]) .flip.gold .story b, :root:not([data-theme]) .gapof { color: var(--gold-lo); } }
+
+.stepper li.undo-li { margin-left: auto; } .stepper li.undo-li::before { display: none; } .stepper li.undo-li button { font-size: .8rem; padding: .35rem .7rem; }

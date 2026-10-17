@@ -21,7 +21,7 @@ import { decodeEntities } from './core/text.js';
 import { KINDS } from './core/report.js';
 import { buildGapCards, TURNOS } from './core/gaps.js';
 import { loadBase } from './historico.js';
-import { recordsFromPages } from './core/history.js';
+import { recordsFromPages, pageSig } from './core/history.js';
 import { parseOperatorRows, getOperators, setOperators, clearOperators, operatorName } from './core/operators.js';
 import * as XLSX from 'xlsx';
 import { recordEdit, recordRemoval, describeEdit } from './core/edits.js';
@@ -520,6 +520,7 @@ function renderPage(p) {
         p.machine && !machinesFor(p).includes(p.machine) ? h('option', { value: p.machine, selected: true }, p.machine) : null) : null,
       p.status === 'ok' && p.date ? h('span', { class: 'meta' }, p.date.slice(0, 5)) : null,
       p.machineFlag ? h('span', { class: 'tag bad' }, p.machineFlag) : null,
+      p.submitted?.sig && p.submitted.sig !== pageSig(p) ? h('span', { class: 'tag warn', title: 'Você alterou esta folha depois de enviá-la. Use "Subir novamente" (passo 3) para trocar a versão da base.' }, '✎ alterada depois de subir') : null,
       p.submitted ? h('span', { class: 'tag ok', title: `Enviada para a base de dados em ${new Date(p.submitted.at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` }, '✓ na base') : null,
       p.single ? h('span', { class: 'tag bad' }, 'só 1 leitura (a outra falhou)') : null,
       p.geomWarn ? h('span', { class: 'tag' }, 'grade da folha não reconhecida: confira os motivos') : null,
@@ -838,8 +839,8 @@ function resetReview(edited = false) {
 
 function updateReviewUi() {
   const any = okPages().length > 0;
-  $('okbox').hidden = !any;
-  document.body.classList.toggle('has-actionbar', any && state.tab === 'read');
+  $('okbox').hidden = !any || state.reviewed;   // once approved, the bar goes away: undoing the OK lives in the toolbar, analysis and base are steps 2 and 3
+  document.body.classList.toggle('has-actionbar', any && !state.reviewed && state.tab === 'read');
   $('tab-analysis').disabled = !state.reviewed;
   $('tab-lock').textContent = state.reviewed ? 'aprovada' : 'precisa do OK';
   $('okbox').classList.toggle('done', state.reviewed);
@@ -849,14 +850,13 @@ function updateReviewUi() {
     : 'Confira as linhas marcadas. A análise só sai depois do seu OK.';
   if (!$('ok').dataset.sure) $('ok').textContent = 'Revisei tudo · dar OK e gerar análise';
   $('ok').hidden = state.reviewed;
-  $('viewanalysis').hidden = !state.reviewed;
   $('undook').hidden = !state.reviewed;
-  $('submitbase').hidden = !state.pages.length;   // always there once a sheet is read; the screen says what is still in doubt and offers "subir mesmo assim"
+  $('undook').textContent = `↩ Desfazer OK${at ? ` (aprovado às ${at})` : ''} e revisar de novo`;
   // step 3 of the stepper: same action as the button of the action bar
-  const inc = includedPages(), sent = inc.length && inc.every((p) => p.submitted);
+  const inc = includedPages(), sent = inc.length && inc.every((p) => p.submitted), dirty = inc.filter((p) => p.submitted?.sig && p.submitted.sig !== pageSig(p)).length;
   $('step-base').disabled = !state.pages.length;
-  $('step-base').classList.toggle('done', !!sent);
-  $('step-base-st').textContent = sent ? 'enviadas' : '';
+  $('step-base').classList.toggle('done', !!sent && !dirty);
+  $('step-base-st').textContent = dirty ? `${dirty} alterada(s): subir novamente` : sent ? 'enviadas' : '';
   $('tab-analysis').classList.toggle('done', state.reviewed);
 }
 
@@ -1298,11 +1298,10 @@ $('settings').addEventListener('click', (e) => { if (e.target === $('settings'))
 // ---------------------------------------------------------------- base de dados (histórico) e BI
 function openSubmitBase() {
   openSubmit({
-    pages: includedPages(), reviewed: state.reviewed, flagsOf: countFlags, toast, goRead: () => showTab('read'),
-    onDone: ({ g, batch, pages, result }) => { state.gapsFor = ''; for (const p of pages) { p.submitted = { g, batch, at: new Date().toISOString(), prod: result.added.prod, stops: result.added.stops }; renderPage(p); } persist(0); if (state.tab === 'panel') renderBi(); },
+    pages: includedPages(), allPages: state.pages, reviewed: state.reviewed, flagsOf: countFlags, toast, goRead: () => showTab('read'),
+    onDone: ({ g, batch, pages, result }) => { state.gapsFor = ''; for (const p of pages) { p.submitted = { g, batch, at: new Date().toISOString(), v: 2, sig: pageSig(p), prod: result.added.prod, stops: result.added.stops }; renderPage(p); } persist(0); if (state.tab === 'panel') renderBi(); },
   });
 }
-$('submitbase').addEventListener('click', openSubmitBase);
 $('step-base').addEventListener('click', openSubmitBase);
 function renderBi() {
   if (viewGroup !== 'all') setBiGroup(viewGroup);   // "Visualizar" (RAW / Usinagem) also picks the BI group
@@ -1310,7 +1309,6 @@ function renderBi() {
 }
 
 $('ok').addEventListener('click', giveOk);
-$('viewanalysis').addEventListener('click', () => goSection('analysis'));
 $('undook').addEventListener('click', () => { resetReview(false); showTab('read'); toast('OK desfeito. Revise de novo e dê o OK quando terminar.'); persist(0); });
 $('tab-read').addEventListener('click', () => showTab('read'));
 $('tab-analysis').addEventListener('click', () => { if (state.reviewed) goSection('analysis'); });
