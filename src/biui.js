@@ -22,7 +22,7 @@ const SEP = '\u0001';
 let curVid = null;
 const hlWrap = (vid, build) => () => {
   const f = build();
-  if (!ui.sel || ui.sel.vid === vid || f.kind === 'area' || !f.cats || !f.series) return f;
+  if (!ui.sel || ui.sel.vid === vid || f.kind === 'area' || f.noHl || !f.cats || !f.series) return f;
   ui.noSel = true; let full; try { full = build(); } finally { ui.noSel = false; }
   const idx = new Map(f.cats.map((c, i) => [c.key, i]));
   for (const s of full.series) { const sf = f.series.find((q) => q.name === s.name); s.hl = full.cats.map((c) => { const i = idx.get(c.key); return i == null ? 0 : sf?.vals[i] ?? 0; }); }
@@ -358,7 +358,7 @@ function pageGeral(x) {
     const tot = ms.map((g, i) => dia[i] + noite[i] + outro[i]);
     const pc = (v, k) => (meta[k] ? v / meta[k] : 0), P = (arr) => arr.map((v, k) => pc(v, k));   // everything as a share of the planned (meta = 100 %)
     const W = (arr) => (metaPct ? P(arr) : arr);
-    return { cats: ms.map((g) => ({ key: g.vals[0], label: lab(g.vals[0]) })), stacked: true, height: 320, fmt: metaPct ? fpct0 : f1, marks: { name: 'Meta', vals: metaPct ? meta.map(() => 1) : meta, texts: metaPct ? meta.map((m) => `${fint(m)} h`) : undefined, noText: metaBy === 'dia', color: '#e2e8f0' },
+    return { cats: ms.map((g) => ({ key: g.vals[0], label: lab(g.vals[0]) })), stacked: true, noHl: true, height: 320, fmt: metaPct ? fpct0 : f1, marks: { name: 'Meta', vals: metaPct ? meta.map(() => 1) : meta, noText: metaBy === 'dia', color: '#e2e8f0' },
       series: [{ name: 'Turno do dia', vals: W(dia), color: '#86efac' }, { name: 'Turno da noite', vals: W(noite), color: '#14532d' }, ...(outro.some((v) => v > 0.05) ? [{ name: 'Sem turno', vals: W(outro), color: '#94a3b8' }] : [])],
       tip: (k) => `${metaBy === 'dia' ? dmy(ms[k].vals[0]) : ms[k].vals[0]} · dia ${f1(dia[k])} h + noite ${f1(noite[k])} h = ${f1(tot[k])} h de ${f1(meta[k])} h (${fpct(meta[k] ? tot[k] / meta[k] : 0)}) · ${meta[k] - tot[k] >= 0 ? `faltaram ${f1(meta[k] - tot[k])} h` : `passou ${f1(tot[k] - meta[k])} h da meta`}`,
       onPick: x.pick('t1', 'p', [col]), selected: x.selOf('t1') }; };
