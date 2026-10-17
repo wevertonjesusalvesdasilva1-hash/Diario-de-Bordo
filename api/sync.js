@@ -8,6 +8,7 @@ import { getStore, useStore } from './_store.js';
 import { accessRequired, checkAccess } from './_auth.js';
 
 const STATE = 'sala/estado.json';
+const BI = 'sala/bi.json';
 const ASSET = /^[a-z0-9]{6,24}\.(sheet|strips)$/;
 const send = (res, status, body) => res.status(status).setHeader('Cache-Control', 'no-store').json(body);
 
@@ -29,6 +30,19 @@ export default async function handler(req, res) {
   if (!store.ok()) return send(res, 503, { error: 'Sincronização não configurada no servidor' });
   const q = req.query ?? {};
   try {
+    if (q.bi !== undefined) {   // the filters of the BI panel: tiny, last save wins, so every screen shows the same
+      let cur = { rev: 0, text: '' };
+      try { const t = await store.read(BI); if (t) cur = JSON.parse(t); } catch { /* empty */ }
+      if (req.method === 'GET') return Number(q.rev) === cur.rev && cur.rev > 0 ? send(res, 200, { rev: cur.rev }) : send(res, 200, cur);
+      if (req.method === 'PUT') {
+        const text = String(req.body?.text ?? '');
+        if (!text || text.length > 60000) return send(res, 400, { error: 'Filtros inválidos' });
+        const next = { rev: cur.rev + 1, text, at: new Date().toISOString() };
+        await store.write(BI, JSON.stringify(next));
+        return send(res, 200, { rev: next.rev });
+      }
+      return send(res, 405, { error: 'Método não permitido' });
+    }
     if (q.asset !== undefined) {
       if (!ASSET.test(q.asset)) return send(res, 400, { error: 'Imagem inválida' });
       const path = `sala/a/${q.asset}`;

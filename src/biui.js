@@ -2,6 +2,8 @@
 import './bi.css';
 import { buildCube, slice, M, corEfic, options, optionsFor, auditoria24, dayRows, cardsBI, anomalias, destaques, withP, withS, groupP, groupS, pareto, ganhoTexto, variacaoTexto, selecionado, META } from './core/bi.js';
 import { dmy, dayLoads, historyStandardOf, spanHours, pairsOf } from './core/history.js';
+import { apiGet, apiSend } from './api.js';
+import { syncWanted } from './sync.js';
 import { loadBase, matrixRev } from './historico.js';
 import { recordsEditor } from './dbeditor.js';
 import { getOperators, operatorName } from './core/operators.js';
@@ -61,10 +63,18 @@ try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui
 const STATE_KEY = 'bi.state', enc = (o) => JSON.stringify(o, (k, v) => (v instanceof Set ? { __set: [...v] } : v)), dec = (t) => JSON.parse(t, (k, v) => (v && v.__set ? new Set(v.__set) : v));
 let lastSaved = '', reloadState = null;
 function loadState(t) { try { const o = t ? dec(t) : null; if (o) { ui.filt = o.filt ?? {}; ui.uteis = o.uteis ?? {}; ui.vf = o.vf ?? {}; lastSaved = t; } } catch { /* ignore */ } }
-function saveState() { try { const t = enc({ filt: ui.filt, uteis: ui.uteis, vf: ui.vf }); if (t !== lastSaved) { lastSaved = t; localStorage.setItem(STATE_KEY, t); } } catch { /* no storage */ } }
+let biRev = 0, biPush = 0;
+function saveState() { try { const t = enc({ filt: ui.filt, uteis: ui.uteis, vf: ui.vf }); if (t !== lastSaved) { lastSaved = t; localStorage.setItem(STATE_KEY, t); shareState(t); } } catch { /* no storage */ } }
+// other computers: the same filters go to the shared room (last save wins) and are looked for every 20 s while the panel is open
+function shareState(t) { if (!syncWanted()) return; clearTimeout(biPush); biPush = setTimeout(async () => { try { const r = await apiSend('PUT', '/api/sync?bi=1', { text: t }); if (r.ok) biRev = (await r.json()).rev ?? biRev; } catch { /* offline */ } }, 600); }
+async function pollShared() {
+  if (document.hidden || !syncWanted() || !document.querySelector('.bi')) return;
+  try { const r = await apiGet(`/api/sync?bi=1&rev=${biRev}`); if (!r.ok) return; const b = await r.json(); if (b.text && b.rev !== biRev) { biRev = b.rev; if (b.text !== lastSaved) { loadState(b.text); try { localStorage.setItem(STATE_KEY, b.text); } catch { /* ignore */ } reloadState?.(); } } } catch { /* offline */ }
+}
 try { loadState(localStorage.getItem(STATE_KEY)); } catch { /* no storage */ }
 if (typeof document !== 'undefined') {
   for (const ev of ['click', 'change', 'keyup']) document.addEventListener(ev, () => setTimeout(saveState, 120));
+  setInterval(pollShared, 20000); setTimeout(pollShared, 2500);
   window.addEventListener('storage', (e) => { if (e.key === STATE_KEY && e.newValue && e.newValue !== lastSaved) { loadState(e.newValue); reloadState?.(); } });
 }
 

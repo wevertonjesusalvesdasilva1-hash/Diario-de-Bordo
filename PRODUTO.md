@@ -305,3 +305,7 @@ Clicar numa barra de um gráfico: nos outros gráficos de colunas e barras, tudo
 - **Cores do BI:** visual mais limpo e sólido (azul aço para produção, sem brilho neon). **Tudo que é parada ou perda de produção é vermelho**: barras de paradas, dias com muita parada, cartão "Horas paradas". O total aparece em cima de **todas** as barras do gráfico de 24 h, não só das que passam do limite.
 - O gráfico "Produtividade por robô/máquina · por dia" foi removido da Visão geral (a pedido).
 - **Tela parada ao clicar (garantido por medição):** ao redesenhar, o app prende o primeiro gráfico visível na mesma posição da tela, mesmo que algo acima dele (alertas, faixa de filtros, cartões) mude de altura. Medido em todos os gráficos das 4 páginas: 0 px de movimento.
+
+
+## Filtros do Painel BI compartilhados
+Os filtros escolhidos (Dia, Mês, Robô, Peça, Turno, períodos e filtros de cada gráfico) ficam salvos no navegador e voltam ao atualizar a página. Com a sincronização ligada, são enviados à sala da equipe (`/api/sync?bi=1`, último salvo vale) e as outras telas abertas os recebem em até 20 s, só enquanto o Painel BI está aberto e visível. Abas do mesmo navegador acompanham na hora.

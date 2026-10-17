@@ -67,3 +67,14 @@ test('compartilhar: separa as imagens do estado e junta de volta sem perder nada
   assert.equal(merged[0].sheet, 'data:SHEET'); assert.equal(merged[0].prod[0].strip, 'data:S1'); assert.equal(merged[0].stops[0].strip, 'data:S2');
   assert.deepEqual(missingAssets(mergeRemote(lite, {})), [sid]);
 });
+
+test('sincronização: os filtros do painel são compartilhados (o último salvo vale)', async () => {
+  process.env.ACCESS_CODE = 'abc';
+  useStore(mem());
+  assert.deepEqual((await run({ query: { bi: '1' } })).body, { rev: 0, text: '' });
+  let r = await run({ method: 'PUT', query: { bi: '1' }, body: { text: '{"filt":{}}' } });
+  assert.equal(r.code, 200); assert.equal(r.body.rev, 1);
+  assert.deepEqual((await run({ query: { bi: '1', rev: '1' } })).body, { rev: 1 });
+  assert.equal((await run({ query: { bi: '1', rev: '0' } })).body.text, '{"filt":{}}');
+  assert.equal((await run({ method: 'PUT', query: { bi: '1' }, body: { text: '' } })).code, 400);
+});
