@@ -57,6 +57,16 @@ const ui = { t24: { open: false, key: null, only: false }, g: 'raw', page: 'gera
 const selFilter = () => [...ui.stack, ui.sel].filter(Boolean).reduce((a, sl) => mergeF(a, sl.f()), { p: {}, s: {} });
 let lastPick = { vid: '', key: '', t: 0 };
 try { const s = localStorage.getItem('bi.g'); if (s === 'raw' || s === 'usi') ui.g = s; } catch { /* no storage */ }
+// the chosen filters survive a refresh and follow to the other open windows of the app
+const STATE_KEY = 'bi.state', enc = (o) => JSON.stringify(o, (k, v) => (v instanceof Set ? { __set: [...v] } : v)), dec = (t) => JSON.parse(t, (k, v) => (v && v.__set ? new Set(v.__set) : v));
+let lastSaved = '', reloadState = null;
+function loadState(t) { try { const o = t ? dec(t) : null; if (o) { ui.filt = o.filt ?? {}; ui.uteis = o.uteis ?? {}; ui.vf = o.vf ?? {}; lastSaved = t; } } catch { /* ignore */ } }
+function saveState() { try { const t = enc({ filt: ui.filt, uteis: ui.uteis, vf: ui.vf }); if (t !== lastSaved) { lastSaved = t; localStorage.setItem(STATE_KEY, t); } } catch { /* no storage */ } }
+try { loadState(localStorage.getItem(STATE_KEY)); } catch { /* no storage */ }
+if (typeof document !== 'undefined') {
+  for (const ev of ['click', 'change', 'keyup']) document.addEventListener(ev, () => setTimeout(saveState, 120));
+  window.addEventListener('storage', (e) => { if (e.key === STATE_KEY && e.newValue && e.newValue !== lastSaved) { loadState(e.newValue); reloadState?.(); } });
+}
 
 export { openRecords, table as biTable, fileSafe, vis as biVis, card as biStat };
 export const setBiGroup = (g) => { if (GROUPS[g]) { ui.g = g; if (!PAGES[g].some(([id]) => id === ui.page)) ui.page = 'diaria'; ui.sel = null; ui.stack = []; } };
@@ -573,12 +583,14 @@ export async function renderBiUI(root, ctx) {
     const [a, b] = ui.sel.side === 's' ? [S, P] : [P, S]; openRecords(a[0], a[1], a[2], '', [b]); }
   slicerFills = [];
   const prune = () => { const f = pageFilter(); for (let k = 0; k < 2; k++) for (const [, sd, col] of SLICERS[ui.page] ?? []) { const set = f[sd][col]; if (!set) continue; const ok = new Set(optionsFor(cube, sd, col, f)); const keep = [...set].filter((v) => ok.has(v)); if (keep.length === set.size) continue; if (keep.length) f[sd][col] = new Set(keep); else delete f[sd][col]; } };
+  mirror(); prune(); mirror();   // a filter restored from the last visit that no longer exists in the data is dropped
   const slicers = (SLICERS[ui.page] ?? []).map(([t, sd, col]) => slicerBox(t === '@unit' ? GROUPS[ui.g].unit : t, sd, col, cube, () => { mirror(); prune(); mirror(); slicerFills.forEach((fn) => fn()); ui.sel = null; ui.stack = []; drawMain(); }));
   side.replaceChildren(...slicers);
   const toggle = el('button', { type: 'button', class: 'ghost bi-filters-toggle', onclick: () => side.classList.toggle('open') }, '☰ Filtros');
   const noteHost = el('div', { class: 'bi-notehost' });
   const noteFn = () => noteHost.replaceChildren(...(ui.sel ? [el('p', { class: 'bi-note' }, `${ui.stack.length ? `${ui.stack.length + 1} filtros por clique ativos (um dentro do outro). ` : 'Filtro por clique ativo nos outros gráficos. '}Dois cliques na mesma barra abrem os registros. `, el('button', { type: 'button', class: 'bi-more', onclick: () => { ui.sel = null; ui.stack = []; drawMain(); } }, 'Limpar clique'), ' ', el('button', { type: 'button', class: 'bi-more', onclick: openSelRecords }, 'Ver registros'))] : []));
   let built = false;
+  reloadState = () => { ui.sel = null; ui.stack = []; renderBiUI(root, ctx); };
   clearClick = () => { ui.sel = null; ui.stack = []; ui.t24.key = null; drawMain(); };
   function drawMain() {
     if (!built) { REG.length = 0; const body = el('div', { class: 'bi-main' }, noteHost, quickBar(cube, ui.page === 'paradas' ? 's' : 'p', () => { mirror(); prune(); mirror(); drawMain(); }), BUILDERS[ui.page](x)); layout.replaceChildren(side, body); built = true; }
