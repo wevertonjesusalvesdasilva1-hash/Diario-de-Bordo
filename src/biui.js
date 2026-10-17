@@ -328,9 +328,9 @@ function pageGeral(x) {
   const prodDia = () => { const gr = groupP(x.cube, x.F('v1'), ['data', 'm']); const days = [...new Set(gr.map((g) => g.vals[0]))], ms = [...new Set(gr.map((g) => g.vals[1]))].sort();
     const at = new Map(gr.map((g) => [g.vals[0] + SEP + g.vals[1], M.horasProd(g.c)]));
     return { kind: 'area', cats: days.map((d) => ({ key: d, label: ddmm(d) })), series: ms.map((m, k) => ({ name: m, color: PALETTE[k % PALETTE.length], vals: days.map((d) => at.get(d + SEP + m) ?? 0) })), height: 260, fmt: f1, onPick: x.pick('v1', 'p', ['data']), selected: x.selOf('v1') }; };
-  const disp = () => { const gr = groupP(x.cube, x.F('v3'), ['m']).map((g) => ({ g, v: M.pct(g.c) })).sort((a, b) => b.v - a.v); return { cats: gr.map(({ g, v }) => ({ key: g.vals[0], label: g.vals[0], color: corPctS(v) })), series: [{ name: 'Disponibilidade', vals: gr.map((r) => r.v), color: GREEN }], fmt: fpct, onPick: x.pick('v3', 'p', ['m']), selected: x.selOf('v3') }; };
+  const disp = () => { const gr = groupP(x.cube, x.F('v3'), ['m']).map((g) => ({ g, v: M.pct(g.c) })).sort((a, b) => b.v - a.v); return { cats: gr.map(({ g, v }) => ({ key: g.vals[0], label: g.vals[0], color: corPctS(v) })), series: [{ name: 'Disponibilidade', vals: gr.map((r) => r.v), color: GREEN }], height: 300, fmt: fpct, onPick: x.pick('v3', 'p', ['m']), selected: x.selOf('v3') }; };
   const prodPar = () => { const gr = groupP(x.cube, x.F('v4'), ['m']); return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] })), series: [{ name: 'Horas produzidas (h)', vals: gr.map((g) => M.horasProd(g.c)), color: GREEN }, { name: 'Paradas (h)', vals: gr.map((g) => M.horasParadasResumo(g.c)), color: RED }], fmt: f1, onPick: x.pick('v4', 'p', ['m']), selected: x.selOf('v4') }; };
-  const turnoMaq = () => { const gr = groupP(x.cube, x.F('v6'), ['m', 't']); const ms = [...new Set(gr.map((g) => g.vals[0]))], ts = [...new Set(gr.map((g) => g.vals[1]))].sort(); return { cats: ms.map((m) => ({ key: m, label: m })), series: ts.map((t, k) => ({ name: t ? `Turno ${t}` : 'Sem turno', color: PALETTE[k], vals: ms.map((m) => M.horasProd((gr.find((g) => g.vals[0] === m && g.vals[1] === t) ?? { c: { P: [] } }).c)) })), stacked: true, fmt: f1, onPick: x.pick('v6', 'p', ['m']), selected: x.selOf('v6') }; };
+  const turnoMaq = () => { const gr = groupP(x.cube, x.F('v6'), ['m', 't']); const ms = [...new Set(gr.map((g) => g.vals[0]))], ts = [...new Set(gr.map((g) => g.vals[1]))].sort(); return { cats: ms.map((m) => ({ key: m, label: m })), series: ts.map((t, k) => ({ name: t ? `Turno ${t}` : 'Sem turno', color: PALETTE[k], vals: ms.map((m) => M.horasProd((gr.find((g) => g.vals[0] === m && g.vals[1] === t) ?? { c: { P: [] } }).c)) })), stacked: true, height: 300, fmt: f1, onPick: x.pick('v6', 'p', ['m']), selected: x.selOf('v6') }; };
   // production + stops of each machine and day (midnight to midnight) against the 24 h line: a bar above the line is an error to fix
   let load24 = 'todos';
   const dias24 = () => { const L = dayRows(x.cube, x.F('v8'));
@@ -389,7 +389,7 @@ function pageGeral(x) {
   // per robot: what the day shift and the night shift delivered, stacked (their sum on top), against the planned (meta) marked over the bar
   // pieces made in each shift (the same number as the "produção" card above)
   const pecasTurno = () => { const gr = groupP(x.cube, x.F('v9'), ['t']).sort((a, b) => String(a.vals[0]).localeCompare(String(b.vals[0])));
-    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] ? `Turno ${g.vals[0]}` : 'Sem turno' })), series: [{ name: 'Peças', vals: gr.map((g) => M.qtdPecas(g.c)), color: GREEN }], fmt: fint, onPick: x.pick('v9', 'p', ['t']), selected: x.selOf('v9') }; };
+    return { cats: gr.map((g) => ({ key: g.vals[0], label: g.vals[0] ? `Turno ${g.vals[0]}` : 'Sem turno' })), series: [{ name: 'Peças', vals: gr.map((g) => M.qtdPecas(g.c)), color: GREEN }], height: 300, fmt: fint, onPick: x.pick('v9', 'p', ['t']), selected: x.selOf('v9') }; };
   let metaPct = false, metaBy = 'dia';
   const metaTurno = () => { const f = x.F('t1'), col = metaBy === 'dia' ? 'data' : 'm', ms = groupP(x.cube, f, [col]).slice().sort((a, b) => (metaBy === 'dia' ? String(a.vals[0]).localeCompare(String(b.vals[0])) : M.pct(b.c) - M.pct(a.c))), by = groupP(x.cube, f, [col, 't']);
     const lab = (v) => (metaBy === 'dia' ? ddmm(v) : v);
@@ -408,9 +408,9 @@ function pageGeral(x) {
   const pctBtn = el('button', { type: 'button', class: 'vf-btn', 'aria-pressed': 'false', onclick: () => { metaPct = !metaPct; pctBtn.textContent = metaPct ? '# Ver em horas' : '% Ver em porcentagem'; pctBtn.classList.toggle('on', metaPct); pctBtn.setAttribute('aria-pressed', String(metaPct)); pctBtn.closest('.bi-vis')?.rebuild?.(); } }, '% Ver em porcentagem');
   return [cardsRow(x, 'resumo', 'p', false, true), el('div', { class: 'bi-grid g3' },
       v24,
-      vis('DISPONIBILIDADE', () => chartBox(disp), { vid: 'v3' }), 
-      vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6' }),
-      vis('PEÇAS PRODUZIDAS POR TURNO', () => chartBox(pecasTurno), { vid: 'v9' }),
+      vis('DISPONIBILIDADE', () => chartBox(disp), { vid: 'v3', wide: true }), 
+      vis('HORAS PRODUZIDAS POR TURNO', () => chartBox(turnoMaq), { vid: 'v6', wide: true }),
+      vis('PEÇAS PRODUZIDAS POR TURNO', () => chartBox(pecasTurno), { vid: 'v9', wide: true }),
       
       vis(`META X ENTREGUE · DIA + NOITE`, () => el('div', {}, el('p', { class: 'bi-note bi-explain' }, `Cada barra soma o que foi entregue no turno do dia e no da noite (por dia ou por ${u.toLowerCase()}, na caixa ao lado); o total fica em cima, com a meta ao lado. A barra cinza ao lado é a meta: a diferença de altura entre a verde e a cinza é o que ficou para trás.`), chartBox(metaTurno)), { vid: 't1', wide: true, acts: [pctBtn, selBy] }),
       vis('TEMPO DAS PEÇAS PRODUZIDAS · peças e horas', () => el('div', { class: 'bi-scroll' }, chartBox(tempoPecas(x, 'v10'))), { vid: 'v10', wide: true }),

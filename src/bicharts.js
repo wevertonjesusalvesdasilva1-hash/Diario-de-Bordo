@@ -99,7 +99,7 @@ export function drawChart(box, full) {
   if (spec.kind === 'area') return drawArea(box, spec, avail, legend, sel);
   // vertical columns
   const nS = series.length, bwMin = spec.barW ?? 22, minStep = spec.marks?.noText ? 58 : stacked ? 34 : Math.max(34, nS * bwMin + 10);
-  const step = Math.max(minStep, Math.min(90, (avail - 100) / cats.length));
+  const step = Math.max(minStep, Math.min(spec.maxStep ?? 150, (avail - 100) / cats.length));
   const hasGroup = cats.some((c) => c.group != null);
   // groups (e.g. one day with a bar per robot) are separated by a gap and an alternating band, so no bar looks like it belongs to the next group
   const GAP = hasGroup ? 18 : 0, gapBefore = []; let gaps = 0;
