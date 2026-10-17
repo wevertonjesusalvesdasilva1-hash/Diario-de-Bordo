@@ -132,8 +132,8 @@ export function drawChart(box, full) {
     const gr = []; cats.forEach((c, i) => { const l = gr.at(-1); if (l && l.label === c.group) l.end = i; else gr.push({ label: c.group, start: i, end: i }); });
     gr.forEach((q, n) => {
       const xa = xAt(q.start) - GAP / 2, xb = xAt(q.end) + step + GAP / 2 - 1;
-      if (n % 2 === 0) svg.append(S('rect', { x: xa, y: top - 4, width: xb - xa, height: H - top - 4, rx: 6, fill: 'rgba(255,255,255,0.04)' }));
-      svg.append(S('text', { x: (xa + xb) / 2, y: H - 6, 'text-anchor': 'middle', style: 'font-size:12px;font-weight:700;fill:var(--fg, #e6e9ef)' }, clip(q.label, 12)));
+      if (n % 2 === 0) svg.append(S('rect', { x: xa, y: top - 4, width: xb - xa, height: H - top - 4, rx: 6, fill: 'rgba(127,140,155,0.12)' }));
+      svg.append(S('text', { x: (xa + xb) / 2, y: H - 6, 'text-anchor': 'middle', style: 'font-size:13px;font-weight:700;fill:var(--ink, #e6e9ef)' }, clip(q.label, 12)));
     });
   }
   cats.forEach((c, i) => {
