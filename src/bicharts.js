@@ -107,11 +107,11 @@ export function drawChart(box, full) {
   const rotAny = (step < 52 && Math.max(...cats.map((c) => String(c.label).length)) > 3) || cats.some((c) => String(c.label).length > 8), maxLab = Math.min(14, Math.max(...cats.map((c) => String(c.label).length)));
   const bottom = (rotAny ? 26 + maxLab * 6.4 * 0.58 : 34) + (hasGroup ? 16 : 0), left = Math.max(58, String(fmt(Math.max(...cats.map((_, i) => (stacked ? series.reduce((s, x) => s + (x.vals[i] || 0), 0) : Math.max(...series.map((x) => x.vals[i] || 0)))), 0) * 1.2)).length * 6.4 + 14), right = line ? 46 : 12, top = 20;
   const W = Math.max(avail, left + right + cats.length * step + gaps * GAP + GAP), H = (spec.height ?? 250) + (bottom - 46), plotH = H - top - bottom;
-  const totals = cats.map((_, i) => (stacked ? series.reduce((s, x) => s + (x.vals[i] || 0), 0) : Math.max(...series.map((x) => x.vals[i] || 0))));
+  const totals = cats.map((_, i) => Math.max(stacked ? series.reduce((s, x) => s + (x.vals[i] || 0), 0) : Math.max(...series.map((x) => x.vals[i] || 0)), spec.marks?.vals[i] || 0));
   const ref = spec.refLine;
   const rotLab = !stacked && nS > 1 && Math.min(40, (step * 0.7) / nS) < 34;   // side-by-side columns: values are written upright over each bar
   const above = !!(spec.lineAbove && line);   // the line lives in a band over the columns, so the two never overlap
-  const { max, ticks } = niceMax(Math.max(Math.max(...totals, 0) * (above ? 1.7 : rotLab ? 1.38 : 1.1), ref ? ref.value * 1.08 : 0) || 1);
+  const { max, ticks } = niceMax(Math.max(Math.max(...totals, 0) * (above ? 1.7 : spec.marks ? 1.22 : rotLab ? 1.38 : 1.1), ref ? ref.value * 1.08 : 0) || 1);
   const xAt = (i) => left + GAP / 2 + i * step + gapBefore[i] * GAP;
   const y = (v) => top + plotH - (v / max) * plotH;
   const svg = S('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img' });
@@ -154,7 +154,12 @@ export function drawChart(box, full) {
       if (v && (bw >= 22 || (cats.length <= 14 && bw >= 14)) && !(stacked && hgt < 12)) g.append(rotLab ? S('text', { x: bx + bw / 2 + 3, y: yTop - 4, 'text-anchor': 'start', transform: `rotate(-90 ${bx + bw / 2 + 3} ${yTop - 4})`, style: 'font-size:10px' }, fmt(v)) : S('text', { x: bx + bw / 2, y: stacked ? yTop + hgt / 2 : yTop - 3, 'text-anchor': 'middle', 'dominant-baseline': stacked ? 'middle' : 'auto', style: 'font-size:10px' }, fmt(v)));
       if (stacked) acc += v;
     });
-    if (stacked && nS > 1 && acc && (!spec.totalsOnlyAlerts || c.alert)) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:11px${c.alert ? ';fill:#fb7185' : ''}` }, (c.alert ? '⚠ ' : '') + fmt(acc)));   // total of the stack on top
+    if (spec.marks) {   // planned value of each bar: a dashed tick over it, and the real total + planned above, as in "51,4 de 88,8 h"
+      const mk = spec.marks, mv = mk.vals[i] || 0, yb = Math.min(y(mv), y(acc)) - 6;
+      g.append(S('line', { x1: x0 + (step - bw) / 2 - 8, x2: x0 + (step + bw) / 2 + 8, y1: y(mv), y2: y(mv), stroke: mk.color ?? '#e2e8f0', 'stroke-width': 2, 'stroke-dasharray': '5 3' }),
+        S('text', { x: x0 + step / 2, y: yb - 13, 'text-anchor': 'middle', style: 'font-weight:700;font-size:12px' }, fmt(acc)),
+        S('text', { x: x0 + step / 2, y: yb, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, `meta ${fmt(mv)}`));
+    } else if (stacked && nS > 1 && acc && (!spec.totalsOnlyAlerts || c.alert)) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:11px${c.alert ? ';fill:#fb7185' : ''}` }, (c.alert ? '⚠ ' : '') + fmt(acc)));   // total of the stack on top
     const lab = clip(c.label, 14), rot = rotAny;
     g.append(S('text', rot ? { x: x0 + step / 2, y: H - bottom + 12, 'text-anchor': 'end', transform: `rotate(-35 ${x0 + step / 2} ${H - bottom + 12})`, class: 'mut' } : { x: x0 + step / 2, y: H - bottom + 14, 'text-anchor': 'middle', class: 'mut' }, lab));
     svg.append(g);
