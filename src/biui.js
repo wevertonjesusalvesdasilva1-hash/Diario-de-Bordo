@@ -350,8 +350,9 @@ function pageGeral(x) {
     const of = (m, t) => { const e = by.find((q) => q.vals[0] === m && String(q.vals[1]) === t); return e ? M.horasProd(e.c) : 0; };
     const dia = ms.map((g) => of(g.vals[0], '1')), noite = ms.map((g) => of(g.vals[0], '2')), meta = ms.map((g) => M.target(g.c)), outro = ms.map((g, i) => Math.max(0, M.horasProd(g.c) - dia[i] - noite[i]));
     const tot = ms.map((g, i) => dia[i] + noite[i] + outro[i]);
-    return { cats: ms.map((g) => ({ key: g.vals[0], label: g.vals[0] })), stacked: true, height: 320, fmt: f1, marks: { name: 'Meta (h)', vals: meta, color: '#e2e8f0' },
-      series: [{ name: 'Turno do dia (h)', vals: dia, color: '#4ade80' }, { name: 'Turno da noite (h)', vals: noite, color: '#15803d' }, ...(outro.some((v) => v > 0.05) ? [{ name: 'Sem turno (h)', vals: outro, color: '#94a3b8' }] : [])],
+    const pc = (v, k) => (meta[k] ? v / meta[k] : 0), P = (arr) => arr.map((v, k) => pc(v, k));   // everything as a share of the planned (meta = 100 %)
+    return { cats: ms.map((g) => ({ key: g.vals[0], label: g.vals[0] })), stacked: true, height: 320, fmt: fpct0, marks: { name: 'Meta', vals: meta.map(() => 1), texts: meta.map((m) => `meta ${f1(m)} h`), color: '#e2e8f0' },
+      series: [{ name: 'Turno do dia', vals: P(dia), color: '#4ade80' }, { name: 'Turno da noite', vals: P(noite), color: '#15803d' }, ...(outro.some((v) => v > 0.05) ? [{ name: 'Sem turno', vals: P(outro), color: '#94a3b8' }] : [])],
       tip: (k) => `${ms[k].vals[0]} · dia ${f1(dia[k])} h + noite ${f1(noite[k])} h = ${f1(tot[k])} h de ${f1(meta[k])} h (${fpct(meta[k] ? tot[k] / meta[k] : 0)}) · ${meta[k] - tot[k] >= 0 ? `faltaram ${f1(meta[k] - tot[k])} h` : `passou ${f1(tot[k] - meta[k])} h da meta`}`,
       onPick: x.pick('t1', 'p', ['m']), selected: x.selOf('t1') }; };
   return [el('div', { class: 'bi-grid' },

@@ -158,7 +158,7 @@ export function drawChart(box, full) {
       const mk = spec.marks, mv = mk.vals[i] || 0, yb = Math.min(y(mv), y(acc)) - 6;
       g.append(S('line', { x1: x0 + (step - bw) / 2 - 8, x2: x0 + (step + bw) / 2 + 8, y1: y(mv), y2: y(mv), stroke: mk.color ?? '#e2e8f0', 'stroke-width': 2, 'stroke-dasharray': '5 3' }),
         S('text', { x: x0 + step / 2, y: yb - 13, 'text-anchor': 'middle', style: 'font-weight:700;font-size:12px' }, fmt(acc)),
-        S('text', { x: x0 + step / 2, y: yb, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, `meta ${fmt(mv)}`));
+        S('text', { x: x0 + step / 2, y: yb, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, mk.texts?.[i] ?? `meta ${fmt(mv)}`));
     } else if (stacked && nS > 1 && acc && (!spec.totalsOnlyAlerts || c.alert)) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:11px${c.alert ? ';fill:#fb7185' : ''}` }, (c.alert ? '⚠ ' : '') + fmt(acc)));   // total of the stack on top
     const lab = clip(c.label, 14), rot = rotAny;
     g.append(S('text', rot ? { x: x0 + step / 2, y: H - bottom + 12, 'text-anchor': 'end', transform: `rotate(-35 ${x0 + step / 2} ${H - bottom + 12})`, class: 'mut' } : { x: x0 + step / 2, y: H - bottom + 14, 'text-anchor': 'middle', class: 'mut' }, lab));
