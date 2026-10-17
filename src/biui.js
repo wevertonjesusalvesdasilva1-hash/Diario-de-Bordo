@@ -453,7 +453,7 @@ function pageGeral(x) {
     const pc = (v, k) => (meta[k] ? v / meta[k] : 0), P = (arr) => arr.map((v, k) => pc(v, k));   // everything as a share of the planned (meta = 100 %)
     const W = (arr) => (metaPct ? P(arr) : arr);
     return { cats: ms.map((g) => ({ key: g.vals[0], label: lab(g.vals[0]) })), stacked: true, noHl: true, height: 320, fmt: metaPct ? fpct0 : f1, marks: { name: 'Meta', vals: metaPct ? meta.map(() => 1) : meta, noText: metaBy === 'dia', color: '#e2e8f0' },
-      series: [{ name: 'Turno do dia', vals: W(dia), color: '#86efac' }, { name: 'Turno da noite', vals: W(noite), color: '#14532d' }, ...(outro.some((v) => v > 0.05) ? [{ name: 'Sem turno', vals: W(outro), color: '#94a3b8' }] : [])],
+      series: [{ name: 'Turno do dia', vals: W(dia), color: '#4ade80' }, { name: 'Turno da noite', vals: W(noite), color: '#14532d' }, ...(outro.some((v) => v > 0.05) ? [{ name: 'Sem turno', vals: W(outro), color: '#94a3b8' }] : [])],
       tip: (k) => `${metaBy === 'dia' ? dmy(ms[k].vals[0]) : ms[k].vals[0]} · dia ${f1(dia[k])} h + noite ${f1(noite[k])} h = ${f1(tot[k])} h de ${f1(meta[k])} h (${fpct(meta[k] ? tot[k] / meta[k] : 0)}) · ${meta[k] - tot[k] >= 0 ? `faltaram ${f1(meta[k] - tot[k])} h` : `passou ${f1(tot[k] - meta[k])} h da meta`}`,
       onPick: (key, ev) => { const seg = ev?.target?.closest?.('[data-seg]')?.dataset.seg, t = seg === 'Turno do dia' ? '1' : seg === 'Turno da noite' ? '2' : null;   // a click on the light or dark part picks that shift of the day
         if (t) x.pick('t1', 'p', [col, 't'])(key + SEP + t, ev); else x.pick('t1', 'p', [col])(key, ev); },

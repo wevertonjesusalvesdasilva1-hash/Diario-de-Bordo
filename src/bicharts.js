@@ -140,7 +140,7 @@ export function drawChart(box, full) {
   cats.forEach((c, i) => {
     const x0 = xAt(i), bw = spec.marks ? step * 0.34 : stacked ? step * 0.62 : Math.min(40, (step * 0.7) / nS);
     const g = S('g', pickAttrs(c), S('title', {}, `${c.group ? c.group + ' · ' : ''}${c.label}\n${series.map((s) => `${s.name}: ${fmt(s.vals[i])}`).join('\n')}${line ? `\n${line.name}: ${(line.fmt ?? String)(line.vals[i])}` : ''}${tip ? '\n' + tip(i) : ''}`));
-    if (spec.marks) { const mv = spec.marks.vals[i] || 0; if (mv > 0) g.append(S('rect', { x: x0 + step / 2 + 2, y: y(mv), width: bw, height: Math.max(0, y(0) - y(mv)), rx: 4, fill: 'rgba(148,163,184,0.55)', stroke: 'rgba(203,213,225,0.8)', 'stroke-width': 1 })); }   // the planned (meta) as a bar beside the real one
+    if (spec.marks) { const mv = spec.marks.vals[i] || 0; if (mv > 0) g.append(S('rect', { x: x0 + step / 2 + 2, y: y(mv), width: bw, height: Math.max(0, y(0) - y(mv)), rx: 4, fill: 'rgba(148,163,184,0.45)', stroke: 'rgba(100,116,139,0.9)', 'stroke-width': 1 })); }   // the planned (meta) as a bar beside the real one
     let acc = 0;
     series.forEach((s, k) => {
       const v = s.vals[i] || 0, bx = spec.marks ? x0 + step / 2 - bw - 2 : stacked ? x0 + (step - bw) / 2 : x0 + (step - bw * nS) / 2 + k * bw;
@@ -159,7 +159,7 @@ export function drawChart(box, full) {
     if (spec.marks) {   // real total on top of the stack, planned on top of the bar beside it
       const mk = spec.marks, mv = mk.vals[i] || 0, cs = x0 + step / 2 - bw / 2 - 2, cm = x0 + step / 2 + bw / 2 + 2;
       if (series.length) g.append(S('text', { x: cs, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:${mk.noText ? 11 : 12}px` }, fmt(acc)));
-      if (mk.noText) { if (y(0) - y(mv) > 34) g.append(S('text', { x: cm + 3, y: y(mv) + 7, 'text-anchor': 'end', transform: `rotate(-90 ${cm + 3} ${y(mv) + 7})`, style: 'font-size:10px;fill:#e2e8f0;font-weight:600' }, mk.texts?.[i] ?? fmt(mv))); }   // day by day: the planned value runs up inside its bar, so labels never touch
+      if (mk.noText) { if (y(0) - y(mv) > 34) g.append(S('text', { x: cm + 3, y: y(mv) + 7, 'text-anchor': 'end', transform: `rotate(-90 ${cm + 3} ${y(mv) + 7})`, style: 'font-size:10px;fill:var(--ink, #e2e8f0);font-weight:700' }, mk.texts?.[i] ?? fmt(mv))); }   // day by day: the planned value runs up inside its bar, so labels never touch
       else g.append(S('text', { x: cm, y: y(mv) - 6, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, mk.texts?.[i] ?? fmt(mv)));
       if (!mk.noText) g.append(S('text', { x: cm, y: y(mv) - 17, 'text-anchor': 'middle', class: 'mut', style: 'font-size:10px' }, 'meta'));
     } else if (stacked && nS > 1 && acc && (!spec.totalsOnlyAlerts || c.alert)) g.append(S('text', { x: x0 + step / 2, y: y(acc) - 6, 'text-anchor': 'middle', style: `font-weight:700;font-size:11px${c.alert ? ';fill:#fb7185' : ''}` }, (c.alert ? '⚠ ' : '') + fmt(acc)));   // total of the stack on top
