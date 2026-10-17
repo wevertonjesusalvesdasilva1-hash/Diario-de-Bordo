@@ -11,9 +11,9 @@ const BODY = '"IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif'
 const HOURS = Array.from({ length: 24 }, (_, i) => (i + 4) % 24);
 
 const THEMES = {
-  dark: { bg: '#0b0b12', card: '#16161f', card2: '#1d1d29', ink: '#f2f2f7', muted: '#9d9db3', line: 'rgba(255,255,255,.10)', v: '#8b5cf6', v2: '#c4b5fd', empty: 'rgba(255,255,255,.10)', good: '#7ee34f', bad: '#ff7a5c',
+  dark: { bg: '#0b0b12', card: '#16161f', card2: '#1d1d29', ink: '#f2f2f7', muted: '#9d9db3', line: 'rgba(255,255,255,.10)', v: '#4d8dff', v2: '#a9c8ff', empty: 'rgba(255,255,255,.10)', good: '#7ee34f', bad: '#ff7a5c',
     m: ['#f2b84b', '#ffd93d', '#6bcb77', '#ff6b6b', '#4d96ff', '#c77dff', '#ff9f45', '#2ee6c8', '#9aa5b1', '#ff7ab6', '#d4d4d8'] },
-  light: { bg: '#ffffff', card: '#f4f3fb', card2: '#ebe9f7', ink: '#15141c', muted: '#66657a', line: 'rgba(0,0,0,.12)', v: '#6d28d9', v2: '#8b5cf6', empty: 'rgba(0,0,0,.09)', good: '#2e7d1a', bad: '#c0392b',
+  light: { bg: '#ffffff', card: '#f4f3fb', card2: '#ebe9f7', ink: '#15141c', muted: '#66657a', line: 'rgba(0,0,0,.12)', v: '#0b4fc4', v2: '#3d7bef', empty: 'rgba(0,0,0,.09)', good: '#2e7d1a', bad: '#c0392b',
     m: ['#b9770e', '#a08500', '#2e8b3f', '#c93c3c', '#1f6fd1', '#8a3fc4', '#c4600e', '#078a80', '#6b7683', '#c43b84', '#52525b'] },
 };
 const motColor = (T, name) => { const i = MOTIVOS_ALL.indexOf(name); return i >= 0 ? T.m[i % T.m.length] : T.muted; };
@@ -47,7 +47,7 @@ function frame(c, T, title, sub, n, total) {
   const g = c.createLinearGradient(0, 0, W, 0); g.addColorStop(0, T.v); g.addColorStop(1, 'transparent'); c.fillStyle = g; c.fillRect(0, 0, W, 8);
   txt(c, title, M, 112, { size: 52, weight: 700, color: T.ink, font: FONT });
   if (sub) txt(c, sub, M, 158, { size: 26, color: T.muted });
-  txt(c, 'Maple Tapping · Diário de Bordo', M, H - 40, { size: 22, color: T.muted });
+  txt(c, 'Komatsu · Diário de Bordo RAW / Usinagem', M, H - 40, { size: 22, color: T.muted });
   txt(c, `${n} / ${total}`, W - M, H - 40, { size: 22, color: T.muted, align: 'right' });
 }
 function card(c, T, x, y, w, h) { rr(c, x, y, w, h, 28); c.fillStyle = T.card; c.fill(); }
@@ -68,7 +68,7 @@ function slides(P, opt, T) {
     txt(c, scope || 'Todas as máquinas · todos os dias', M + 24, 548, { size: 40, color: T.v2 });
     txt(c, `${opt.sheets ?? ''} folha${opt.sheets === 1 ? '' : 's'} lida${opt.sheets === 1 ? '' : 's'} · ${P.count} parada${P.count === 1 ? '' : 's'} · ${fmtDur(P.stopMin)} parado`, M + 24, 612, { size: 32, color: T.muted });
     txt(c, `Gerado em ${new Date().toLocaleString('pt-BR', { dateStyle: 'long', timeStyle: 'short' })}`, M + 24, H - 90, { size: 26, color: T.muted });
-    txt(c, 'Maple Tapping · Diário de Bordo', M + 24, H - 52, { size: 26, color: T.muted });
+    txt(c, 'Komatsu · Diário de Bordo RAW / Usinagem', M + 24, H - 52, { size: 26, color: T.muted });
   });
 
   // 2. indicators + gauge
@@ -250,7 +250,7 @@ export async function exportPanelExcel(P, opt, theme) {
   const ExcelJS = (await import('exceljs/dist/exceljs.min.js')).default;
   const T = THEMES[theme] ?? THEMES.dark, hex = (s) => s.replace('#', '').slice(0, 6).toUpperCase();
   const who = opt.who ?? ((x) => x);
-  const wb = new ExcelJS.Workbook(); wb.creator = 'Maple Tapping'; wb.created = new Date();
+  const wb = new ExcelJS.Workbook(); wb.creator = 'Diário de Bordo RAW / Usinagem'; wb.created = new Date();
   const fill = (color) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${hex(color)}` } });
   const bg = theme === 'light' ? 'FFFFFF' : '0B0B12', cardC = theme === 'light' ? 'F4F3FB' : '16161F', inkC = hex(T.ink), vC = hex(T.v);
 
@@ -290,7 +290,7 @@ export async function exportPanelExcel(P, opt, theme) {
   const sum = sheet('Resumo', ['Indicador', 'Valor', 'Observação'], [
     ['Tempo parado', fmtDur(P.stopMin), `${P.pct} % do tempo registrado`], ['Tempo produzindo', fmtDur(P.prodMin), `${P.prodPct} % do tempo registrado`], ['Paradas (registros)', P.count, ''],
     ['Maior parada', P.longest ? fmtDur(P.longest.min) : '—', P.longest ? `${P.longest.machine} · ${P.longest.motivo}` : ''], ['Filtro', opt.groupLabel || 'Todas as máquinas', opt.dayLabel || 'Todos os dias'],
-    ['Gerado em', new Date().toLocaleString('pt-BR'), 'Maple Tapping · Diário de Bordo']], [26, 22, 44]);
+    ['Gerado em', new Date().toLocaleString('pt-BR'), 'Komatsu · Diário de Bordo RAW / Usinagem']], [26, 22, 44]);
   sum.getColumn(2).alignment = { horizontal: 'left' };
   const mot = sheet('Por motivo', ['Motivo', 'Tempo parado (min)', 'Tempo', '% do parado', 'Vezes'], P.byMotivo.map((x) => [x.motivo, x.min, fmtDur(x.min), pct(x.min), x.count]), [30, 20, 12, 14, 10], { bars: ['B'], chart: { type: 'doughnut', title: 'Tempo parado por motivo', seriesName: 'Tempo parado (min)', colors: P.byMotivo.map((x) => motColor(T, x.motivo)) } });
   mot.getColumn(4).numFmt = '0.0%';

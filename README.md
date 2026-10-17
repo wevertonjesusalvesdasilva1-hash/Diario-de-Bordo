@@ -1,4 +1,4 @@
-# Maple Tapping · Diário de Bordo
+# Komatsu · Diário de Bordo RAW / Usinagem
 
 Lê a folha manuscrita **"DIÁRIO DE BORDO – PRODUÇÃO E PARADAS"** (PDF ou foto), entrega as linhas no formato da
 planilha de controle de paradas (abas **PRODUÇÃO** e **PARADAS**) e mostra, em cards claros, onde a folha se contradiz,

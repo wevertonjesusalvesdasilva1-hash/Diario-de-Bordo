@@ -1,4 +1,4 @@
-# CLAUDE.md — guia técnico do Maple Tapping
+# CLAUDE.md — guia técnico do Diário de Bordo RAW / Usinagem
 
 Leia `PRODUTO.md` antes de mudar comportamento. Este arquivo diz **como** mexer no código sem quebrar nada.
 

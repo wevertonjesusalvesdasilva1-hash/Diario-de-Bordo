@@ -1587,7 +1587,7 @@ $('savelists').addEventListener('click', () => {
 });
 $('resetlists').addEventListener('click', () => { resetLists(listGroupSel()); fillLists(); toast('Listas restauradas ao padrão'); });
 
-document.title = 'Maple Tapping';
+document.title = 'Komatsu · Diário de Bordo RAW / Usinagem';
 
 // ---------------------------------------------------------------- theme (claro / escuro)
 const currentTheme = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');

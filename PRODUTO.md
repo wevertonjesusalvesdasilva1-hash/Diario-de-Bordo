@@ -1,6 +1,6 @@
-# Maple Tapping — Produto
+# Diário de Bordo RAW / Usinagem — Produto
 
-Documento de produto do **Maple Tapping** (Diário de Bordo digital): o que é, para quem, como funciona, o que já existe e o que vem depois.
+Documento de produto do **Diário de Bordo RAW / Usinagem** (Diário de Bordo digital): o que é, para quem, como funciona, o que já existe e o que vem depois.
 
 ## Em uma frase
 

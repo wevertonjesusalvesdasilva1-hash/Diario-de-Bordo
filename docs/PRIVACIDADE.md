@@ -1,6 +1,6 @@
 # Privacidade e proteção de dados (LGPD)
 
-Este documento explica, em linguagem simples, quais dados o Maple Tapping trata, para onde eles vão e onde ficam.
+Este documento explica, em linguagem simples, quais dados o Diário de Bordo RAW / Usinagem trata, para onde eles vão e onde ficam.
 Ele **documenta** o funcionamento do app; não substitui a avaliação do jurídico ou do encarregado de dados (DPO) da empresa.
 
 ## Que dados aparecem nas folhas
